@@ -2169,3 +2169,78 @@ TT : plafond ~1 %, le 4‑voies régresse de 3 %). Avec, par ailleurs :
 le constat **« on ne peut plus améliorer sensiblement les performances »** est
 **établi**. ⇒ Condition de départ de **BabaChess remplie** (§49) : le fork peut
 être créé (`~/BabaChess`, mention d'origine AdaChess, GPL + parts C MIT).
+
+## 50. Audit externe (Oracle) et correctifs de recherche — gain confirmé
+
+Un audit externe du moteur BabaChess (analyse multi-agents + revue Oracle) a
+relevé une série de défauts de correction et de robustesse, ensuite validés
+individuellement puis en lot. Les correctifs ont été appliqués dans le commit
+`98c48ee` (moteur) et `78353cb` (README) ; ils ne touchent **ni** le générateur
+de coups **ni** les perft.
+
+### 50.1 Correctifs retenus (commit `98c48ee`)
+
+- **Répétition vers la position racine** (`bbchess-search.adb`) : la détection
+  scannait les plies `1 .. Ply-1` et comptait la racine dans l'historique de
+  partie (`G = 1`), jamais `≥ 2` : une ligne revenant à la racine n'était pas
+  vue comme nulle. `Search_Path (0)` est désormais écrit au départ de
+  `Iterative_Search` et la borne basse passe à `0`. Corrige aussi une **lecture
+  hors bornes** latente (`Ply > Max_Ply` sous extensions d'échec) via la borne
+  `Natural'Min (Ply - 1, Max_Ply)`.
+- **Garde-fou null-move** : interdiction de deux null-moves consécutifs
+  (atteignable dès `Depth ≥ 9`), via `Prev /= Empty_Move` (le bloc null remet
+  déjà le slot `Move_Path (Ply)` à vide).
+- **Course TT (Lazy SMP)** : la sonde **copie l'entrée puis teste la clé sur la
+  copie** (au lieu de tester la clé du slot vivant avant la copie), ce qui
+  empêche une écriture concurrente de faire utiliser la charge utile d'une autre
+  clé. Le commentaire de `Store` (« clé écrite en dernier ») est corrigé : il
+  surestimait la protection. La fermeture complète (fenêtre ABA) demanderait un
+  schéma « key xor data » ou un compteur de version (non fait ici).
+- **Interblocage des workers** (`task body Searcher`) : un handler `when
+  others =>` garantit que `Done.Signal` est toujours atteint ; sans lui, une
+  exception inattendue laissait `Done.Wait_All` bloqué à vie.
+- **Handler d'exception du `UCI_Search_Task`** (`babachess.adb`) : libère
+  `UCI_Busy` et répond `bestmove 0000`, évitant une GUI figée et un
+  `Tasking_Error` au `go` suivant.
+- **Double `bestmove`** : le chemin livre est sauté si une recherche tourne
+  (`not UCI_Busy.Busy`), au lieu d'imprimer un `bestmove` de livre pendant que
+  l'ancienne recherche imprime le sien.
+- **Mat vs règle des 50 coups** : au 100ᵉ demi-coup, le nul n'est pris qu'après
+  vérification de l'absence de mat (le camp au trait en échec sans coup légal
+  vaut `-(Mate_Score - Ply)`). Le test de nul reste **avant** la sonde TT (la clé
+  Zobrist ne porte pas le compteur de demi-coups).
+- **`go nodes` multi-thread** : plafond divisé par le nombre de workers
+  (snapshot), pour ~N nœuds au total.
+- **FEN** (`bbchess-fen.adb`) : rejet d'un `/` interne, d'un rang qui ne fait
+  pas exactement 8 cases, d'un séparateur manquant et de tout contenu après le
+  8ᵉ rang. **Faux positifs écartés** : l'accès hors bornes annoncé n'était pas
+  possible (la boucle ne pose une pièce que si `File ≤ 7`).
+- **Commentaire Syzygy** rectifié (`rule50` forcé à 0, case ep transmise).
+
+### 50.2 Validation
+
+- `--bench 9` = **496 570 nœuds**, identique à la référence : l'arbre
+  mono-thread est préservé (les correctifs n'agissent que sur le multi-thread et
+  sur les cas limites).
+- `--selftest` vert en `release`, `portable` et `debug` (0 avertissement en
+  debug).
+- **SPRT long** (1+0,1 ; bornes 0..5 ; 2000 parties max ; seed 7 ; binaire
+  pré-patch `7f4f32e` en OLD) : **NEW 521 – OLD 405 – 915 nulle (53,2 %)**,
+  **+21,9 ± 11,2 Elo**, LOS 100 %, LLR 2,95 ≥ ubound 2,94 ⇒ **PASS**.
+  Le patch est **non régressif et plus fort** (le gain vient surtout de la
+  répétition racine, de la priorité mat et de l'interdiction du double
+  null-move).
+
+### 50.3 Restant (audit externe, non traité)
+
+- Compteurs de nœuds en 32 bits (`Natural`) : dépassement silencieux sous
+  `-gnatp` au-delà de 2³¹ nœuds, avec perte du `stop`/budget temps.
+- TT « key xor data » (fermeture complète de la course ABA).
+- Sortie UCI `info` (depth/score/pv/nodes) — absente.
+- SEE : reprise par le roi sur une case encore défendue (rayons X) comptée à
+  tort comme légale → captures gagnantes élaguées. **Bug reproduit**, en cours
+  de traitement (§51).
+- Discontinuité de `King_Safety` au seuil `Phase = 20` — **bloqué par le
+  moratoire** de §17 (deux refontes déjà régressives).
+- En-tête `bbchess-attacks.ads` parlant de « fancy magic » alors que
+  l'implémentation est PEXT/BMI2.

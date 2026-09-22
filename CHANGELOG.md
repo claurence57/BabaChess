@@ -8,6 +8,31 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Correctifs d'audit externe — recherche / FEN / UCI (`98c48ee`)
+
+Audit Oracle du moteur BabaChess. Correctifs de correction et de robustesse,
+dont plusieurs gains de qualité de recherche ; perft et générateur de coups
+intacts. Détail : `DEVELOPMENT.md` §50.
+
+- **Répétition vers la racine** : une ligne revenant à la position racine est
+  désormais vue comme nulle (`Search_Path (0)` écrit au départ de la recherche) ;
+  borne du scan `≤ Max_Ply` (plus de lecture hors bornes sous extensions d'échec).
+- **Null-move** : interdiction de deux null-moves consécutifs.
+- **TT (Lazy SMP)** : copie de l'entrée puis test de la clé **sur la copie** (une
+  écriture concurrente ne peut plus faire utiliser la charge utile d'une autre clé).
+- **Robustesse tâches** : `Searcher` et `UCI_Search_Task` ne peuvent plus mourir
+  sans libérer le barrier / `UCI_Busy` (fin de l'interblocage possible et de la GUI
+  figée).
+- **UCI** : plus de double `bestmove` (livre sauté si une recherche tourne);
+  `position fen` invalide ne réapplique plus les `moves` sur la position précédente.
+- **Mat vs 50 coups** : un mat au 100ᵉ demi-coup n'est plus noté comme nulle.
+- **`go nodes` multi-thread** : ~N nœuds au total (plafond réparti entre workers).
+- **FEN** : validation stricte des rangs (8 cases exactement, séparateurs, pas de
+  9ᵉ rang).
+- **Validation** : `--bench 9` = 496 570 nœuds (arbre mono-thread identique),
+  `--selftest` vert ; **SPRT long 1818 parties : NEW 53,2 %, +21,9 ± 11,2 Elo,
+  PASS**.
+
 ### Solidité / propreté / performance (chantier P0-P7)
 
 - **P0** `bbchess-bits.c` **conservé** (le `bb_pext` sert au build *portable*) : seules
