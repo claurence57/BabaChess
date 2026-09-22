@@ -4,7 +4,7 @@ Ce document décrit les composants d'BabaChess liés aux finales : les
 **tablebases Syzygy** de `BBChess.Syzygy` (bindings sur la bibliothèque C
 **Fathom**), l'**évaluation statique des échanges** (SEE) de `BBChess.See`, et
 le **scaling d'évaluation par phase** de `BBChess.Eval`. Il explique les
-principes retenus, pas chaque fonction. BB est le moteur bitboard (`src_bb/`) ;
+principes retenus, pas chaque fonction. BB est le moteur bitboard (`src/`) ;
 MB (`src/`) ne sert ici que de référence.
 
 ## 1. Pourquoi des tablebases
@@ -32,7 +32,7 @@ des nulles, approximation prudente et non jeu parfait.
 ### 2.1 Le binding Ada
 
 `BBChess.Syzygy` est une couche mince au-dessus du wrapper C
-`src_bb/fathom/bbchess-tbwrap.c`, lui-même au-dessus de Fathom. Le wrapper
+`src/fathom/bbchess-tbwrap.c`, lui-même au-dessus de Fathom. Le wrapper
 expose quatre symboles plats : `bb_tb_init`, `bb_tb_free`, `bb_tb_largest` et
 `bb_tb_wdl` (la sonde, appelée avec un bitboard par type de pièce). L'API Ada
 tient en cinq sous-programmes : `Init (Path, Ok)`, `Free`, `Largest`, `Enabled`
@@ -246,5 +246,5 @@ L'**évaluation** interpole ouverture et finale par phase.
 - Fathom (Jon Dart), sondage Syzygy (MIT) :
   <https://github.com/jdart1/Fathom>
 - Journal interne : `DEVELOPMENT.md` § 14 (tablebases) et § 5.2 (*tapered*).
-- Sources : `src_bb/bbchess-syzygy.*`, `src_bb/bbchess-see.*`,
-  `src_bb/bbchess-eval.adb`, `src_bb/fathom/`.
+- Sources : `src/bbchess-syzygy.*`, `src/bbchess-see.*`,
+  `src/bbchess-eval.adb`, `src/fathom/`.

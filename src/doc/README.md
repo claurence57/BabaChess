@@ -1,15 +1,15 @@
 # BabaChess : documentation du moteur
 
 BabaChess (BB) est un moteur d'échecs écrit de zéro en **Ada 2012**, à
-représentation **bitboard**. Il vit dans `src_bb/` et se construit par le projet
-`babachess.gpr` vers l'exécutable `bin_bb/babachess`. Son jumeau **MB**
-(mailbox, sources `src/`, projet `adachess.gpr`) reste dans le même dépôt mais
-n'est jamais modifié par BB : il sert d'oracle perft et d'adversaire de
-référence. La journalisation d'ingénierie fait foi dans `DEVELOPMENT.md` (racine,
-en français) ; `CHANGELOG.md` couvre les versions de BB.
+représentation **bitboard**. Il vit dans `src/` et se construit par le projet
+`babachess.gpr` vers l'exécutable `bin_bb/babachess`. Le moteur **mailbox**
+d'AdaChess (dit **MB**) a été **retiré** du dépôt au moment du fork : ses
+valeurs de perft servent toujours de référence de validation. La journalisation
+d'ingénierie fait foi dans `DEVELOPMENT.md` (racine, en français, historique) ;
+`CHANGELOG.md` couvre les versions du moteur.
 
 > **Développement assisté par IA.** Toutes les modifications apportées au projet
-> depuis le fork initial (moteurs MB et BB, scripts, tests et documentation
+> depuis le fork initial (moteur, scripts, tests et documentation
 > incluse) ont été réalisées **avec l'aide d'agents IA** ; **aucun développement
 > n'a été fait manuellement**. Modèle principal : **DeepSeek V4.1 Flash** ;
 > corrections et compléments apportés par des **prompts générés avec Claude** et
@@ -183,7 +183,7 @@ binaire `release` sans `rm -rf obj_bb`.
   alpha-bêta, table de transposition et Lazy SMP (`BBChess.Movegen`,
   `BBChess.Moves`, `BBChess.See`, `BBChess.Search`).
 - [finales.md](finales.md) : tablebases Syzygy via Fathom, sondage WDL
-  (`BBChess.Syzygy`, `src_bb/fathom/`).
+  (`BBChess.Syzygy`, `src/fathom/`).
 - [ouvertures.md](ouvertures.md) : livre d'ouvertures Polyglot, clé compatible
   et sondage pondéré (`BBChess.Polyglot`).
 - [outils-et-tests.md](outils-et-tests.md) : `--selftest`, perft, `--bench`,

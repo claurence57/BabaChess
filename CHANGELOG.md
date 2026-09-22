@@ -1,5 +1,11 @@
 # Changelog — AdaChess-BB
 
+> **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
+> The entries below are the **historical** changelog inherited from AdaChess, and
+> keep the pre-fork names they were written with (`src_bb/`, `adachess_bb.gpr`,
+> `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
+> engine builds as `babachess.gpr` → `bin_bb/babachess`; see `NOTICE.md`.
+
 ## Non publié (développement post bb-1.0)
 
 ### Solidité / propreté / performance (chantier P0-P7)

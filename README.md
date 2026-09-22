@@ -1,12 +1,11 @@
 # BabaChess
 
 > **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
-> It is derived from AdaChess's **bitboard** engine ("BB", sources `src_bb/`,
+> It is derived from AdaChess's **bitboard** engine ("BB", sources `src/`,
 > packages `BBChess.*`), which was written from scratch in Ada during the
 > AdaChess project. BabaChess is now an **independent project** and the sole
-> development target. AdaChess's original **mailbox** engine is still present in
-> the tree (`src/`, project `adachess.gpr`) but only as a **legacy perft oracle**;
-> it is not developed or changed.
+> development target. AdaChess's original **mailbox** engine has been **removed**
+> from this repository.
 >
 > See `NOTICE.md` for the full provenance and licence details.
 
@@ -50,7 +49,7 @@ gprbuild -P babachess.gpr -XMode=debug      # -> bin_bb/babachess  (assertions +
 - `debug` enables the Ada assertions and all warnings, and is the only mode that
   carries them.
 
-See `src_bb/doc/build-and-cpu.md` for the exact compiler switches and the CPU
+See `src/doc/build-and-cpu.md` for the exact compiler switches and the CPU
 optimization history.
 
 ## Testing
@@ -74,9 +73,9 @@ options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
 
 **GPL-3.0-or-later** (see `LICENSE`), inherited from AdaChess.
 
-Exception: the **C** components reused from Fathom (`src_bb/fathom/`, the Syzygy
+Exception: the **C** components reused from Fathom (`src/fathom/`, the Syzygy
 tablebase probe, and its bundled `stdendian.h`) are under the **MIT** licence —
-see `src_bb/fathom/LICENSE`. Details in `NOTICE.md`.
+see `src/fathom/LICENSE`. Details in `NOTICE.md`.
 
 ## Credits
 

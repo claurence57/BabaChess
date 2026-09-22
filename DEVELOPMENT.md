@@ -1,5 +1,12 @@
 # Notes de développement — AdaChess / AdaChess-BB
 
+> **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
+> Ce journal est **historique** et conserve les noms d'avant le fork
+> (`src_bb/`, `adachess_bb.gpr`, `bin_bb/adachess_bb`, moteur **MB** dans `src/`).
+> Dans BabaChess, les sources vivent désormais dans `src/` (ex-`src_bb/`), le
+> moteur se construit en `babachess.gpr` → `bin_bb/babachess`, et le moteur
+> **MB** a été retiré. Voir `NOTICE.md`.
+
 Ce document résume le parcours du projet : les améliorations apportées au moteur
 **AdaChess** (mailbox, dit **MB**), la création du moteur **AdaChess-BB** (bitboard,
 dit **BB**), les différences entre les deux, et l'état des améliorations jusqu'ici.

@@ -6,7 +6,7 @@ bitboard engine. BabaChess is now the **sole development target**.
 
 | | BabaChess |
 |---|---|
-| Sources | `src_bb/` (packages `BBChess.*` + C shim `bbchess-bits.c`) |
+| Sources | `src/` (packages `BBChess.*` + C shim `bbchess-bits.c`) |
 | Project file | `babachess.gpr` |
 | Binary | `bin_bb/babachess` |
 | Role | **Active development target** |
@@ -17,10 +17,6 @@ inherited from AdaChess and still referring to the pre-fork names
 `babachess.gpr` / `bin_bb/babachess`. `CHANGELOG.md` and
 `CHANGELOG_TECHNIQUE.md` cover the engine. `README.md` describes BabaChess;
 `NOTICE.md` records provenance and licensing.
-
-> **Legacy in-tree, not the target:** the original AdaChess **mailbox** engine is
-> still present (`src/` packages `Chess.*`, project `adachess.gpr`) and kept only
-> as a **perft oracle / reference opponent**. It is not developed or changed.
 
 ## Build
 
@@ -54,8 +50,8 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin_bb/babachess
   (perft counts must not change) and keep evaluation symmetric.
 - Symmetry is tested on `Static`: startpos = 0 and mirror ⇒ `-Static`.
   `Evaluate` itself is not antisymmetric because it adds a tempo bonus.
-- The legacy MB engine has no equivalent self-test command; the engine's perft is
-  validated against it and against known perft values.
+- The engine's perft is validated against known perft values and was cross-checked
+  against AdaChess's mailbox engine before the fork.
 
 ## Benchmarking / matches (needs `cutechess-cli`)
 
@@ -98,8 +94,7 @@ The XBoard search path is synchronous.
 ## Conventions & gotchas
 
 - Ada unit ↔ file name: `BBChess.Search.PV` → `bbchess-search-pv.adb`;
-  `Chess.Engine` → `chess-engine.adb`. BB uses the `bbchess-*` prefix, MB
-  `chess-*`.
+  `BBChess.See` → `bbchess-see.adb`.
 - Generated/ignored (never commit): `obj/`, `obj_bb/`, `bin_bb/`, `babachess`,
   `adachess`, `*.o`, `*.ali`, `*.pgn`, `*.txt`.
 - `scripts/tune.py` (Texel tuner) requires `python-chess`; `scripts/gen_dataset.py`
@@ -110,7 +105,7 @@ The XBoard search path is synchronous.
   `scripts/fetch_book.sh` → `books/book.bin` (gitignored). Override with
   `--book <file>` or UCI `setoption name BookFile value <path>`. Polyglot keys
   are cross-checked in `--selftest`.
-- Endgame tablebases: Syzygy via **vendored Fathom** (`src_bb/fathom/`, **MIT** —
+- Endgame tablebases: Syzygy via **vendored Fathom** (`src/fathom/`, **MIT** —
   see `NOTICE.md`). Enable with `--syzygy <dir>` or UCI `SyzygyPath`; inert
   without `.rtbw`/`.rtbz` files. WDL is probed in the search (no castling
   rights); no DTZ yet.

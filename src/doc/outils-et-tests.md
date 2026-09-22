@@ -75,9 +75,9 @@ message `FAILED: ...` nomme le test. Sinon la sortie se termine par
 
 `BBChess.Perft.Nodes` est une simple récursion `Generate_Legal_Moves` +
 `Make_Move`/`Unmake_Move`. Sa valeur est triple : les **valeurs connues** du CPW
-(20, 400, 8 902, 197 281, 4 865 609) codées en dur, l'**oracle MB** (le moteur
-mailbox d'origine, `adachess.gpr`, sources `src/`, conservé précisément pour
-ça : BB fut validé contre MB, pas seulement contre des constantes), et
+(20, 400, 8 902, 197 281, 4 865 609) codées en dur, l'**oracle historique** (le
+moteur mailbox d'AdaChess, retiré au fork, contre lequel le moteur fut validé —
+pas seulement contre des constantes), et
 l'**invariant interne** (un perft inchangé après un patch de movegen prouve que
 la génération de coups n'a pas bougé).
 

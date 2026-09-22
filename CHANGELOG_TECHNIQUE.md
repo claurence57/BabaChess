@@ -24,7 +24,7 @@ aurait cassé `-XMode=portable`.
 
 Retiré : `bb_popcountll` et `bb_ctzll`, **réellement mortes** (Ada importe
 `__builtin_popcountll`/`__builtin_ctzll` directement dans `bbchess-board.adb`).
-Preuve : `grep -rn "bb_popcountll\|bb_ctzll" src_bb/` → vide. En-tête du fichier
+Preuve : `grep -rn "bb_popcountll\|bb_ctzll" src/` → vide. En-tête du fichier
 réécrit (seul le repli PEXT portable y vit). `adachess_bb.gpr` inchangé.
 
 ## P1 — invariant `Position.Squares`

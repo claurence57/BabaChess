@@ -18,11 +18,11 @@ gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 
 | Mode | Ada (`Switches ("ada")`) | C (`Switches ("c")`) |
 |---|---|---|
-| **release** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src_bb/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2 -flto` |
-| **portable** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src_bb/prep.data` | `-O3` |
-| **debug** | `-gnat2012 -gnata -g -gnatep=../src_bb/prep.data` | `-O0 -g` |
+| **release** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2 -flto` |
+| **portable** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data` | `-O3` |
+| **debug** | `-gnat2012 -gnata -g -gnatep=../src/prep.data` | `-O0 -g` |
 
-- `-gnatep=../src_bb/prep.data` + `-gnateDREL` : **préprocesseur intégré** GNAT.
+- `-gnatep=../src/prep.data` + `-gnateDREL` : **préprocesseur intégré** GNAT.
   `prep.data` ouvre la session avec `* -u` (symboles indéfinis = faux) ; `REL`
   n'est défini qu'en `release`, donc `#if REL` sélectionne l'intrinsèque **PEXT**
   BMI2, `#else` le repli logiciel. Un seul binaire porte les deux variantes.

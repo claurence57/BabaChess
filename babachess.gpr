@@ -2,13 +2,13 @@
 --  BabaChess : a bitboard chess engine written in Ada 2012.
 --
 --  BabaChess is a FORK of AdaChess (https://github.com/adachess/AdaChess),
---  derived from its bitboard engine ("BB", sources src_bb/, packages
+--  derived from its bitboard engine ("BB", sources src/, packages
 --  BBChess.*). This project is the sole development target; the original
 --  mailbox engine is not carried over.
 --
 --  Licence: GPL-3.0-or-later (see LICENSE), except the C components reused
---  under MIT (src_bb/fathom/ Syzygy probe and its stdendian.h; see
---  src_bb/fathom/LICENSE).
+--  under MIT (src/fathom/ Syzygy probe and its stdendian.h; see
+--  src/fathom/LICENSE).
 --
 
 project BabaChess is
@@ -16,7 +16,7 @@ project BabaChess is
    for Main use ("babachess.adb");
    for Object_Dir use "obj_bb";
    for Exec_Dir use "bin_bb";
-   for Source_Dirs use ("src_bb/**");
+   for Source_Dirs use ("src/**");
    for Languages use ("Ada", "C");
 
    type Mode_Type is
@@ -30,7 +30,7 @@ project BabaChess is
 
    package Compiler is
       --  Integrated Ada preprocessing (-gnatep): a few sources choose an
-      --  implementation with #if REL / #else. prep.data lives in src_bb and
+      --  implementation with #if REL / #else. prep.data lives in src and
       --  is referenced from obj_bb (the -gnatep path is resolved relative to
       --  the object directory). The "release" build defines REL so PEXT is
       --  inlined as a BMI2 intrinsic; "portable" leaves it undefined (the
@@ -39,7 +39,7 @@ project BabaChess is
          when "release" =>
             for Switches ("ada") use
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
-               "-gnatep=../src_bb/prep.data", "-gnateDREL",
+               "-gnatep=../src/prep.data", "-gnateDREL",
                "-mpopcnt", "-mbmi", "-mbmi2", "-flto");
             for Switches ("c") use ("-O3", "-mpopcnt", "-mbmi", "-mbmi2", "-flto");
          when "debug" =>
@@ -47,14 +47,14 @@ project BabaChess is
             --  that carries them (release/portable stay quiet and fast).
             for Switches ("ada") use
               ("-gnat2012", "-gnata", "-g", "-gnatwa", "-gnatVa",
-               "-gnatep=../src_bb/prep.data");
+               "-gnatep=../src/prep.data");
             for Switches ("c") use ("-O0", "-g");
          when "portable" =>
             --  No -mpopcnt/-mbmi/-mbmi2: runs on any x86-64 CPU, using the
             --  software PEXT fallback in bbchess-bits.c (~25% slower).
             for Switches ("ada") use
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
-               "-gnatep=../src_bb/prep.data");
+               "-gnatep=../src/prep.data");
             for Switches ("c") use ("-O3");
       end case;
    end Compiler;

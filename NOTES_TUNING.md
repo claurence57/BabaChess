@@ -7,7 +7,7 @@ qui existe, ne mesurer un delta qu'au **SPRT** (une réduction de nœuds **ne
 prouve pas** un gain de force — cf. §28 du journal : LMR‑killer réduisait les
 nœuds et perdait ~35 Elo).
 
-## CHANTIER 1 — Recherche (`src_bb/bbchess-search.adb`)
+## CHANTIER 1 — Recherche (`src/bbchess-search.adb`)
 
 | Élément demandé | État avant intervention | Action |
 |---|---|---|
@@ -26,7 +26,7 @@ profondeur enfant reste un `Natural` valide. Gardes conservées : `Depth >= 3`,
 - Gates : `--selftest` vert, perft 1→5 identique, partie complète sans coup
   illégal, `portable` vert.
 
-## CHANTIER 2 — Quiescence (`src_bb/bbchess-search.adb`)
+## CHANTIER 2 — Quiescence (`src/bbchess-search.adb`)
 
 | Élément demandé | État avant intervention | Action |
 |---|---|---|
@@ -54,7 +54,7 @@ razoring, récursion `QDepth+1`). Au plafond :
 LOS 75,7 % → positif** (subadditif : les deux élags portent sur des lignes
 proches ; chaque delta reste individuellement positif).
 
-## CHANTIER 3 — Évaluation (`src_bb/bbchess-eval.adb`)
+## CHANTIER 3 — Évaluation (`src/bbchess-eval.adb`)
 
 | Élément demandé | État | Action |
 |---|---|---|

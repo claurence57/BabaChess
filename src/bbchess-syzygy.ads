@@ -1,7 +1,7 @@
 --
 --  AdaChess-BB : Syzygy endgame tablebases (via the Fathom C library)
 --
---  Thin Ada binding over Fathom (vendored in src_bb/fathom). WDL probing is
+--  Thin Ada binding over Fathom (vendored in src/fathom). WDL probing is
 --  used in the search; the probe is only valid without castling rights and
 --  with a zero halfmove clock (Fathom rejects such positions).
 --
