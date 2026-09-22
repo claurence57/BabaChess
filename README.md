@@ -1,17 +1,17 @@
 # BabaChess
 
 > **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
-> It is derived from AdaChess's **bitboard** engine ("BB", sources `src/`,
-> packages `BBChess.*`), which was written from scratch in Ada during the
-> AdaChess project. BabaChess is now an **independent project** and the sole
-> development target. AdaChess's original **mailbox** engine has been **removed**
+> It was born from the fork of the AdaChess project, then from the conversion of
+> the board representation from **mailbox** to **bitboard**. After many
+> optimizations it became a project in its own right. BabaChess is now the sole
+> development target; AdaChess's original **mailbox** engine has been **removed**
 > from this repository.
 >
 > See `NOTICE.md` for the full provenance and licence details.
 
-BabaChess is a chess engine written entirely in **Ada 2012**, using a
-**bitboard** board representation. It builds with `gprbuild` and speaks both
-**XBoard/Winboard** and **UCI**.
+BabaChess is a chess engine written in **Ada 2012**, using a **bitboard** board
+representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** and
+**UCI**.
 
 ## Features
 

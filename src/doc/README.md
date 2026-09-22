@@ -1,7 +1,10 @@
 # BabaChess : documentation du moteur
 
-BabaChess (BB) est un moteur d'échecs écrit de zéro en **Ada 2012**, à
-représentation **bitboard**. Il vit dans `src/` et se construit par le projet
+BabaChess (BB) est né du fork du projet
+[AdaChess](https://github.com/adachess/AdaChess), puis de la conversion de la
+représentation **mailbox** de l'échiquier vers une représentation **bitboard**.
+Après de nombreuses optimisations, il est devenu un projet à part entière. Il est
+écrit en **Ada 2012**, vit dans `src/` et se construit par le projet
 `babachess.gpr` vers l'exécutable `bin_bb/babachess`. Le moteur **mailbox**
 d'AdaChess (dit **MB**) a été **retiré** du dépôt au moment du fork : ses
 valeurs de perft servent toujours de référence de validation. La journalisation
