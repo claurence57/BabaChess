@@ -1,17 +1,17 @@
-# Construction et optimisation CPU d'AdaChess-BB
+# Construction et optimisation CPU d'BabaChess
 
 Ce document décrit les **instructions de compilation** réellement utilisées et
 l'**historique des optimisations CPU** (le levier de force prouvé du moteur).
 
 ## Modes de construction
 
-`adachess_bb.gpr` expose le scénario `Mode` (`release` par défaut, `debug`,
-`portable`). Le binaire est écrit dans `bin_bb/adachess_bb`.
+`babachess.gpr` expose le scénario `Mode` (`release` par défaut, `debug`,
+`portable`). Le binaire est écrit dans `bin_bb/babachess`.
 
 ```bash
-gprbuild -P adachess_bb.gpr -XMode=release    # défaut : POPCNT/BMI2/PEXT, -flto
-gprbuild -P adachess_bb.gpr -XMode=portable   # tout x86-64, repli PEXT logiciel
-gprbuild -P adachess_bb.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
+gprbuild -P babachess.gpr -XMode=release    # défaut : POPCNT/BMI2/PEXT, -flto
+gprbuild -P babachess.gpr -XMode=portable   # tout x86-64, repli PEXT logiciel
+gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 ```
 
 ### Commutateurs exacts (GNAT + C)
@@ -41,9 +41,9 @@ gprbuild -P adachess_bb.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 Le nombre de threads Lazy SMP (1 à 16) se règle indifféremment par :
 
 ```bash
-bin_bb/adachess_bb --threads 4      # argument séparé
-bin_bb/adachess_bb -T4              # forme courte
-bin_bb/adachess_bb --thread=4       # forme longue
+bin_bb/babachess --threads 4      # argument séparé
+bin_bb/babachess -T4              # forme courte
+bin_bb/babachess --thread=4       # forme longue
 ```
 
 Les formes `-T#` / `--thread=#` sont analysées par `BBChess.Text.Thread_Count`

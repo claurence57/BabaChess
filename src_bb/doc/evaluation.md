@@ -1,4 +1,4 @@
-# Évaluation statique d'AdaChess-BB
+# Évaluation statique d'BabaChess
 
 L'évaluation vit dans `BBChess.Eval` (`src_bb/bbchess-eval.ads` / `.adb`). Elle
 produit un score en **centipawns**, positif quand les Blancs sont mieux. Le

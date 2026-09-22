@@ -1,8 +1,8 @@
-# AdaChess-BB : documentation du moteur
+# BabaChess : documentation du moteur
 
-AdaChess-BB (BB) est un moteur d'échecs écrit de zéro en **Ada 2012**, à
+BabaChess (BB) est un moteur d'échecs écrit de zéro en **Ada 2012**, à
 représentation **bitboard**. Il vit dans `src_bb/` et se construit par le projet
-`adachess_bb.gpr` vers l'exécutable `bin_bb/adachess_bb`. Son jumeau **MB**
+`babachess.gpr` vers l'exécutable `bin_bb/babachess`. Son jumeau **MB**
 (mailbox, sources `src/`, projet `adachess.gpr`) reste dans le même dépôt mais
 n'est jamais modifié par BB : il sert d'oracle perft et d'adversaire de
 référence. La journalisation d'ingénierie fait foi dans `DEVELOPMENT.md` (racine,
@@ -54,7 +54,7 @@ portent de l'état, et celui-ci est explicitement réinitialisé (`Reset_Search`
 
 ```mermaid
 flowchart TD
-    Main["adachess_bb.adb<br/>procedure AdaChess_BB"]
+    Main["babachess.adb<br/>procedure BabaChess"]
     subgraph Noyau["Noyau position"]
         Pieces["BBChess.Pieces<br/>bbchess-pieces.ads"]
         Board["BBChess.Board<br/>bbchess-board.ads"]
@@ -135,7 +135,7 @@ flowchart LR
 | `--selftest` | Exécute la suite interne (`BBChess.Self_Tests`) : perft 1-5, Zobrist, coups empaquetés, validation FEN, recherche, répétition, SEE, clé de Polyglot. Sortie 0. |
 | `--bench [profondeur]` | Cherche 8 positions fixes à profondeur donnée (défaut 8) et rapporte nœuds, temps et knps. |
 | `--threads N` | Nombre de threads de recherche Lazy SMP (1 à 16). La table de transposition est partagée, les heuristiques sont par thread. Formes équivalentes : `-TN` et `--thread=N`. |
-| `--book <fichier>` | Ouvre un livre d'ouvertures Polyglot `.bin`. Sans option, BB tente des emplacements conventionnels (`books/book.bin`, dossier de l'exécutable, `~/.adachess/book.bin`). |
+| `--book <fichier>` | Ouvre un livre d'ouvertures Polyglot `.bin`. Sans option, BB tente des emplacements conventionnels (`books/book.bin`, dossier de l'exécutable, `~/.babachess/book.bin`). |
 | `--syzygy <dossier>` | Initialise les tablebases Syzygy via `BBChess.Syzygy.Init`. Inerte sans fichiers `.rtbw`/`.rtbz`. |
 | `--dump-params` | Affiche les paramètres scalaires de l'évaluation (`BBChess.Eval.Dump_Params`). |
 | `--eval-fens <fichier>` | Lit un FEN par ligne (`FEN` ou `FEN;resultat`) et imprime l'évaluation statique blanche-positive, un entier par ligne. |
@@ -160,9 +160,9 @@ s'arrête au plafond de nœuds et `go infinite` ne s'arrête que sur `stop` (ou
 ## Construction
 
 ```bash
-gprbuild -P adachess_bb.gpr -XMode=release    # -> bin_bb/adachess_bb (POPCNT/BMI2)
-gprbuild -P adachess_bb.gpr -XMode=portable   # -> bin_bb/adachess_bb (repli logiciel)
-gprbuild -P adachess_bb.gpr -XMode=debug      # -> bin_bb/adachess_bb (assertions)
+gprbuild -P babachess.gpr -XMode=release    # -> bin_bb/babachess (POPCNT/BMI2)
+gprbuild -P babachess.gpr -XMode=portable   # -> bin_bb/babachess (repli logiciel)
+gprbuild -P babachess.gpr -XMode=debug      # -> bin_bb/babachess (assertions)
 ```
 
 `release` (défaut) compile avec `-mpopcnt -mbmi -mbmi2` et emploie `_pext_u64`

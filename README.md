@@ -1,47 +1,84 @@
-# AdaChess - Smart Chess Engine
+# BabaChess
 
-> **AI-assisted development.** All changes made since the initial fork (engines
-> MB and BB, scripts, tests and documentation included) were produced **with AI
-> agents**; **nothing was developed by hand**. Main model: **DeepSeek V4.1
-> Flash**; fixes and additions were guided by **prompts generated with Claude**
-> and **Kimi K3**. Base tooling: **opencode** (agent *Sisyphus* / OhMyOpenCode)
-> and **web interfaces**. (Version française dans `DEVELOPMENT.md`.)
+> **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
+> It is derived from AdaChess's **bitboard** engine ("BB", sources `src_bb/`,
+> packages `BBChess.*`), which was written from scratch in Ada during the
+> AdaChess project. BabaChess is now an **independent project** and the sole
+> development target; the original mailbox engine is **not** built here.
+>
+> See `NOTICE.md` for the full provenance and licence details.
 
-AdaChess is an open source chess engine written entirely in the Ada programming language. The official page of the engine, with more detailed information, can be found in the [Chess Programming Wiki](https://www.chessprogramming.org/AdaChess). 
+BabaChess is a chess engine written entirely in **Ada 2012**, using a
+**bitboard** board representation. It builds with `gprbuild` and speaks both
+**XBoard/Winboard** and **UCI**.
 
-The main goal while developing the engine is to have fun and add new cool functionalities.
+## Features
 
-Starting from the version 4.0 the engine source code and an executable for windows are available on this repository. Feel free to download them and create new cool bugs.
+- Bitboard move generation (PEXT/BMI2 sliding attacks, with a portable
+  software-PEXT fallback for CPUs without BMI2).
+- Principal-variation search (PVS) with aspiration windows; transposition table;
+  move ordering (hash, MVV-LVA, killers, history, counter-move and 1-ply
+  continuation history); late-move reductions and pruning (adaptive null-move,
+  futility, razoring, LMP), check extensions, mate-distance pruning.
+- Bounded quiescence search with static exchange evaluation (SEE) and delta
+  pruning.
+- Tapered (middlegame/endgame) handcrafted evaluation.
+- **Lazy SMP** multi-threading (shared transposition table, per-thread
+  heuristics), up to 16 threads.
+- **Polyglot** opening book and **Syzygy** endgame tablebases (via a vendored
+  Fathom probe).
+- Soft/hard time management with `movestogo` support.
+- Integral self-test suite: perft 1-5, Zobrist, packed moves, FEN validation,
+  search, repetition, SEE, Polyglot keys.
 
-AdaChess is a true original chess engine written completely from scratch as hobby project. The main goal are having a lot of fun and implementing cool, original ideas. 
+## Building
 
-## Download
+Requires **GNAT** (Ada 2012) and **gprbuild**.
 
-The latest version of the engine is the release 4.0. If you wish to download just the binaries (executable for Windows), follow this link:
-- [AdaChess v4.0](https://github.com/adachess/AdaChess/releases/download/v4.0/AdaChess_v4.0.zip)
+```bash
+gprbuild -P babachess.gpr -XMode=release    # -> bin_bb/babachess  (POPCNT/BMI2/PEXT)
+gprbuild -P babachess.gpr -XMode=portable   # -> bin_bb/babachess  (any x86-64)
+gprbuild -P babachess.gpr -XMode=debug      # -> bin_bb/babachess  (assertions + warnings)
+```
 
-or navigate in this repository to get the source, tags, and so on. 
-Note: Although you can play AdaChess via console, I recommend to use an external GUI that support Winboard/Xboard protocol and setup the engine. 
+- `release` compiles with `-mpopcnt -mbmi -mbmi2` and inlines the PEXT intrinsic
+  (`_pext_u64`) for sliding attacks; it **requires** a CPU with BMI2/POPCNT.
+- `portable` drops those switches and uses the software PEXT fallback in
+  `bbchess-bits.c`, so it runs on any x86-64 CPU (~25% slower).
+- `debug` enables the Ada assertions and all warnings, and is the only mode that
+  carries them.
 
+See `src_bb/doc/build-and-cpu.md` for the exact compiler switches and the CPU
+optimization history.
 
-## Some cool features
+## Testing
 
-AdaChess is an intermediate/advanced engine that comes with many features, many of them unique. Here a list of the most cool:
-- Legal move generator with check-investigation 
-- Statistical data for perft and divide (see [Perft Results](https://www.chessprogramming.org/Perft_Results). In the moment I am writing, all the data except the node count were generated with AdaChess) 
-- Move annotation in real time (new in release 4.0). The engine decide whether a move is brilliant/good/interesting and will print out this information in the pv. This feature is still a bit experimental, but the premises are very good.
+```bash
+./bin_bb/babachess --selftest    # perft 1-5, Zobrist, FEN, search, SEE, Polyglot
+./bin_bb/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
+```
 
-## Compile and Run AdaChess
+The **golden rule** for any change: `--selftest` must stay green (perft counts
+must not move) and evaluation must stay symmetric.
 
-The fastest way to compile AdaChess is to download an Ada compiler and the Gnat Programming Studio via AdaCore (you can use alire for this) and open the gpr file (adachess.gpr). **Be sure that the scenario mode is on "release"** and compile it. The executable will be created on the same directory.
+## Using the engine
 
-To use a PGN file as opening book, place the PGN in the same directory of the engine and run it with the --opening-book command line option, for example:
-- adachess.exe --opening-book Kasparov.pgn
-if you wish to use more opening books on the same time just add more command line options:
-- adachess.exe --opening-book Kasparov.pgn --opening-book Carlsen.pgn --opening-book default.pgn
+Set it up in any GUI that supports the XBoard or UCI protocol. Command-line
+options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
+`--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
+`--bench [depth]` and `--selftest`.
 
-Note that parsing the PGN files will take some time and huge books can take minutes to be loaded.
+## Licence
 
-## License
+**GPL-3.0-or-later** (see `LICENSE`), inherited from AdaChess.
 
-AdaChess is a GPL licenced software, it comes with source code and binaries for Windows (executable). Download, play and enjoy!
+Exception: the **C** components reused from Fathom (`src_bb/fathom/`, the Syzygy
+tablebase probe, and its bundled `stdendian.h`) are under the **MIT** licence —
+see `src_bb/fathom/LICENSE`. Details in `NOTICE.md`.
+
+## Credits
+
+- BabaChess is a fork of **AdaChess** by the AdaChess project
+  (https://github.com/adachess/AdaChess).
+- Syzygy tablebase probing uses the vendored **Fathom** library (MIT).
+- Development has been AI-assisted; see `DEVELOPMENT.md` and `CHANGELOG.md`.

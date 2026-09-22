@@ -60,7 +60,7 @@ with BBChess.Syzygy;
 with BBChess.Text;
 use BBChess.Text;
 
-procedure AdaChess_BB is
+procedure BabaChess is
 
    Input_Line : String (1 .. 8192);
    Last       : Natural;
@@ -206,7 +206,7 @@ procedure AdaChess_BB is
         (1 => To_Unbounded_String ("books/book.bin"),
          2 => To_Unbounded_String (D & "/books/book.bin"),
          3 => To_Unbounded_String (D & "/../books/book.bin"),
-         4 => To_Unbounded_String (Home & "/.adachess/book.bin"),
+         4 => To_Unbounded_String (Home & "/.babachess/book.bin"),
          5 => To_Unbounded_String ("book.bin"),
          6 => To_Unbounded_String (D & "/book.bin"));
       Ok : Boolean;
@@ -813,8 +813,8 @@ begin
 
           elsif Cmd = "uci" then
              UCI_Mode := True;
-             Ada.Text_IO.Put_Line ("id name AdaChess-BB 2.0");
-             Ada.Text_IO.Put_Line ("id author AdaChess");
+             Ada.Text_IO.Put_Line ("id name BabaChess 1.0");
+             Ada.Text_IO.Put_Line ("id author BabaChess");
              -- The transposition table is a compile-time-fixed array shared by
              -- the Lazy SMP threads; it cannot be resized safely at run time
              -- (reallocating it under in-flight searchers is not provably
@@ -912,7 +912,7 @@ begin
              end if;
 
           elsif Cmd = "protover" then
-             Ada.Text_IO.Put_Line ("feature myname=""AdaChess-BB 2.0""");
+             Ada.Text_IO.Put_Line ("feature myname=""BabaChess 1.0""");
             Ada.Text_IO.Put_Line ("feature setboard=1");
             Ada.Text_IO.Put_Line ("feature ping=1");
             Ada.Text_IO.Put_Line ("feature memory=1");
@@ -1098,4 +1098,4 @@ exception
    -- If a UCI search is still running, stop it so the process can exit.
    when Ada.IO_Exceptions.End_Error =>
       Shutdown_UCI_Search;
-end AdaChess_BB;
+end BabaChess;

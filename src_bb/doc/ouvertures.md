@@ -108,7 +108,7 @@ qu'une variante de `Compute`.
 
 ## Le déroulement d'un sondage
 
-Le sondage ne vit pas dans `BBChess.Polyglot` seul : le pilote, `adachess_bb.adb`,
+Le sondage ne vit pas dans `BBChess.Polyglot` seul : le pilote, `babachess.adb`,
 décide d'abord **s'il faut consulter** le livre. La fonction `Try_Book` centralise
 cette décision :
 
@@ -144,7 +144,7 @@ l'état du jeu ; `Decode` s'en protège.
 
 ```mermaid
 sequenceDiagram
-    participant D as "Pilote adachess_bb"
+    participant D as "Pilote babachess"
     participant P as "BBChess.Polyglot"
     participant M as "Movegen"
     D->>D: Try_Book
@@ -202,7 +202,7 @@ l'ordre six candidats et retient le premier lisible :
 1. `books/book.bin` (relatif au répertoire courant) ;
 2. `books/book.bin` dans le dossier de l'exécutable ;
 3. `books/book.bin` dans le dossier parent de l'exécutable ;
-4. `~/.adachess/book.bin` ;
+4. `~/.babachess/book.bin` ;
 5. `book.bin` (répertoire courant) ;
 6. `book.bin` dans le dossier de l'exécutable.
 

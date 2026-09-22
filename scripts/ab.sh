@@ -7,7 +7,7 @@ TC="${1:-1+0.1}"
 GAMES="${2:-20}"
 SEED="${3:-7}"
 REF="${HOME}/bin/adachess_bb"
-HEAD="$(dirname "$0")/../bin_bb/adachess_bb"
+HEAD="$(dirname "$0")/../bin_bb/babachess"
 OUT="/tmp/opencode/ab_$$.pgn"
 
 REF="$(realpath "$REF")"; HEAD="$(realpath "$HEAD")"

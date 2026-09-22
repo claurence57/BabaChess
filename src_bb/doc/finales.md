@@ -1,6 +1,6 @@
 # Finales, tablebases et évaluation statique des échanges
 
-Ce document décrit les composants d'AdaChess-BB liés aux finales : les
+Ce document décrit les composants d'BabaChess liés aux finales : les
 **tablebases Syzygy** de `BBChess.Syzygy` (bindings sur la bibliothèque C
 **Fathom**), l'**évaluation statique des échanges** (SEE) de `BBChess.See`, et
 le **scaling d'évaluation par phase** de `BBChess.Eval`. Il explique les
@@ -12,7 +12,7 @@ MB (`src/`) ne sert ici que de référence.
 En finale, les heuristiques montrent leurs limites : une finale KQvK gagnée peut
 être manquée, une forteresse mal jugée, et la règle des 50 coups facilement
 perdue de vue. Les **tablebases de fin de partie** donnent le résultat exact de
-chaque position légale quand peu de pièces restent. AdaChess-BB lit le format
+chaque position légale quand peu de pièces restent. BabaChess lit le format
 **Syzygy** (fichiers `.rtbw` pour le résultat, `.rtbz` pour la distance), non
 livrés avec le moteur : sans eux, l'intégration reste totalement inerte.
 
@@ -108,7 +108,7 @@ profondeur 2.
 
 ## 4. Configuration
 
-**Ligne de commande** (modes de jeu) : `./bin_bb/adachess_bb --syzygy /chemin`,
+**Ligne de commande** (modes de jeu) : `./bin_bb/babachess --syzygy /chemin`,
 et **UCI**, à chaud avant `go` :
 `setoption name SyzygyPath value /chemin/vers/tables`. Dans les deux cas
 la valeur est passée à `BBChess.Syzygy.Init`. Le chemin peut contenir plusieurs

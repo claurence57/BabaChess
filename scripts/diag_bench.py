@@ -12,7 +12,7 @@ Subcommands:
 
 Usage:
   python3 scripts/diag_bench.py build [--pgn F ...] [--depth 12] [--max 40]
-  python3 scripts/diag_bench.py score --binary bin_bb/adachess_bb [--depth 14]
+  python3 scripts/diag_bench.py score --binary bin_bb/babachess [--depth 14]
 """
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def main() -> int:
     b.add_argument("--max", type=int, default=40)
     b.set_defaults(func=cmd_build)
     s = sub.add_parser("score")
-    s.add_argument("--binary", default=str(ROOT / "bin_bb" / "adachess_bb"))
+    s.add_argument("--binary", default=str(ROOT / "bin_bb" / "babachess"))
     s.add_argument("--depth", type=int, default=14)
     s.set_defaults(func=cmd_score)
     args = ap.parse_args()

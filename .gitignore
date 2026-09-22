@@ -1,14 +1,14 @@
 *.o
 *.ali
 *.exe
-adachess
+babachess
 obj/*
 gnatinspect.*
 *.log
 *.xml
 .~*
 .#
-/adachess-loc.xml
+/babachess-loc.xml
 .idea
 .idea/*
 .omo/

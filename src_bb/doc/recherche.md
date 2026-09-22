@@ -1,6 +1,6 @@
-# Recherche AdaChess-BB
+# Recherche BabaChess
 
-Ce document décrit les algorithmes de recherche du moteur **AdaChess-BB** (unité
+Ce document décrit les algorithmes de recherche du moteur **BabaChess** (unité
 `BBChess.Search`, fichiers `src_bb/bbchess-search.ads` et `bbchess-search.adb`).
 Il explique les principes et les choix de conception, pas le code ligne à ligne,
 et garde la trace des techniques **gardées**, **retirées** et **à l'essai**, en

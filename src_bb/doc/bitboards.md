@@ -1,6 +1,6 @@
 # Bitboards et génération d'attaques
 
-Ce document décrit la représentation bitboard d'AdaChess-BB et les principes
+Ce document décrit la représentation bitboard d'BabaChess et les principes
 de génération des attaques. Il complète le journal d'ingénierie
 (`DEVELOPMENT.md`, sections 2, 7septies et 16). Tout le code cité vit dans
 `src_bb/`, packages `BBChess.*`.

@@ -19,7 +19,7 @@
 #   elo0, elo1  SPRT bounds in Elo (default 0 and 5)
 #   max_games   safety cap, rounded up to an even number (default 2000)
 #   old_engine  baseline binary  (default ~/bin/adachess_bb, tag bb-1.0)
-#   new_engine  candidate binary (default bin_bb/adachess_bb)
+#   new_engine  candidate binary (default bin_bb/babachess)
 #
 # Env overrides: ALPHA (0.05), BETA (0.05), OPENINGS, PROTO (xboard), MAXMOVES (200),
 #                NODES (unset)
@@ -34,7 +34,7 @@
 #   search on its XBoard clock).
 #
 # Note: to validate a *patch*, pass the previous build as OLD, e.g.
-#   scripts/sprt.sh 1+0.1 0 5 2000 7 /tmp/opencode/adachess_bb_p1 bin_bb/adachess_bb
+#   scripts/sprt.sh 1+0.1 0 5 2000 7 /tmp/opencode/adachess_bb_p1 bin_bb/babachess
 # Comparing directly to the bb-1.0 reference will PASS instantly (gap ~+300).
 set -euo pipefail
 
@@ -45,7 +45,7 @@ MAXGAMES="${4:-2000}"
 SEED="${5:-7}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OLD="${6:-${HOME}/bin/adachess_bb}"
-NEW="${7:-${ROOT}/bin_bb/adachess_bb}"
+NEW="${7:-${ROOT}/bin_bb/babachess}"
 
 ALPHA="${ALPHA:-0.05}"
 BETA="${BETA:-0.05}"
