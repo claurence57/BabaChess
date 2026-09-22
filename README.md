@@ -4,7 +4,9 @@
 > It is derived from AdaChess's **bitboard** engine ("BB", sources `src_bb/`,
 > packages `BBChess.*`), which was written from scratch in Ada during the
 > AdaChess project. BabaChess is now an **independent project** and the sole
-> development target; the original mailbox engine is **not** built here.
+> development target. AdaChess's original **mailbox** engine is still present in
+> the tree (`src/`, project `adachess.gpr`) but only as a **legacy perft oracle**;
+> it is not developed or changed.
 >
 > See `NOTICE.md` for the full provenance and licence details.
 

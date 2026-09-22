@@ -2,6 +2,7 @@
 *.ali
 *.exe
 babachess
+adachess
 obj/*
 gnatinspect.*
 *.log
@@ -9,6 +10,7 @@ gnatinspect.*
 .~*
 .#
 /babachess-loc.xml
+/adachess-loc.xml
 .idea
 .idea/*
 .omo/

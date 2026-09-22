@@ -18,8 +18,9 @@ development history is preserved in this repository's git history, including the
 AdaChess commits it was forked from.
 
 The original **mailbox** engine of AdaChess (sources `src/`, project
-`adachess.gpr`) is **not** part of BabaChess; it remains in the AdaChess
-repository, where it served as a perft oracle and reference opponent.
+`adachess.gpr`) is still **present in this tree as a legacy perft oracle and
+reference opponent**, but it is **not a development target** (see `AGENTS.md`). It
+is left untouched and is a candidate for removal if a BB-only tree is wanted.
 
 ## Licence
 
