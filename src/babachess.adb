@@ -351,14 +351,19 @@ procedure BabaChess is
             end loop;
             -- A FEN field list too long for the buffer is rejected rather
             -- than loaded truncated (the buffer is ample for a legal FEN).
+            -- On any rejection, do not keep going: applying "moves" to the
+            -- previous (unrelated) position would silently desynchronise the
+            -- engine from the GUI.
             if Over then
                Ada.Text_IO.Put_Line ("info string bad FEN");
+               return;
             else
                begin
                   Load (Pos, Fen (1 .. L));
                exception
                   when Constraint_Error =>
                      Ada.Text_IO.Put_Line ("info string bad FEN");
+                     return;
                end;
             end if;
          end;
@@ -456,12 +461,20 @@ procedure BabaChess is
                Clear_Stop;
             end Start;
 
-            if Cap > 0 then
-               -- "go nodes"/"infinite": no soft target, deadline only.
-               M := Best_Move (Position, Depth, Hard_Alloc, Cap);
-            else
-               M := Best_Move (Position, Depth, Soft_Alloc, Hard_Alloc);
-            end if;
+            begin
+               if Cap > 0 then
+                  -- "go nodes"/"infinite": no soft target, deadline only.
+                  M := Best_Move (Position, Depth, Hard_Alloc, Cap);
+               else
+                  M := Best_Move (Position, Depth, Soft_Alloc, Hard_Alloc);
+               end if;
+            exception
+               when others =>
+                  -- A search must never take the task down without clearing
+                  -- the busy flag and answering: otherwise the GUI would wait
+                  -- forever and the next "go" would hit a dead task.
+                  M := Empty_Move;
+            end;
 
             UCI_Busy.Set_Busy (False);
             if M = Empty_Move then
@@ -549,7 +562,11 @@ procedure BabaChess is
 
       -- Opening book: only for a normal timed/depth move, never for the
       -- "infinite" / "nodes" analysis modes (which must run the search).
-      if not Infinite and then Node_Cap = 0 then
+      -- Also skipped when a previous search is still running: the book move
+      -- would print its "bestmove" while that search later prints its own,
+      -- violating the one-bestmove-per-go contract. In that case the normal
+      -- path below stops the old search and starts this one.
+      if not Infinite and then Node_Cap = 0 and then not UCI_Busy.Busy then
          declare
             BM : Move_Type;
          begin

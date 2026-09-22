@@ -94,7 +94,9 @@ package body BBChess.Fen is
                   File_Index_Of_Piece :=
                     File_Index_Of_Piece + (Character'Pos (Board (Idx)) - Character'Pos ('0'));
                elsif Board (Idx) = '/' then
-                  null;
+                  -- A '/' inside a rank means the rank is short; reject it
+                  -- instead of silently merging the next rank into this one.
+                  raise Constraint_Error with "FEN rank too short";
                else
                   declare
                      C : constant Character := Board (Idx);
@@ -111,14 +113,28 @@ package body BBChess.Fen is
                end if;
                Idx := Idx + 1;
             end loop;
+
+            -- The rank must describe exactly eight squares: fewer means a
+            -- short rank (now rejected above) and more means a bogus digit
+            -- sum, both of which would misalign every following rank.
+            if File_Index_Of_Piece /= 8 then
+               raise Constraint_Error with "FEN rank must hold eight squares";
+            end if;
          end;
          if Rank_Token < 7 then
-            -- skip the '/' separator
-            if Idx <= Board'Last and then Board (Idx) = '/' then
-               Idx := Idx + 1;
+            -- skip the mandatory '/' separator between ranks
+            if Idx > Board'Last or else Board (Idx) /= '/' then
+               raise Constraint_Error with "FEN missing rank separator";
             end if;
+            Idx := Idx + 1;
          end if;
       end loop;
+
+      -- Nothing may follow the eighth rank: a ninth rank (or any trailing
+      -- junk) means the board field is malformed.
+      if Idx <= Board'Last then
+         raise Constraint_Error with "FEN board has more than eight ranks";
+      end if;
 
       -- Side to move.
       declare

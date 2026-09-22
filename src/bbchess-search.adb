@@ -237,13 +237,12 @@ package body BBChess.Search is
    -- so they stay comparable across different depths. The two-way bucket
    -- keeps the deeper of the two entries and replaces stale ones first.
    -- Under Lazy SMP the table is written without locking. The key is written
-   -- last (payload first, field-by-field) and checked before the payload is
-   -- read, so a torn read can only pair the new key with an already-valid
-   -- payload; the old key on a half-written slot simply fails the key test.
-   -- The remaining races are accepted Lazy SMP behaviour: two threads may
-   -- store different valid entries in the same slot (last key wins), and a
-   -- slot may be replaced between the probe's key test and the copy, which
-   -- only yields a shallower/deeper but still key-consistent node.
+   -- last (payload first, field-by-field), and the reader copies the whole
+   -- entry before testing its Hash_Key, so a slot replaced mid-copy fails
+   -- the test on the copied key. Two threads may still store different valid
+   -- entries in the same slot (last key wins); a torn copy that mixes two
+   -- concurrent stores is possible in principle, but the key test rejects
+   -- the common single-writer replacement.
    procedure Store (Position : in Position_Type;
                     Depth     : in Natural;
                     Bound     : in Bound_Type;
@@ -707,8 +706,10 @@ package body BBChess.Search is
    -- to move can force the repetition); otherwise the position must have
    -- been seen twice in the game history for a threefold repetition. The
    -- occurrences are looked up in the game history and among the ancestors
-   -- of the current node (plies 1 .. Ply-1, the root being the last game
-   -- key). Ply is the depth of the node below the search root.
+   -- of the current node (plies 0 .. Ply-1, ply 0 being the search root, see
+   -- Search_Path (0) set in Iterative_Search). Ply is the depth of the node
+   -- below the search root. The scan is bounded by Max_Ply so a deep line
+   -- whose ply exceeds it (long check extension) cannot read past the array.
    function Is_Repetition (Ctx      : in Context_Access;
                            Position : in Position_Type;
                            Ply      : in Natural) return Boolean
@@ -733,8 +734,8 @@ package body BBChess.Search is
       end if;
 
       if G < 2 and then Ply > 1 then
-         Lo := (if Ply > Window then Ply - Window else 1);
-         for Q in Lo .. Ply - 1 loop
+         Lo := (if Ply > Window then Ply - Window else 0);
+         for Q in Lo .. Natural'Min (Ply - 1, Max_Ply) loop
             if Ctx.Search_Path (Q) = Position.Key then
                return True;   -- repeated within the current search line
             end if;
@@ -1058,10 +1059,25 @@ package body BBChess.Search is
       end if;
 
       -- Terminal draws: the fifty-move rule and dead positions are scored
-      -- as draws before anything else, including the quiescence call.
+      -- as draws before anything else, including the quiescence call and the
+      -- transposition probe (the Zobrist key does not include the halfmove
+      -- clock, so a TT hit must not shadow the draw). Checkmate outranks the
+      -- fifty-move claim: at exactly 100 halfmoves the side to move can be
+      -- mated, so the draw is only taken when the position is not mate.
       if Position.Halfmove >= 100
         or else Insufficient_Material (Position)
       then
+         if King_In_Check (Position, Position.Side) then
+            declare
+               Moves : Move_List;
+               Count : Natural;
+            begin
+               Generate_Legal_Moves (Position, Moves, Count);
+               if Count = 0 then
+                  return -(Mate_Score - Ply);
+               end if;
+            end;
+         end if;
          return 0;
       end if;
 
@@ -1085,8 +1101,10 @@ package body BBChess.Search is
       end if;
 
       -- Syzygy tablebase: an exact WDL result, when the loaded tables cover
-      -- this material. Only positions without castling rights and with a zero
-      -- halfmove clock are probed (Fathom rejects the others).
+      -- this material. Positions with castling rights are not probed (the
+      -- probe returns -1 for them); the halfmove clock is not consulted here
+      -- because Probe_WDL sends rule50 = 0 (the WDL tables assume no 50-move
+      -- context; DTZ would be needed to honour it exactly).
       if BBChess.Syzygy.Enabled
         and then Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest
       then
@@ -1123,20 +1141,25 @@ package body BBChess.Search is
          end if;
       end;
 
-      -- Transposition table probe (two-way bucket). Each slot's Hash_Key is
-      -- checked *before* its payload is copied, and Store publishes the key
-      -- last, so a slot is only used once its payload is consistent.
+      -- Transposition table probe (two-way bucket). The entry is copied whole
+      -- and its Hash_Key is then checked *on the copy*: a concurrent Store
+      -- (Lazy SMP, lockless) may replace the slot between the copy and the
+      -- test, so testing the live slot first would let a foreign key's
+      -- payload be used. Store publishes Hash_Key last, so if the copied key
+      -- matches, the copied payload belongs to that key.
       declare
          Bk    : constant Natural := TT_Bucket (Position);
          Found : Boolean := False;
          E     : TT_Entry;
       begin
-         if Transposition_Table (Bk).Hash_Key = Position.Key then
-            E := Transposition_Table (Bk);
+         E := Transposition_Table (Bk);
+         if E.Hash_Key = Position.Key then
             Found := True;
-         elsif Transposition_Table (Bk + 1).Hash_Key = Position.Key then
+         else
             E := Transposition_Table (Bk + 1);
-            Found := True;
+            if E.Hash_Key = Position.Key then
+               Found := True;
+            end if;
          end if;
 
          if Found then
@@ -1209,8 +1232,12 @@ package body BBChess.Search is
          end if;
       end if;
 
-      -- Null-move pruning (skip in pawn-only endgames / when in check).
+      -- Null-move pruning (skip in pawn-only endgames / when in check, and
+      -- never twice in a row). The null block clears this node's Move_Path
+      -- slot, so a node reached right after a null move reads Prev =
+      -- Empty_Move and is thereby barred from nulling again.
       if Depth >= 3 and then not In_Check
+        and then Prev /= Empty_Move
         and then Has_Non_Pawn (Position, Position.Side)
       then
          declare
@@ -1593,6 +1620,11 @@ package body BBChess.Search is
    begin
       Work.Key := Hash.Compute (Work);
 
+      --  Record the root position at ply 0 of the search path so that a line
+      --  returning to it is detected as a repetition (the game-history scan
+      --  alone counts the root's single occurrence as G = 1, never >= 2).
+      Ctx.Search_Path (0) := Work.Key;
+
       begin
          for D in 1 .. Max_Depth loop
             Elapsed := To_Duration (Clock - Ctx.Start_Time);
@@ -1882,14 +1914,26 @@ package body BBChess.Search is
    task type Searcher (Id : Positive);
 
    task body Searcher is
-      Ctx : Context_Access := new Search_Context;
+      Ctx : Context_Access := null;
    begin
-      Init_Context (Ctx, Arm => Root_Time > 0.0, Budget => Root_Time,
-                    Node_Cap => Root_Node_Cap);
-      Results (Id) := Iterative_Search (Ctx, Root_Position,
-                                        Root_Max_Depth, Root_Time, Root_Soft,
-                                        Report => (Id = 1));
-      Free_Context (Ctx);
+      --  Never let an unexpected exception escape: the task must always
+      --  reach Done.Signal, or the barrier in Best_Move_Impl (Done.Wait_All)
+      --  would block forever. Iterative_Search catches Search_Interrupted
+      --  itself; anything else is swallowed here as a last-resort guard.
+      begin
+         Ctx := new Search_Context;
+         Init_Context (Ctx, Arm => Root_Time > 0.0, Budget => Root_Time,
+                       Node_Cap => Root_Node_Cap);
+         Results (Id) := Iterative_Search (Ctx, Root_Position,
+                                           Root_Max_Depth, Root_Time, Root_Soft,
+                                           Report => (Id = 1));
+      exception
+         when others =>
+            null;
+      end;
+      if Ctx /= null then
+         Free_Context (Ctx);
+      end if;
       -- The primary thread stops the helpers as soon as it is done.
       if Id = 1 then
          Stop_Search := True;
@@ -1966,11 +2010,15 @@ package body BBChess.Search is
       Root_Max_Depth := Max_Depth;
       Root_Time := Hard_Alloc;
       Root_Soft := Soft_Alloc;
-      Root_Node_Cap := Node_Cap;
       -- Snapshot the worker count for this search: Set_Threads may run
       -- concurrently from the command loop, but this search must only wait
       -- for (and read the results of) the workers it actually starts.
       Root_Num_Threads := Num_Threads;
+      --  Split the node ceiling across the workers so "go nodes N" bounds the
+      --  whole search (~N nodes total) instead of each thread doing N.
+      Root_Node_Cap :=
+        (if Node_Cap = 0 then 0
+         else Natural'Max (1, Node_Cap / Root_Num_Threads));
       Done.Reset (Root_Num_Threads);
 
       declare
