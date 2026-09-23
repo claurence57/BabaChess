@@ -485,6 +485,18 @@ package body BBChess.Search is
    Abort_Request : Boolean := False;
    pragma Atomic (Abort_Request);
 
+   -- Whole-search node counter shared by all Lazy SMP workers, so the UCI
+   -- "info nodes/nps" lines report the real total and not just thread 1.
+   -- Updated only every Check_Interval nodes (in Poll_Time_Slow), so the
+   -- atomic add is off the hot path.
+   SMP_Nodes : Node_Count_Type := 0;
+   pragma Atomic (SMP_Nodes);
+
+   procedure Reset_SMP_Nodes is
+   begin
+      SMP_Nodes := 0;
+   end Reset_SMP_Nodes;
+
    procedure Set_Game_History (Keys  : in Game_Key_Array;
                                Count : in Natural) is
    begin
@@ -528,6 +540,7 @@ package body BBChess.Search is
    -- same exceptions as before, only the layout changed.
    procedure Poll_Time_Slow (Ctx : in Context_Access) is
    begin
+      SMP_Nodes := SMP_Nodes + Check_Interval;
       Ctx.Next_Checkpoint := Ctx.Nodes_Count + Check_Interval;
       if Stop_Search or else Abort_Request then
          raise Search_Interrupted;
@@ -1854,7 +1867,6 @@ package body BBChess.Search is
       Beta        : Score_Type := Infinity;
       Score       : Score_Type;
       T0          : constant Time := Clock;
-      Nodes_Base  : constant Node_Count_Type := Ctx.Nodes_Count;
       Completed   : Boolean := False;
       Last_Depth  : Natural := 0;
       Elapsed     : Duration;
@@ -1917,7 +1929,7 @@ package body BBChess.Search is
             if Report then
                Report_Iteration (Work, D, Best_Score,
                                  To_Duration (Clock - T0),
-                                 Ctx.Nodes_Count - Nodes_Base, Best);
+                                 SMP_Nodes, Best);
             end if;
 
             exit when Abs (Best_Score) >= Mate_Score - 200
@@ -2096,6 +2108,7 @@ package body BBChess.Search is
       Hash.Set_Keys_Enabled (True);
       TT_Generation := TT_Generation + 1;
       Stop_Search := False;
+      Reset_SMP_Nodes;
 
       declare
          Ctx : Context_Access := new Search_Context;
@@ -2269,6 +2282,7 @@ package body BBChess.Search is
       -- multi-threaded search leaves it set, and the single-threaded path
       -- (which never clears it) would otherwise abort at the first poll.
       Stop_Search := False;
+      Reset_SMP_Nodes;
 
       if Num_Threads <= 1 then
          declare
