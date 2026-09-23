@@ -1,7 +1,55 @@
-# Construction et optimisation CPU d'BabaChess
+# Construction et optimisation CPU de BabaChess
 
 Ce document décrit les **instructions de compilation** réellement utilisées et
 l'**historique des optimisations CPU** (le levier de force prouvé du moteur).
+
+## Makefile (sélection du CPU)
+
+Un `Makefile` (racine) enveloppe `gprbuild`, dans l'esprit de celui de
+RubiChess : il **détecte le CPU hôte** et choisit les commutateurs ISA, puis les
+injecte via l'externe `BABA_ARCH_FLAGS` du projet (aucun flag codé en dur).
+
+```bash
+make                 # release, ISA auto-détecté
+make portable        # x86-64 générique (repli PEXT logiciel)
+make debug           # assertions + avertissements
+make ARCH=native     # forcer -march=native
+make ARCH=v3         # forcer un niveau x86-64 (v1..v4)
+make ARCH=skylake    # forcer un nom -march= quelconque
+make ARCH=generic    # aucun commutateur ISA (défaut du .gpr)
+make test            # release + --selftest
+make bench [DEPTH=9] # release + --bench
+make info            # CPU détecté et commutateurs choisis
+make clean
+```
+
+### Pourquoi des niveaux `x86-64-vN` et non `-march=native`
+
+Le Makefile **n'utilise pas** `-march=native` par défaut. Mesures `--bench 11`
+(25 passes appariées, min/médiane) sur le CPU de développement (Xeon E3-1270 v6,
+Kaby Lake) :
+
+| Variante | min (s) | médiane (s) |
+|---|---|---|
+| défaut `.gpr` (POPCNT/BMI/BMI2, `-mtune=generic`) | 0,4370 | 0,4577 |
+| **`-march=x86-64-v3`** | **0,4298** | **0,4528** |
+| `-mavx2` seul | 0,4283 | 0,4550 |
+| **`-march=native`** (= `-mtune=skylake`) | 0,4481 | **0,4745** |
+
+`-march=native` **ralentit d'environ 2,5 %** : il fixe aussi `-mtune=<ce CPU>`,
+et `-mtune=skylake` est ici moins bon que `-mtune=generic`. Les **niveaux
+`x86-64-vN`** (qui gardent `-mtune=generic`) sont neutres à légèrement
+positifs. D'où le choix : détecter le meilleur niveau supporté et le passer en
+`-march`.
+
+Les jeux d'instructions ajoutés (`AVX2`, `FMA`, `LZCNT`, `ADX` en v3) **ne
+changent pas l'arbre de recherche** : `--bench 9` = **518 612 nœuds** dans tous
+les cas ; c'est du levier de **vitesse**, pas de force directement.
+
+> **PGO non retenu.** Une passe `-fprofile-generate`/`-fprofile-use` a été
+> essayée (faisable avec `-cargs`/`-largs`), mais mesurée **plus lente**
+> (0,4955 s contre 0,4441 s en `--bench 11`) et fragile avec `-flto` : elle
+> n'est **pas** proposée par le Makefile.
 
 ## Modes de construction
 
@@ -14,6 +62,9 @@ gprbuild -P babachess.gpr -XMode=portable   # tout x86-64, repli PEXT logiciel
 gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 ```
 
+Le Makefile ne fait que choisir `Mode` et `BABA_ARCH_FLAGS` ; les commutateurs
+ci-dessous restent la référence.
+
 ### Commutateurs exacts (GNAT + C)
 
 | Mode | Ada (`Switches ("ada")`) | C (`Switches ("c")`) |
@@ -21,6 +72,10 @@ gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 | **release** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2 -flto` |
 | **portable** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data` | `-O3` |
 | **debug** | `-gnat2012 -gnata -g -gnatep=../src/prep.data` | `-O0 -g` |
+
+Chaque mode reçoit en plus `$(BABA_ARCH_FLAGS)` (externe, vide par défaut), que
+le Makefile utilise pour ajouter le commutateur ISA du CPU (`-march=x86-64-v3`,
+`-march=native`, …).
 
 - `-gnatep=../src/prep.data` + `-gnateDREL` : **préprocesseur intégré** GNAT.
   `prep.data` ouvre la session avec `* -u` (symboles indéfinis = faux) ; `REL`

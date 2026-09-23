@@ -23,6 +23,12 @@ project BabaChess is
       ("release", "debug", "portable");
    Mode : Mode_Type := external ("Mode", "release");
 
+   --  Extra CPU/ISA switches, injected by the Makefile (e.g. "-march=native"
+   --  or a detected set such as "-mavx2 -mfma -mlzcnt -madx"). Split on
+   --  spaces by external_as_list so each switch is a separate argument.
+   --  Empty by default: a plain "gprbuild -P babachess.gpr" is unchanged.
+   Arch_Switches := External_As_List ("BABA_ARCH_FLAGS", " ");
+
    package Builder is
       for Default_Switches ("ada") use ("-g");
       for Executable ("babachess.adb") use "babachess";
@@ -40,22 +46,23 @@ project BabaChess is
             for Switches ("ada") use
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
                "-gnatep=../src/prep.data", "-gnateDREL",
-               "-mpopcnt", "-mbmi", "-mbmi2", "-flto");
-            for Switches ("c") use ("-O3", "-mpopcnt", "-mbmi", "-mbmi2", "-flto");
+               "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
+            for Switches ("c") use
+              ("-O3", "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
          when "debug" =>
             --  -gnatwa enables all warnings; the debug build is the only one
             --  that carries them (release/portable stay quiet and fast).
             for Switches ("ada") use
               ("-gnat2012", "-gnata", "-g", "-gnatwa", "-gnatVa",
-               "-gnatep=../src/prep.data");
-            for Switches ("c") use ("-O0", "-g");
+               "-gnatep=../src/prep.data") & Arch_Switches;
+            for Switches ("c") use ("-O0", "-g") & Arch_Switches;
          when "portable" =>
             --  No -mpopcnt/-mbmi/-mbmi2: runs on any x86-64 CPU, using the
             --  software PEXT fallback in bbchess-bits.c (~25% slower).
             for Switches ("ada") use
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
-               "-gnatep=../src/prep.data");
-            for Switches ("c") use ("-O3");
+               "-gnatep=../src/prep.data") & Arch_Switches;
+            for Switches ("c") use ("-O3") & Arch_Switches;
       end case;
    end Compiler;
 

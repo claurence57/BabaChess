@@ -21,6 +21,10 @@ inherited from AdaChess and still referring to the pre-fork names
 ## Build
 
 ```bash
+make                                          # release, ISA auto-detected
+make portable                                 # generic x86-64
+make debug                                    # assertions + warnings
+# or directly with gprbuild:
 gprbuild -P babachess.gpr -XMode=release      # -> ./bin/babachess
 gprbuild -P babachess.gpr -XMode=portable     # -> ./bin/babachess
 gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
@@ -36,6 +40,10 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
   the only mode that carries warnings.
 - `release` and `portable` share `obj/`: after switching, `rm -rf obj`
   before rebuilding, or `--bench` comparisons are meaningless.
+- The root `Makefile` (RubiChess-style) detects the host CPU and passes
+  `-march=x86-64-vN` (or `ARCH=...`) through the `BABA_ARCH_FLAGS` project
+  external; it does not use `-march=native` by default (measured slower). See
+  `src/doc/build-and-cpu.md`.
 
 ## Test & verify (no test framework, no CI)
 
