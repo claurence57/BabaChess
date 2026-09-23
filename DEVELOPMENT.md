@@ -2238,9 +2238,75 @@ de coups **ni** les perft.
 - TT « key xor data » (fermeture complète de la course ABA).
 - Sortie UCI `info` (depth/score/pv/nodes) — absente.
 - SEE : reprise par le roi sur une case encore défendue (rayons X) comptée à
-  tort comme légale → captures gagnantes élaguées. **Bug reproduit**, en cours
-  de traitement (§51).
+  tort comme légale → captures gagnantes élaguées. **Corrigé**, voir §51
+  (SPRT INCONCLUSIVE à tendance positive ; conservé pour la correction du bug).
 - Discontinuité de `King_Safety` au seuil `Phase = 20` — **bloqué par le
   moratoire** de §17 (deux refontes déjà régressives).
 - En-tête `bbchess-attacks.ads` parlant de « fancy magic » alors que
   l'implémentation est PEXT/BMI2.
+
+## 51. SEE — reprise par le roi sur une case encore défendue (bug corrigé)
+
+### 51.1 Le bug
+
+Dans `bbchess-see.adb`, la passe avant de `Exchange` générait la séquence de
+prises ; quand l'attaquant le plus faible était le **roi**, la prise était
+comptée comme terminale (`King_Last`) **sans vérifier qu'elle est légale**. Or un
+roi ne peut pas capturer sur une case encore attaquée par l'adversaire (FIDE
+3.1.3) — y compris une attaque qui n'apparaît qu'**après** le départ du roi,
+par rayons X, et par une pièce qui serait clouée (une pièce clouée défend
+toujours).
+
+Reproduction (test ajouté au `--selftest`) :
+
+- FEN `8/8/4k3/3p4/3Q4/8/8/3R2K1 w - - 0 1`, coup **Qd4xd5** : après Dxd5, la
+  tour d1 défend d5 par rayons X, donc **Kxd5 est illégal** ; la valeur SEE
+  correcte est **+100** (le pion gagné). L'ancien code renvoyait **−800** (dame
+  perdue), comme si le roi pouvait reprendre.
+- FEN `8/8/4k3/3p4/3Q4/8/8/6K1 w - - 0 1` (sans la tour), **Kxd5 est légal**,
+  valeur **−800**.
+
+**Conséquence** : des captures gagnantes près du roi adverse pouvaient être
+élaguées en quiescence (SEE < 0), c'est-à-dire des coups réellement bons rejetés.
+
+### 51.2 Correctif (commit dédié)
+
+- Nouvelle fonction locale `Attacked (B, To, By)` : vraie si `To` est attaquée
+  par une pièce de `By`, **sans** filtre d'épingle (une pièce clouée attaque).
+  Elle travaille sur l'occupation du plateau de travail `See_Board`, donc les
+  rayons X sont vus correctement (la pièce qui vient de partir a été retirée).
+- Dans `Exchange`, quand `Att = Roi` : après avoir posé le roi sur `To`, si
+  `Attacked (B, To, Opposite (Side_Now))` alors la reprise est illégale → on
+  **annule l'étape** (`Count - 1`), on n'active pas `King_Last`, et on sort. La
+  valeur retombe donc sur celle du dernier camp à avoir réellement pris.
+- `--selftest` : les **5 cas SEE existants restent verts** ; les **2 nouveaux
+  cas** (`Qxd5` → +100 avec la tour, −800 sans) sont ajoutés.
+
+### 51.3 Validation honnête — bug corrigé, effet Elo NON prouvé
+
+- `--selftest` vert (release/portable/debug, 0 avertissement) ; les perft sont
+  inchangés (le SEE n'entre pas dans le movegen).
+- `--bench 9` = **518 612 nœuds** (vs 496 570 avant) : l'arbre change, c'est
+  attendu — l'élagage SEE de la quiescence est modifié.
+- **SPRT long** (1+0,1 ; bornes 0→5 ; 2000 parties ; seed 7 ; binaire
+  pré-correctif en OLD) :
+
+  | métrique | valeur |
+  |---|---|
+  | parties | **2000** (plafond atteint) |
+  | score NEW vs OLD | **620 – 541 – 839** → **52,0 %** |
+  | Elo | **+13,7 ± 11,6** |
+  | LOS | **99,0 %** |
+  | LLR final | **+1,60** (bornes −2,94 / +2,94) |
+  | verdict | **INCONCLUSIVE** |
+
+  Lecture : le LLR est resté **positif tout du long** (+0,4 à +1,6), l'estimation
+  est ~**+14 Elo** avec ~**99 % de chance que le signe soit positif** — mais
+  l'intervalle (`+13,7 ± 11,6`) est trop large pour **prouver** un effet ≥ 5 Elo
+  (le LOS seul ne prouve pas la taille de l'effet). Aucune trace de régression.
+
+**Décision** : le correctif est **conservé** parce qu'il corrige un **vrai bug**
+démontré (roi prenant une case défendue, élagage de captures gagnantes) et que
+les tests le verrouillent. Le gain de force est **plausible mais non établi** —
+il n'est donc pas présenté comme acquis. La règle « l'important est de corriger
+les bugs, pas de gagner des points Elo » a guidé ce choix.

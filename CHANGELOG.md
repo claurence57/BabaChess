@@ -8,6 +8,23 @@
 
 ## Non publié (développement post bb-1.0)
 
+### SEE — reprise par le roi sur une case encore défendue (corrigé)
+
+`bbchess-see.adb` comptait la reprise par le **roi** comme terminale sans
+vérifier qu'elle est légale, alors qu'un roi ne peut pas capturer sur une case
+encore attaquée (même par une pièce clouée, et via les rayons X). Des captures
+gagnantes étaient donc élaguées en quiescence. Correctif : fonction locale
+`Attacked` (sans filtre d'épingle) testée après avoir posé le roi sur la case ;
+si la case reste attaquée, l'étape est annulée. Détail : `DEVELOPMENT.md` §51.
+
+- Deux cas de test ajoutés au `--selftest` (Qd5 → +100 avec défense par rayons X,
+  −800 sans) ; les 5 cas SEE existants restent verts.
+- **Validation honnête** : le bug est corrigé et verrouillé par les tests.
+  SPRT 2000 parties : **52,0 %, +13,7 ± 11,6 Elo, LOS 99,0 %, LLR +1,60 →
+  INCONCLUSIVE**. Le signe est très probablement positif (pas de régression),
+  mais le gain de force n'est **pas prouvé** ; le correctif est conservé pour la
+  correction du bug, pas pour un gain Elo.
+
 ### Correctifs d'audit externe — recherche / FEN / UCI (`98c48ee`)
 
 Audit Oracle du moteur BabaChess. Correctifs de correction et de robustesse,

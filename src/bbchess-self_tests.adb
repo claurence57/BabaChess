@@ -644,6 +644,21 @@ package body BBChess.Self_Tests is
                        Promotion => White_Pawn, Flag => En_Passant)) = 100,
                  "SEE ep capture must be +100");
 
+         -- Qd4xd5 with a rook on d1 behind it: Kxd5 is illegal (the rook
+         -- defends d5 through x-ray once the queen has left), so the capture
+         -- must be scored +100, not -800.
+         Assert (See ("8/8/4k3/3p4/3Q4/8/8/3R2K1 w - - 0 1",
+                      (From => 27, To => 35, Piece => White_Queen,
+                       Promotion => White_Pawn, Flag => Quiet)) = 100,
+                 "SEE Qxd5 (Kxd5 illegal, x-ray defence) must be +100");
+
+         -- Same capture without the rook: Kxd5 is legal, so the queen is lost
+         -- (-800).
+         Assert (See ("8/8/4k3/3p4/3Q4/8/8/6K1 w - - 0 1",
+                      (From => 27, To => 35, Piece => White_Queen,
+                       Promotion => White_Pawn, Flag => Quiet)) = -800,
+                 "SEE Qxd5 (Kxd5 legal) must be -800");
+
          Ada.Text_IO.Put_Line ("SEE tests OK");
       end;
 

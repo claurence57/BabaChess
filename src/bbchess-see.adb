@@ -137,6 +137,41 @@ package body BBChess.See is
       end if;
    end Weakest;
 
+   ---------------
+   -- Attacked --
+   ---------------
+
+   -- True when To is attacked by any piece of By, using the working board's
+   -- occupancy. Deliberately *without* the pin filter: under FIDE 3.1.3 a
+   -- pinned piece still attacks the square, so a king may not capture onto a
+   -- square defended by it. This is the test the king-capture step of the
+   -- exchange needs (a king recapture is only legal on an undefended target).
+   function Attacked (B : in See_Board; To : in Square_Type; By : in Color_Type)
+     return Boolean
+   is
+      Occ : constant Bitboard := B.All_Occ;
+   begin
+      -- Pawns of By attacking To stand where a By's opponent's pawn on To
+      -- would attack.
+      if (Pawn_Attacks (Opposite (By), To) and B.Pieces (Make (By, Pawn))) /= 0
+      then
+         return True;
+      end if;
+      if (Knight_Attacks (To) and B.Pieces (Make (By, Knight))) /= 0 then
+         return True;
+      end if;
+      if ((Bishop_Attacks (To, Occ) or Rook_Attacks (To, Occ))
+            and (B.Pieces (Make (By, Bishop)) or B.Pieces (Make (By, Rook))
+                 or B.Pieces (Make (By, Queen)))) /= 0
+      then
+         return True;
+      end if;
+      if (King_Attacks (To) and B.Pieces (Make (By, King))) /= 0 then
+         return True;
+      end if;
+      return False;
+   end Attacked;
+
    ----------------
    -- Exchange --
    ----------------
@@ -185,8 +220,19 @@ package body BBChess.See is
          See_Put (B, Att, To);
 
          if Kind (Att) = King then
-            --  A king capture ends the sequence: the king itself cannot be
-            --  taken back in a legal exchange.
+            --  A king capture normally ends the sequence: the king itself
+            --  cannot be taken back in a legal exchange. But the recapture is
+            --  illegal when the target is still attacked by an enemy piece --
+            --  possibly only after the king moved, through x-ray (a pinned
+            --  defender still attacks). In that case the capture never
+            --  happened: undo this step and stop (Side_Now's opponent keeps
+            --  the piece on To). Only non-king pieces can attack To here for
+            --  a legal king move, so Attacked with the opponent's pieces is
+            --  exactly the legality test.
+            if Attacked (B, To, Opposite (Side_Now)) then
+               Count := Count - 1;
+               exit;
+            end if;
             King_Last := True;
             exit;
          end if;
