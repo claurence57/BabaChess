@@ -272,6 +272,25 @@ package body BBChess.Search is
      ((E.Key_Xor xor E.Data) = Key);
    pragma Inline (Key_Match);
 
+   --  Read a TT slot for reporting (PV extraction), returning its Data when it
+   --  verifies against Key. A concurrent Lazy-SMP store writes the two 64-bit
+   --  words separately, so a 16-byte copy can tear and be rejected; the PV is
+   --  never a search input, so one retry makes that false negative rare.
+   function TT_Slot_Read (Bk : Natural; Key : Bitboard;
+                          Data : out Bitboard) return Boolean is
+      E : TT_Entry;
+   begin
+      E := Transposition_Table (Bk);
+      if not Key_Match (E, Key) then
+         E := Transposition_Table (Bk);
+      end if;
+      if Key_Match (E, Key) then
+         Data := E.Data;
+         return True;
+      end if;
+      return False;
+   end TT_Slot_Read;
+
    --  Software prefetch of a TT slot, issued at node entry so the probe's
    --  cache miss overlaps with the prologue (draw / repetition / mate checks).
    --  A pure hint: it has no architectural effect and cannot change the search.
@@ -747,19 +766,16 @@ package body BBChess.Search is
       for Step in 1 .. PV_Max loop
          declare
             Bk : constant Natural := TT_Bucket (Work);
-            E  : TT_Entry;
+            D  : Bitboard;
             M  : Move_Type;
             Dup : Boolean := False;
          begin
-            E := Transposition_Table (Bk);
-            if Key_Match (E, Work.Key) then
-               M := Unpack_Move (Data_Move (E.Data));
+            if TT_Slot_Read (Bk, Work.Key, D)
+              or else TT_Slot_Read (Bk + 1, Work.Key, D)
+            then
+               M := Unpack_Move (Data_Move (D));
             else
-               E := Transposition_Table (Bk + 1);
-               if not Key_Match (E, Work.Key) then
-                  exit;
-               end if;
-               M := Unpack_Move (Data_Move (E.Data));
+               exit;
             end if;
             exit when M = Empty_Move;
 
@@ -2264,8 +2280,16 @@ package body BBChess.Search is
       -- concurrently from the command loop, but this search must only wait
       -- for (and read the results of) the workers it actually starts.
       Root_Num_Threads := Num_Threads;
-      --  Split the node ceiling across the workers so "go nodes N" bounds the
-      --  whole search (~N nodes total) instead of each thread doing N.
+      --  "go nodes N" must bound the whole search (~N nodes total). Never
+      --  launch more workers than the ceiling: with fewer nodes than workers,
+      --  a worker whose share rounds to 0 would have no cap at all (unbounded)
+      --  and the total would overshoot. Then split N evenly with integer
+      --  division, so workers * share <= N and the aggregate never exceeds N.
+      if Node_Cap > 0
+        and then Node_Cap < Node_Count_Type (Root_Num_Threads)
+      then
+         Root_Num_Threads := Natural (Node_Cap);
+      end if;
       Root_Node_Cap :=
         (if Node_Cap = 0 then 0
          else Node_Count_Type'Max (1, Node_Cap / Node_Count_Type (Root_Num_Threads)));

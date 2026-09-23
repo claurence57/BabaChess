@@ -293,6 +293,9 @@ package body BBChess.Polyglot is
          begin
             while Off <= 16 loop
                Read (F, Buf (Off .. 16), Last);
+               --  Read returns fewer elements only at end of file; without
+               --  this guard Off would stop advancing and the loop would spin.
+               exit when Last < Off;
                Off := Last + 1;
             end loop;
             Book (I).Key := 0;
