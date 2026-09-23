@@ -37,6 +37,13 @@ package BBChess.Search is
    -- commands): when on, each completed iterative-deepening iteration
    -- prints a line "depth score time nodes bestmove".
 
+   procedure Set_UCI_Mode (On : in Boolean);
+   -- Enable/disable the UCI "info" output. When on, each completed
+   -- iteration prints "info depth D score cp|mate X time T nodes N nps S
+   -- pv m1 m2 ..." (the PV is extracted from the transposition table).
+   -- Set when the "uci" handshake is received; nothing is printed during
+   -- --selftest and --bench (both flags off).
+
    procedure Set_Threads (N : in Natural);
    -- Number of parallel search threads (Lazy SMP). 1 = single threaded.
    -- The transposition table is shared; the heuristics are per thread.

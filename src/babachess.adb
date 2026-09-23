@@ -841,6 +841,7 @@ begin
 
           elsif Cmd = "uci" then
              UCI_Mode := True;
+             Set_UCI_Mode (True);
              Ada.Text_IO.Put_Line ("id name BabaChess 1.0");
              Ada.Text_IO.Put_Line ("id author BabaChess");
              -- The transposition table is a compile-time-fixed array shared by

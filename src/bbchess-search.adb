@@ -640,6 +640,82 @@ package body BBChess.Search is
       Post_Output := On;
    end Set_Post;
 
+   -- UCI "info" output. Enabled by the "uci" handshake; when on, the primary
+   -- thread prints one "info" line per completed iteration with the PV. Off
+   -- by default so --selftest and --bench print nothing.
+   UCI_Output : Boolean := False;
+
+   procedure Set_UCI_Mode (On : in Boolean) is
+   begin
+      UCI_Output := On;
+   end Set_UCI_Mode;
+
+   PV_Max : constant := 32;
+
+   -- Extract the principal variation from the transposition table, starting
+   -- from Root (a by-value copy). Stops at the first missing / empty /
+   -- illegal entry, at a repeated position (cycle) or at PV_Max moves.
+   -- Never raises: an illegal TT move is simply dropped.
+   procedure Extract_PV (Root : in Position_Type;
+                         Pv   : out Move_List;
+                         Len  : out Natural) is
+      Work      : Position_Type := Root;
+      Seen      : array (1 .. PV_Max + 1) of Bitboard;
+      Seen_N    : Natural := 1;
+      Moves     : Move_List;
+      Count     : Natural;
+      Undo      : Undo_Info;
+      Is_Legal  : Boolean;
+   begin
+      Len := 0;
+      Seen (1) := Work.Key;
+      for Step in 1 .. PV_Max loop
+         declare
+            Bk : constant Natural := TT_Bucket (Work);
+            E  : TT_Entry;
+            M  : Move_Type;
+            Dup : Boolean := False;
+         begin
+            E := Transposition_Table (Bk);
+            if E.Hash_Key /= Work.Key then
+               E := Transposition_Table (Bk + 1);
+               if E.Hash_Key /= Work.Key then
+                  exit;
+               end if;
+            end if;
+            M := Unpack_Move (E.Move);
+            exit when M = Empty_Move;
+
+            Generate_Legal_Moves (Work, Moves, Count);
+            Is_Legal := False;
+            for I in 1 .. Count loop
+               if Moves (I) = M then
+                  Is_Legal := True;
+                  exit;
+               end if;
+            end loop;
+            exit when not Is_Legal;
+
+            Make_Move (Work, M, Undo);
+
+            -- Stop before including M if it returns to a position already
+            -- seen on this PV (cycle).
+            for I in 1 .. Seen_N loop
+               if Seen (I) = Work.Key then
+                  Dup := True;
+                  exit;
+               end if;
+            end loop;
+            exit when Dup;
+
+            Len := Len + 1;
+            Pv (Len) := M;
+            Seen_N := Seen_N + 1;
+            Seen (Seen_N) := Work.Key;
+         end;
+      end loop;
+   end Extract_PV;
+
    -- Single console lock shared by the command loop and the search threads
    -- (Ada.Text_IO is not task-safe). Both the XBoard "post" iteration reports
    -- and the UCI "readyok"/"bestmove" lines go through it.
@@ -660,17 +736,19 @@ package body BBChess.Search is
       Console.Put_Line (S);
    end Locked_Put_Line;
 
-   procedure Report_Iteration (Depth      : in Natural;
+   procedure Report_Iteration (Root       : in Position_Type;
+                               Depth      : in Natural;
                                Score      : in Score_Type;
                                Elapsed    : in Duration;
                                Nodes      : in Node_Count_Type;
                                Best       : in Move_Type) is
-      Centis : constant Long_Integer :=
-        Long_Integer (Elapsed * 100.0);
-      Disp   : Score_Type := Score;
-      -- One iteration line: depth + score + centiseconds + nodes + move.
-      -- Ample for any value the engine can print.
-      Line   : String (1 .. 80);
+      Millis : constant Long_Integer :=
+        Long_Integer (Elapsed * 1000.0);
+      Pv     : Move_List;
+      Pv_Len : Natural;
+      -- Ample for any value the engine can print (a PV of up to 32
+      -- coordinates is ~200 characters).
+      Line   : String (1 .. 900);
       Last   : Natural := 0;
 
       procedure Append (S : in String) is
@@ -678,27 +756,83 @@ package body BBChess.Search is
          Line (Last + 1 .. Last + S'Length) := S;
          Last := Last + S'Length;
       end Append;
+
+      procedure Append_Mate (Positive_Mate : in Boolean; Plies : in Score_Type) is
+         M : constant Score_Type :=
+           (if Positive_Mate then (Plies + 1) / 2 else Plies / 2);
+      begin
+         Append (" score mate "
+                 & (if Positive_Mate then "" else "-")
+                 & Score_Type'Image (M));
+      end Append_Mate;
    begin
-      if not Post_Output then
+      if not UCI_Output and then not Post_Output then
          return;
       end if;
 
-      -- Mate scores: emit 100000 - plies so cutechess/XBoard can display
-      -- a proper "mate in N" (see XboardEngine::adaptScore).
-      if Score >= Mate_Threshold then
-         Disp := 100_000 - (Mate_Score - Score);
-      elsif Score <= -Mate_Threshold then
-         Disp := -(100_000 - (Mate_Score + Score));
+      -- Extract the PV once (also gives the best move's continuation).
+      Extract_PV (Root, Pv, Pv_Len);
+
+      -- The first move of the reported PV must be this iteration's best
+      -- move: if the TT root entry is stale or replaced (or holds a
+      -- different move), fall back to a single-move PV.
+      if Best /= Empty_Move
+        and then (Pv_Len = 0 or else Pv (1) /= Best)
+      then
+         Pv (1) := Best;
+         Pv_Len := 1;
       end if;
 
-      Append (Natural'Image (Depth));
-      Append (" " & Score_Type'Image (Disp));
-      Append (" " & Long_Integer'Image (Centis));
-      Append (" " & Node_Count_Type'Image (Nodes));
-      if Best /= Empty_Move then
-         Append (" " & To_String (Best));
+      if UCI_Output then
+         Append ("info depth" & Natural'Image (Depth));
+         if Score >= Mate_Threshold then
+            Append_Mate (True, Mate_Score - Score);
+         elsif Score <= -Mate_Threshold then
+            Append_Mate (False, Mate_Score + Score);
+         else
+            Append (" score cp" & Score_Type'Image (Score));
+         end if;
+         Append (" time" & Long_Integer'Image (Millis));
+         Append (" nodes" & Node_Count_Type'Image (Nodes));
+         Append (" nps" & Long_Integer'Image
+                   (if Millis > 0 then
+                      Long_Integer (Nodes) * 1000 / Millis
+                    else
+                      Long_Integer (Nodes) * 1000));
+         if Pv_Len > 0 then
+            Append (" pv");
+            for I in 1 .. Pv_Len loop
+               Append (" " & To_String (Pv (I)));
+            end loop;
+         elsif Best /= Empty_Move then
+            -- The TT gave nothing usable: fall back to the iteration's move.
+            Append (" pv " & To_String (Best));
+         end if;
+         Console.Put_Line (Line (1 .. Last));
+      else
+         -- XBoard "post": depth score centiseconds nodes, then the full PV
+         -- (or the best move when the PV is empty). Mate scores use the
+         -- 100000 - plies convention cutechess/XBoard understands.
+         Append (Natural'Image (Depth));
+         if Score >= Mate_Threshold then
+            Append (" " & Score_Type'Image (100_000 - (Mate_Score - Score)));
+         elsif Score <= -Mate_Threshold then
+            Append (" " & Score_Type'Image
+                      (-(100_000 - (Mate_Score + Score))));
+         else
+            Append (" " & Score_Type'Image (Score));
+         end if;
+         Append (" " & Long_Integer'Image (Long_Integer (Elapsed * 100.0)));
+         Append (" " & Node_Count_Type'Image (Nodes));
+         if Pv_Len > 0 then
+            for I in 1 .. Pv_Len loop
+               Append (" " & To_String (Pv (I)));
+            end loop;
+         elsif Best /= Empty_Move then
+            Append (" " & To_String (Best));
+         end if;
+         Console.Put_Line (Line (1 .. Last));
       end if;
-      Console.Put_Line (Line (1 .. Last));
    end Report_Iteration;
 
    -- True when Position has already occurred on the current line. A single
@@ -1673,7 +1807,8 @@ package body BBChess.Search is
             Prev_Iter := To_Duration (Clock - Ctx.Start_Time) - Elapsed;
 
             if Report then
-               Report_Iteration (D, Best_Score, To_Duration (Clock - T0),
+               Report_Iteration (Work, D, Best_Score,
+                                 To_Duration (Clock - T0),
                                  Ctx.Nodes_Count - Nodes_Base, Best);
             end if;
 
