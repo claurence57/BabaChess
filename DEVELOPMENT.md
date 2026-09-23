@@ -2324,3 +2324,43 @@ démontré (roi prenant une case défendue, élagage de captures gagnantes) et q
 les tests le verrouillent. Le gain de force est **plausible mais non établi** —
 il n'est donc pas présenté comme acquis. La règle « l'important est de corriger
 les bugs, pas de gagner des points Elo » a guidé ce choix.
+
+## 52. Revue externe approfondie et correctifs sûrs
+
+Une seconde revue externe (indépendante, sur le commit `8ab4871`) a produit un
+rapport détaillé et un patch. Chaque constat a été **revérifié ici** (reproduction
+du bug puis test du correctif) avant adoption.
+
+### 52.1 Bloc sûr (commits `67cc5ea`, `a77bd4f`) — arbre bit-identique
+
+`--bench 9/11/12` = **518 612 / 1 286 807 / 2 358 722** (inchangés),
+`--selftest` vert en debug et release.
+
+| Id | Correctif |
+|---|---|
+| **B1** | **Syzygy** : ne sonder le WDL qu'après un coup irréversible (`Halfmove = 0`). Avant, chaque coup gagnant valait `TB_Win - 1` et l'itération s'arrêtait : le moteur **perdait des finales gagnées** (vérifié : KQvK passait de `cp 19999` à profondeur 2 à une recherche normale). |
+| B3 | UCI : `score cp -558` et `score mate -N` (l'`Image` d'un négatif n'a pas d'espace de tête ; on l'enlève et on ajoute l'espace). |
+| B4 | UCI : en `go infinite`, `bestmove` n'est émis qu'après `stop`. |
+| B5 | UCI : `go depth N` sans pendule n'est plus coupé à 1 s. |
+| B6 | FEN : validation matérielle (≤ 8 pions, aucun en rang 1/8, promotions bornées par les pions manquants). Une FEN hostile (**29 dames**) corrompait la pile et **plantait** en release `-gnatp` ; désormais `bad FEN`. |
+| B7 | UCI : `position fen <courte> moves …` n'oublie plus les coups (on cherche le jeton `moves` au lieu de supposer le rang 8). |
+| B8 | Polyglot : décodage des roques (« roi prend sa tour ») — un roque du livre est désormais joué. |
+| B10 | `Insufficient_Material` : couleur d'une case = `(colonne + rang) mod 2`, pas `index mod 2`. |
+| B11 | XBoard : clés de partie enregistrées en mode force ; `feature memory=1` (mensonger) retiré ; `sigint=0 sigterm=0`. |
+| B12 | Tâche UCI : ajout de `or terminate` (la boucle principale ne peut plus se figer). |
+| B14 | TT : comparaison d'âge par `/=`, robuste au repli à 2¹⁵. |
+| B15 | `Exact(0)` (`movetime 0`/`st 0`) : plancher, pour rester interruptible. |
+| B16 | `Trim_Both` retire aussi `CR` (entrée CRLF tolérée). |
+| B19 | `position … moves` : un coup invalide stoppe l'application (plus de désynchronisation). |
+| B20 | `setoption` destructif (Hash/Clear Hash/BookFile/SyzygyPath) ignoré pendant une recherche (`tb_init` sous une sonde = use-after-free C). |
+
+### 52.2 Traités en lots SPRT séparés (changement d'arbre)
+
+- **B9** — élagage de frontière aveugle aux échecs (RFP/LMP/futility) : test
+  d'échec après `Make_Move` ; un coup donnant échec n'est plus élagué.
+  `--bench 9` **518 612 → 607 956** (+17 %). SPRT en cours.
+- **B2** — plafond de temps proportionnel à la pendule (`Max_Soft` absolu de 2 s
+  faisait ignorer la pendule dès les cadences moyennes). Lot SPRT.
+- **B18** — null-move renvoyant un score de mat non prouvé : borne. Lot SPRT.
+- **B17** — compteurs `info nodes`/`nps` mono-thread en SMP : compteur global.
+  Lot SPRT (affichage, arbre inchangé).
