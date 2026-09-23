@@ -4,7 +4,7 @@
 > Ce journal est **historique** et conserve les noms d'avant le fork
 > (`src_bb/`, `adachess_bb.gpr`, `bin_bb/adachess_bb`, moteur **MB** dans `src/`).
 > Dans BabaChess, les sources vivent désormais dans `src/` (ex-`src_bb/`), le
-> moteur se construit en `babachess.gpr` → `bin_bb/babachess`, et le moteur
+> moteur se construit en `babachess.gpr` → `bin/babachess`, et le moteur
 > **MB** a été retiré. Voir `NOTICE.md`.
 
 Ce document résume le parcours du projet : les améliorations apportées au moteur
@@ -382,7 +382,7 @@ implémenté puis retiré : il n'apporte rien, la structure de pions étant déj
 bon marché une fois `Popcount` en instruction matérielle.
 
 Pièges : un build `-pg`/gprof laisse des objets instrumentés ; gprbuild ne les
-recompile pas toujours au retour à la normale → **toujours `rm -rf obj_bb`**
+recompile pas toujours au retour à la normale → **toujours `rm -rf obj`**
 après un profil, sinon les mesures sont faussées d'un facteur ~3.
 
 ## 7quater. Movegen légal direct & table de transposition (chantiers M1/M2)
@@ -750,8 +750,8 @@ cherché un ply plus profond.
 Probe de fin de partie via **Fathom** (bibliothèque C, licence **MIT**),
 vendue dans `src_bb/fathom/` (`tbprobe.c`, `tbchess.inc` inclus par
 `tbprobe.c`, `tbconfig.h`, `stdendian.h`, plus le wrapper aplati
-`bbchess-tbwrap.c`). Le wrapper expose `bb_tb_init`, `bb_tb_largest`,
-`bb_tb_wdl` au binding Ada `BBChess.Syzygy`.
+`bbchess-tbwrap.c`). Le wrapper expose `baba_tb_init`, `baba_tb_largest`,
+`baba_tb_wdl` au binding Ada `BBChess.Syzygy`.
 
 - **Binding** (`bbchess-syzygy.ads/.adb`) : `Init (chemin)`, `Largest`,
   `Probe_WDL` (convertit la `Position` en bitboards Fathom). Le probe WDL est
@@ -863,7 +863,7 @@ est d'environ +300 Elo.)
 Deux pièges découverts en mesurant les tentatives des §17-18 :
 
 - **Livre asymétrique** : la recherche de livre par défaut regarde à côté de
-  l'exécutable **et de son parent**. Un binaire dans `bin_bb/` trouvait donc
+  l'exécutable **et de son parent**. Un binaire dans `bin/` trouvait donc
   `books/book.bin` (parent = dépôt) alors qu'un binaire dans `/tmp` non : NEW
   jouait des coups de livre, OLD non. `sprt.sh` et `ab.sh` **désactivent
   maintenant le livre des deux côtés** pendant le match (et le restaurent) ; la
@@ -896,13 +896,13 @@ gprbuild -P adachess_bb.gpr -XMode=portable   # -> bin_bb/adachess_bb
 
 - **`adachess_bb.gpr`** : le mode `portable` utilise `-O3 -gnatN` **sans**
   `-mpopcnt -mbmi -mbmi2` ; le mode `release` reste inchangé.
-- **`bbchess-bits.c`** : `bb_pext` utilise `_pext_u64` seulement si `__BMI2__`
+- **`bbchess-bits.c`** : `baba_pext` utilise `_pext_u64` seulement si `__BMI2__`
   est défini, sinon une boucle logicielle extrait les bits du masque ;
   `__builtin_popcountll` / `__builtin_ctzll` se rabattent sur les routines
   libgcc. Un seul fichier sert donc les deux modes.
 - **Mesure** : `--bench 9` ≈ **1,07 M knps** contre 1,46 M en `release` (~27 %
   plus lent), **arbre identique** (780 851 nœuds) ; `--selftest` vert, perft 1→5
-  inchangé. Les deux modes partagent `obj_bb/` : ne pas mélanger les builds dans
+  inchangé. Les deux modes partagent `obj/` : ne pas mélanger les builds dans
   le même arbre.
 
 ---
@@ -1072,7 +1072,7 @@ courts** (8 itér. × 40 part., 0.2+0.02) confirment que `theta` bouge :
 `max_move` 5,3 → 12 avec `a=200` (mais la borne haute est atteinte en ~4 itér.,
 donc `a=200` est trop grand) et 1,18 → 2,67 avec `a=50`. Deux runs complets de
 **50 × 200 parties** à `1+0.1`, `a=50`, sont lancés **en parallèle** sur des
-copies gelées de `bin_bb` (graines 1 et 2).
+copies gelées de `bin` (graines 1 et 2).
 
 **Run 1 (graine 1) — terminé.** **22 des 35** paramètres ont bougé (pas de ±1 à
 ±4 ; ex. `P_ROOKCONN_EG` 14→18, `P_MOBILITY_R` 2→4, `P_ROOKCONN_OP` 10→7).
@@ -1247,7 +1247,7 @@ perft 1→5 inchangé) :
   alimentent aussi la sécurité du roi et le bonus `threats`, au lieu de les
   recalculer dans `King_Safety` ; l'arrondi entier est conservé à l'identique.
 - `bb_popcountll`/`bb_ctzll` importés en `Convention => Intrinsic` (POPCNT/TZCNT
-  en ligne en `release`, repli libgcc en `portable`) ; `bb_pext` inchangé.
+  en ligne en `release`, repli libgcc en `portable`) ; `baba_pext` inchangé.
 
 **Mesure** (A/B entrelacé, cœur épinglé) : `--bench 9` 0,517 → 0,325 s
 (**×1,59**, 1 552 → 2 467 knps) ; `--bench 11` 1,704 → 1,067 s (×1,60) ;
@@ -1971,7 +1971,7 @@ main en ~40 ms à 8 threads.
 **Identité mono‑thread conservée** : `--bench` 1→12 **bit‑identique** au
 binaire d'origine (`--bench 9/11` = **496 570 / 1 434 292** exactement),
 `--selftest` vert (perft 1→5, symétrie `Static`, MT‑puis‑ST inclus), build
-`portable` propre et `release` propre après `rm -rf obj_bb`. Stress 8 threads
+`portable` propre et `release` propre après `rm -rf obj`. Stress 8 threads
 profondeur 14 sur ≥ 5 positions × 3 répétitions : aucun plantage/blocage ; build
 `debug` (contrôles actifs) : 3 000 recherches avec effectif cyclé 1→8, sans
 erreur bornée (valide la libération des tâches).
@@ -2041,7 +2041,7 @@ nœuds **exacts**, `--selftest` vert (release **et** portable **et** debug),
 
 **Trois propositions de la spécification ont été corrigées après audit** :
 
-- **P0** : `bbchess-bits.c` **n'est pas mort** — `bb_pext` sert au build **portable**
+- **P0** : `bbchess-bits.c` **n'est pas mort** — `baba_pext` sert au build **portable**
   (`bbchess-attacks.adb`, `#else` de `#if REL`). Le supprimer aurait cassé
   `-XMode=portable`. Seules `bb_popcountll`/`bb_ctzll` sont réellement inutilisées
   (Ada importe les `__builtin_*` directement) → retirées, fichier conservé.

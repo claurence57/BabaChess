@@ -4,7 +4,7 @@
 > The entries below are the **historical** changelog inherited from AdaChess, and
 > keep the pre-fork names they were written with (`src_bb/`, `adachess_bb.gpr`,
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
-> engine builds as `babachess.gpr` → `bin_bb/babachess`; see `NOTICE.md`.
+> engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
 ## Non publié (développement post bb-1.0)
 
@@ -35,7 +35,7 @@ intacts. Détail : `DEVELOPMENT.md` §50.
 
 ### Solidité / propreté / performance (chantier P0-P7)
 
-- **P0** `bbchess-bits.c` **conservé** (le `bb_pext` sert au build *portable*) : seules
+- **P0** `bbchess-bits.c` **conservé** (le `baba_pext` sert au build *portable*) : seules
   les fonctions mortes `bb_popcountll`/`bb_ctzll` retirées.
 - **P1** invariant `Position.Squares` **documenté + `pragma Assert`** (pas d'écriture
   d'une valeur « vide », qui aurait été incohérente avec `Remove_Piece`).
@@ -261,7 +261,7 @@ intacts. Détail : `DEVELOPMENT.md` §50.
 
 - Nouveau mode `-XMode=portable` dans `adachess_bb.gpr` : mêmes optimisations
   (`-O3 -gnatN`) mais **sans** `-mpopcnt -mbmi -mbmi2`.
-- `bbchess-bits.c` : `bb_pext` garde `_pext_u64` si `__BMI2__` est défini,
+- `bbchess-bits.c` : `baba_pext` garde `_pext_u64` si `__BMI2__` est défini,
   sinon repli logiciel (boucle sur les bits du masque) ; `__builtin_popcountll`
   et `__builtin_ctzll` se rabattent sur les routines libgcc.
 - Le binaire portable tourne sur **n'importe quel x86-64** (~27 % plus lent :
@@ -484,7 +484,7 @@ Voir `DEVELOPMENT.md` §34.
 ### Outillage — harnais A/B équitable
 
 - `sprt.sh`/`ab.sh` désactivent le livre des deux moteurs pendant le match
-  (sinon un binaire de `bin_bb/` utilisait `books/book.bin` et pas l'autre) ;
+  (sinon un binaire de `bin/` utilisait `books/book.bin` et pas l'autre) ;
   contrôle HEAD vs HEAD à 40 parties = ±87 Elo → décisions en 300 parties
   (±33-36). Voir `DEVELOPMENT.md` §15.4.
 

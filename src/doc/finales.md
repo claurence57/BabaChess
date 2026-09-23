@@ -33,8 +33,8 @@ des nulles, approximation prudente et non jeu parfait.
 
 `BBChess.Syzygy` est une couche mince au-dessus du wrapper C
 `src/fathom/bbchess-tbwrap.c`, lui-même au-dessus de Fathom. Le wrapper
-expose quatre symboles plats : `bb_tb_init`, `bb_tb_free`, `bb_tb_largest` et
-`bb_tb_wdl` (la sonde, appelée avec un bitboard par type de pièce). L'API Ada
+expose quatre symboles plats : `baba_tb_init`, `baba_tb_free`, `baba_tb_largest` et
+`baba_tb_wdl` (la sonde, appelée avec un bitboard par type de pièce). L'API Ada
 tient en cinq sous-programmes : `Init (Path, Ok)`, `Free`, `Largest`, `Enabled`
 et `Probe_WDL (Position) return Integer`. `Init` renvoie `Ok = False` si aucune
 table utilisable n'est trouvée ; dans ce cas `Largest = 0` et `Enabled = False`.
@@ -70,7 +70,7 @@ sequenceDiagram
         S-->>N: -1 (pas de sonde)
     else aucun droit de roque
         N->>S: Probe_WDL (Position)
-        S->>C: bb_tb_wdl (bitboards, rule50=0, castling=0, ep, turn)
+        S->>C: baba_tb_wdl (bitboards, rule50=0, castling=0, ep, turn)
         C->>F: tb_probe_wdl
         F-->>C: code WDL 0..4 ou 0xFFFFFFFF
         C-->>S: resultat brut
@@ -108,7 +108,7 @@ profondeur 2.
 
 ## 4. Configuration
 
-**Ligne de commande** (modes de jeu) : `./bin_bb/babachess --syzygy /chemin`,
+**Ligne de commande** (modes de jeu) : `./bin/babachess --syzygy /chemin`,
 et **UCI**, à chaud avant `go` :
 `setoption name SyzygyPath value /chemin/vers/tables`. Dans les deux cas
 la valeur est passée à `BBChess.Syzygy.Init`. Le chemin peut contenir plusieurs

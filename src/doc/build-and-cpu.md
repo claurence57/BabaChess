@@ -6,7 +6,7 @@ l'**historique des optimisations CPU** (le levier de force prouvé du moteur).
 ## Modes de construction
 
 `babachess.gpr` expose le scénario `Mode` (`release` par défaut, `debug`,
-`portable`). Le binaire est écrit dans `bin_bb/babachess`.
+`portable`). Le binaire est écrit dans `bin/babachess`.
 
 ```bash
 gprbuild -P babachess.gpr -XMode=release    # défaut : POPCNT/BMI2/PEXT, -flto
@@ -32,8 +32,8 @@ gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 - **portable** retire `-mpopcnt/-mbmi/-mbmi2/-flto` et laisse `REL` indéfini :
   tourne sur **tout x86-64**, avec le repli logiciel PEXT de `bbchess-bits.c`
   (≈ 25 % plus lent). C'est le mode à distribuer pour un CPU ancien.
-- **Gotcha** : `release` et `portable` partagent `obj_bb/`. Après une
-  construction `portable`, faire `rm -rf obj_bb` avant de rebâtir en `release`
+- **Gotcha** : `release` et `portable` partagent `obj/`. Après une
+  construction `portable`, faire `rm -rf obj` avant de rebâtir en `release`
   (et ne jamais comparer `--bench` entre les deux modes sans rebuild propre).
 
 ### Alias du nombre de threads
@@ -41,9 +41,9 @@ gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 Le nombre de threads Lazy SMP (1 à 16) se règle indifféremment par :
 
 ```bash
-bin_bb/babachess --threads 4      # argument séparé
-bin_bb/babachess -T4              # forme courte
-bin_bb/babachess --thread=4       # forme longue
+bin/babachess --threads 4      # argument séparé
+bin/babachess -T4              # forme courte
+bin/babachess --thread=4       # forme longue
 ```
 
 Les formes `-T#` / `--thread=#` sont analysées par `BBChess.Text.Thread_Count`

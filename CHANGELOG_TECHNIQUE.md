@@ -18,7 +18,7 @@ Toutes les validations sont faites avec le **filet perft** et le gate
 ## P0 — nettoyage build (fonctions C mortes)
 
 **La proposition d'origine (« supprimer `bbchess-bits.c` ») était fausse** et n'a
-pas été suivie : `bb_pext` y est **utilisé par le build `portable`**
+pas été suivie : `baba_pext` y est **utilisé par le build `portable`**
 (`bbchess-attacks.adb`, branche `#else` de `#if REL`). Supprimer le fichier
 aurait cassé `-XMode=portable`.
 

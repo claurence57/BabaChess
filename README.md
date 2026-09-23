@@ -37,9 +37,9 @@ representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** an
 Requires **GNAT** (Ada 2012) and **gprbuild**.
 
 ```bash
-gprbuild -P babachess.gpr -XMode=release    # -> bin_bb/babachess  (POPCNT/BMI2/PEXT)
-gprbuild -P babachess.gpr -XMode=portable   # -> bin_bb/babachess  (any x86-64)
-gprbuild -P babachess.gpr -XMode=debug      # -> bin_bb/babachess  (assertions + warnings)
+gprbuild -P babachess.gpr -XMode=release    # -> bin/babachess  (POPCNT/BMI2/PEXT)
+gprbuild -P babachess.gpr -XMode=portable   # -> bin/babachess  (any x86-64)
+gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess  (assertions + warnings)
 ```
 
 - `release` compiles with `-mpopcnt -mbmi -mbmi2` and inlines the PEXT intrinsic
@@ -55,8 +55,8 @@ optimization history.
 ## Testing
 
 ```bash
-./bin_bb/babachess --selftest    # perft 1-5, Zobrist, FEN, search, SEE, Polyglot
-./bin_bb/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
+./bin/babachess --selftest    # perft 1-5, Zobrist, FEN, search, SEE, Polyglot
+./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
 
 The **golden rule** for any change: `--selftest` must stay green (perft counts

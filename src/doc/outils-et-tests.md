@@ -21,7 +21,7 @@ prend sur un match court.
 ```mermaid
 flowchart TD
     Change["Modification movegen / recherche / éval"] --> Build["gprbuild -P babachess.gpr -XMode=release"]
-    Build --> Self["./bin_bb/babachess --selftest"]
+    Build --> Self["./bin/babachess --selftest"]
     Self -->|échec| Revert["Revert du patch"]
     Self -->|"vert : perft 1-5 inchangé, symétrie OK"| Bench["--bench 9 et diag_bench.py score"]
     Bench -->|régression objective nœuds / temps| Revert
@@ -34,7 +34,7 @@ flowchart TD
 ## `--selftest` : la suite interne
 
 ```bash
-./bin_bb/babachess --selftest    # sortie 0 si tout passe
+./bin/babachess --selftest    # sortie 0 si tout passe
 ```
 
 Le mode retourne avant le chargement automatique des services orchestré par
@@ -91,8 +91,8 @@ donc n'est pas antisymétrique.
 ## `--bench` : coût machine reproductible
 
 ```bash
-./bin_bb/babachess --bench       # profondeur 8 par défaut
-./bin_bb/babachess --bench 9     # 8 positions fixes, nœuds / temps / knps
+./bin/babachess --bench       # profondeur 8 par défaut
+./bin/babachess --bench 9     # 8 positions fixes, nœuds / temps / knps
 ```
 
 `Run_Bench` dans `babachess.adb` charge huit FEN figés, les cherche à
@@ -100,8 +100,8 @@ profondeur fixe avec une TT réinitialisée (`Reset_Search`, `Reset_Nodes`), et
 rapporte nœuds, temps et knps. Le travail est déterministe, donc deux binaires
 se comparent exactement. Référence citée en §18 : **780 851 nœuds** à
 `--bench 9`. Le build `portable` donne le même arbre (~27 % plus lent) ; les
-deux modes partagent `obj_bb/`, donc ne mélangez pas les builds sans
-`rm -rf obj_bb`.
+deux modes partagent `obj/`, donc ne mélangez pas les builds sans
+`rm -rf obj`.
 
 ## Modes d'évaluation : `--eval-fens`, `--params`, `--dump-params`
 
@@ -119,7 +119,7 @@ exploite massivement.
 ## `--threads` : Lazy SMP
 
 ```bash
-./bin_bb/babachess --threads 4 --bench 9
+./bin/babachess --threads 4 --bench 9
 ```
 
 `--threads N` fixe le nombre de tâches de recherche (1 à 16), réglable aussi par
@@ -136,7 +136,7 @@ séquentiel (Wald) piloté par `cutechess-cli -sprt`.
 
 ```bash
 scripts/sprt.sh [tc] [elo0] [elo1] [max_games] [seed] [old] [new]
-# défauts :           1+0.1  0     5     2000        7     ~/bin/adachess_bb  bin_bb/babachess
+# défauts :           1+0.1  0     5     2000        7     ~/bin/adachess_bb  bin/babachess
 ```
 
 Hypothèses : **H0**, NEW ne dépasse pas OLD de `elo0` (→ FAIL) ; **H1**, NEW
@@ -150,12 +150,12 @@ inversées** (`-games 2 -rounds max_games/2 -repeat`) pour supprimer le biais de
 couleur et décorréler les parties. Le script **neutralise `books/book.bin`**
 pendant tout le match et le restaure via `trap ... EXIT`, car la recherche de
 livre par défaut regarde à côté de l'exécutable et de son parent : un binaire
-dans `bin_bb/` trouverait le livre, un binaire dans `/tmp` non.
+dans `bin/` trouverait le livre, un binaire dans `/tmp` non.
 
 **Pour valider un patch, passez le binaire d'avant en OLD** :
 
 ```bash
-scripts/sprt.sh 1+0.1 0 5 300 7 /tmp/opencode/adachess_bb_p1 bin_bb/babachess
+scripts/sprt.sh 1+0.1 0 5 300 7 /tmp/opencode/adachess_bb_p1 bin/babachess
 ```
 
 Comparer directement à la référence `bb-1.0` donne un PASS immédiat, l'écart
@@ -198,7 +198,7 @@ scripts/ab.sh 1+0.1 20 7           # référence bb-1.0 vs HEAD, tc, parties, gr
 scripts/vs_gnuchess.sh 30+1 12 7   # vs GNU Chess (UCI), tc, parties, graine
 ```
 
-`ab.sh` oppose `~/bin/adachess_bb` (référence figée) à `bin_bb/babachess`,
+`ab.sh` oppose `~/bin/adachess_bb` (référence figée) à `bin/babachess`,
 livre neutralisé lui aussi. `vs_gnuchess.sh` affronte GNU Chess (~2400-2500
 Elo) via le wrapper `~/bin/gnuchess_uci.sh`, GNU Chess 6.2.7 n'émettant jamais
 `feature done=1` en mode XBoard. Ces deux scripts sont **machine-locaux** et
@@ -214,7 +214,7 @@ chacune annotée du coup attendu de Stockfish.
 
 ```bash
 python3 scripts/diag_bench.py build   [--pgn F ...] [--depth 12] [--max 40]
-python3 scripts/diag_bench.py score --binary bin_bb/babachess [--depth 14]
+python3 scripts/diag_bench.py score --binary bin/babachess [--depth 14]
 ```
 
 `build` retient les erreurs graduées (perte 1 à 6 pions, pour éviter un banc
@@ -234,7 +234,7 @@ sans rebuild) à partir d'un dataset.
 ```mermaid
 flowchart LR
     PGN["PGN / .pgn.zst"] -->|gen_dataset.py| DS["dataset FEN;résultat"]
-    BIN["bin_bb/babachess"] -->|--dump-params| PAR["paramètres par défaut"]
+    BIN["bin/babachess"] -->|--dump-params| PAR["paramètres par défaut"]
     DS -->|tune.py| TP["params Texel"]
     PAR -->|tune.py| TP
     BIN -->|--eval-fens| TP
@@ -274,7 +274,7 @@ restauré même sur signal, avec un snapshot à chaque itération :
 
 ```bash
 python3 scripts/spsa.py --iterations 50 --games 200 --tc 1+0.1 \
-    --binary bin_bb/babachess --out /tmp/opencode/spsa
+    --binary bin/babachess --out /tmp/opencode/spsa
 ```
 
 Un run utile dure des heures. Quel que soit le tuner, le jeu final doit être
@@ -283,9 +283,9 @@ seule MSE. Le tuner propose, le SPRT dispose. Le SPRT d'un jeu de `--params`
 passe par un wrapper, comme en génère `spsa.py` :
 
 ```bash
-printf '#!/bin/sh\nexec "$PWD/bin_bb/babachess" --params /tmp/opencode/tuned_lichess.txt "$@"\n' \
+printf '#!/bin/sh\nexec "$PWD/bin/babachess" --params /tmp/opencode/tuned_lichess.txt "$@"\n' \
     > /tmp/opencode/tuned_wrap.sh && chmod +x /tmp/opencode/tuned_wrap.sh
-scripts/sprt.sh 1+0.1 0 5 300 7 "$PWD/bin_bb/babachess" /tmp/opencode/tuned_wrap.sh
+scripts/sprt.sh 1+0.1 0 5 300 7 "$PWD/bin/babachess" /tmp/opencode/tuned_wrap.sh
 ```
 
 ## Règles de décision, en résumé

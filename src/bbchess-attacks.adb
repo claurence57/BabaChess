@@ -46,7 +46,7 @@ package body BBChess.Attacks is
 
    -- Parallel bit extract (BMI2). The release build imports the GCC builtin
    -- directly, so PEXT is emitted inline at every call site and the
-   -- out-of-line bb_pext call disappears. The portable build keeps the C
+   -- out-of-line baba_pext call disappears. The portable build keeps the C
    -- shim (its software fallback), because the builtin needs -mbmi2.
 #if REL then
    function Pext (X : in Bitboard; Mask : in Bitboard) return Bitboard
@@ -55,7 +55,7 @@ package body BBChess.Attacks is
    pragma Inline (Pext);
 #else
    function Pext (X : in Bitboard; Mask : in Bitboard) return Bitboard
-     with Import, Convention => C, External_Name => "bb_pext";
+     with Import, Convention => C, External_Name => "baba_pext";
 #end if;
 
    -- Bitboard of the sliding attacks from From, considering Occupancy.

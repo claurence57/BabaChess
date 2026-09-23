@@ -8,22 +8,22 @@ bitboard engine. BabaChess is now the **sole development target**.
 |---|---|
 | Sources | `src/` (packages `BBChess.*` + C shim `bbchess-bits.c`) |
 | Project file | `babachess.gpr` |
-| Binary | `bin_bb/babachess` |
+| Binary | `bin/babachess` |
 | Role | **Active development target** |
 
 `DEVELOPMENT.md` is the authoritative engineering log (in French, ~2000 lines),
 inherited from AdaChess and still referring to the pre-fork names
 (`adachess_bb.gpr`, `bin_bb/adachess_bb`); the fork renamed them to
-`babachess.gpr` / `bin_bb/babachess`. `CHANGELOG.md` and
+`babachess.gpr` / `bin/babachess`. `CHANGELOG.md` and
 `CHANGELOG_TECHNIQUE.md` cover the engine. `README.md` describes BabaChess;
 `NOTICE.md` records provenance and licensing.
 
 ## Build
 
 ```bash
-gprbuild -P babachess.gpr -XMode=release      # -> ./bin_bb/babachess
-gprbuild -P babachess.gpr -XMode=portable     # -> ./bin_bb/babachess
-gprbuild -P babachess.gpr -XMode=debug        # -> ./bin_bb/babachess
+gprbuild -P babachess.gpr -XMode=release      # -> ./bin/babachess
+gprbuild -P babachess.gpr -XMode=portable     # -> ./bin/babachess
+gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
 ```
 
 - Toolchain: GNAT Ada 2012 + `gprbuild`. Modes: `release` (default), `debug`,
@@ -34,16 +34,16 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin_bb/babachess
   runs on any x86-64 CPU at ~25% lower speed; both modes are otherwise identical.
 - `debug` turns on the Ada assertions and all warnings (`-gnatwa -gnatVa`); it is
   the only mode that carries warnings.
-- `release` and `portable` share `obj_bb/`: after switching, `rm -rf obj_bb`
+- `release` and `portable` share `obj/`: after switching, `rm -rf obj`
   before rebuilding, or `--bench` comparisons are meaningless.
 
 ## Test & verify (no test framework, no CI)
 
 ```bash
-./bin_bb/babachess --selftest    # perft 1-5, Zobrist, packed moves, FEN
+./bin/babachess --selftest    # perft 1-5, Zobrist, packed moves, FEN
                                  # validation, search, repetition, SEE,
                                  # Polyglot key. Exit 0.
-./bin_bb/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
+./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
 
 - **Golden rule**: any movegen/search/eval change must keep `--selftest` green
@@ -56,7 +56,7 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin_bb/babachess
 ## Benchmarking / matches (needs `cutechess-cli`)
 
 ```bash
-scripts/sprt.sh 1+0.1 0 5 1000 7 <previous_binary> bin_bb/babachess
+scripts/sprt.sh 1+0.1 0 5 1000 7 <previous_binary> bin/babachess
 scripts/ab.sh 1+0.1 20 7          # reference vs current HEAD
 scripts/vs_gnuchess.sh 30+1 12 7  # vs GNU Chess (UCI)
 ```
@@ -95,7 +95,7 @@ The XBoard search path is synchronous.
 
 - Ada unit ↔ file name: `BBChess.Search.PV` → `bbchess-search-pv.adb`;
   `BBChess.See` → `bbchess-see.adb`.
-- Generated/ignored (never commit): `obj/`, `obj_bb/`, `bin_bb/`, `babachess`,
+- Generated/ignored (never commit): `obj/`, `bin/`, `babachess`,
   `adachess`, `*.o`, `*.ali`, `*.pgn`, `*.txt`.
 - `scripts/tune.py` (Texel tuner) requires `python-chess`; `scripts/gen_dataset.py`
   builds `FEN;result` datasets from PGN. Eval tuning was a **negative result** —

@@ -21,6 +21,8 @@ opt/*
 *.txt
 obj_bb/
 bin_bb/
+obj/
+bin/
 *.pgn
 
 gmon.out

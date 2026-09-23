@@ -270,7 +270,7 @@ et TZCNT. Ce binaire **exige un CPU avec BMI2/POPCNT** : sur un processeur
 plus ancien il s'arrêterait sur une instruction illégale.
 
 **`portable`** conserve `-O3 -gnatN` mais **retire** `-mpopcnt -mbmi -mbmi2`
-côté Ada comme côté C. `__BMI2__` n'étant plus défini, `bb_pext` bascule sur
+côté Ada comme côté C. `__BMI2__` n'étant plus défini, `baba_pext` bascule sur
 une boucle logicielle qui parcourt les bits du masque et reconstruit le
 résultat bit à bit ; `__builtin_popcountll` et `__builtin_ctzll` se rabattent
 sur les routines libgcc. Le binaire tourne alors sur n'importe quel x86-64.
@@ -278,7 +278,7 @@ sur les routines libgcc. Le binaire tourne alors sur n'importe quel x86-64.
 ### Pourquoi les deux modes sont identiques
 
 Un **seul fichier** `bbchess-bits.c` sert les deux modes : la seule
-différence est la macro `__BMI2__`, donc la sémantique de `bb_pext` reste la
+différence est la macro `__BMI2__`, donc la sémantique de `baba_pext` reste la
 même (même bijection, même index). Les tables construites à l'élaboration
 sont bit pour bit identiques, et la génération de coups ne connaît pas le
 mode de compilation.
@@ -287,7 +287,7 @@ C'est mesuré dans `DEVELOPMENT.md` §16 : `--bench 9` donne **le même arbre**
 (780 851 nœuds) dans les deux modes, seul le débit change (environ
 1,46 M knps en `release` contre 1,07 M en `portable`, environ 27 % plus
 lent). `--selftest` reste vert, perft 1 à 5 inchangé. Attention : les deux
-modes partagent `obj_bb/`, donc ne pas mélanger les builds dans un même
+modes partagent `obj/`, donc ne pas mélanger les builds dans un même
 arbre.
 
 ## Références

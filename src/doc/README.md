@@ -5,7 +5,7 @@ BabaChess (BB) est né du fork du projet
 représentation **mailbox** de l'échiquier vers une représentation **bitboard**.
 Après de nombreuses optimisations, il est devenu un projet à part entière. Il est
 écrit en **Ada 2012**, vit dans `src/` et se construit par le projet
-`babachess.gpr` vers l'exécutable `bin_bb/babachess`. Le moteur **mailbox**
+`babachess.gpr` vers l'exécutable `bin/babachess`. Le moteur **mailbox**
 d'AdaChess (dit **MB**) a été **retiré** du dépôt au moment du fork : ses
 valeurs de perft servent toujours de référence de validation. La journalisation
 d'ingénierie fait foi dans `DEVELOPMENT.md` (racine, en français, historique) ;
@@ -163,17 +163,17 @@ s'arrête au plafond de nœuds et `go infinite` ne s'arrête que sur `stop` (ou
 ## Construction
 
 ```bash
-gprbuild -P babachess.gpr -XMode=release    # -> bin_bb/babachess (POPCNT/BMI2)
-gprbuild -P babachess.gpr -XMode=portable   # -> bin_bb/babachess (repli logiciel)
-gprbuild -P babachess.gpr -XMode=debug      # -> bin_bb/babachess (assertions)
+gprbuild -P babachess.gpr -XMode=release    # -> bin/babachess (POPCNT/BMI2)
+gprbuild -P babachess.gpr -XMode=portable   # -> bin/babachess (repli logiciel)
+gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess (assertions)
 ```
 
 `release` (défaut) compile avec `-mpopcnt -mbmi -mbmi2` et emploie `_pext_u64`
 pour les attaques glissantes : il exige un processeur compatible BMI2. `portable`
 retire ces commutateurs et utilise le repli logiciel de `bbchess-bits.c`
 (environ 25 % plus lent, mais tourne sur tout x86-64). Les deux modes partagent
-`obj_bb/` : après une construction `portable`, ne comparez pas `--bench` avec un
-binaire `release` sans `rm -rf obj_bb`.
+`obj/` : après une construction `portable`, ne comparez pas `--bench` avec un
+binaire `release` sans `rm -rf obj`.
 
 ## Index de la documentation
 

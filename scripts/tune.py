@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 ENGINE = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "bin_bb", "babachess"))
+    os.path.join(os.path.dirname(__file__), "..", "bin", "babachess"))
 K = 1.13  # sigmoid scaling (centipawns -> [0,1])
 
 

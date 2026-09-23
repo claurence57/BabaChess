@@ -10,7 +10,7 @@ a log every iteration.
 
 Usage:
   python3 scripts/spsa.py [--iterations 50] [--games 200] [--tc 1+0.1]
-                          [--binary bin_bb/babachess] [--out /tmp/opencode/spsa]
+                          [--binary bin/babachess] [--out /tmp/opencode/spsa]
 """
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ def main() -> int:
     ap.add_argument("--iterations", type=int, default=50)
     ap.add_argument("--games", type=int, default=200)
     ap.add_argument("--tc", default="1+0.1")
-    ap.add_argument("--binary", default=str(ROOT / "bin_bb" / "babachess"))
+    ap.add_argument("--binary", default=str(ROOT / "bin" / "babachess"))
     ap.add_argument("--out", default="/tmp/opencode/spsa")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--a", type=float, default=0.3,

@@ -15,20 +15,20 @@ package body BBChess.Syzygy is
 
    function C_Init (Path : Interfaces.C.Strings.chars_ptr)
      return Interfaces.C.int
-     with Import, External_Name => "bb_tb_init", Convention => C;
+     with Import, External_Name => "baba_tb_init", Convention => C;
 
    procedure C_Free
-     with Import, External_Name => "bb_tb_free", Convention => C;
+     with Import, External_Name => "baba_tb_free", Convention => C;
 
    function C_Largest return Interfaces.C.unsigned
-     with Import, External_Name => "bb_tb_largest", Convention => C;
+     with Import, External_Name => "baba_tb_largest", Convention => C;
 
    function C_WDL
      (White, Black, Kings, Queens, Rooks, Bishops, Knights, Pawns
         : Interfaces.Unsigned_64;
       Rule50, Castling, Ep : Interfaces.C.unsigned;
       Turn : Interfaces.C.int) return Interfaces.C.unsigned
-     with Import, External_Name => "bb_tb_wdl", Convention => C;
+     with Import, External_Name => "baba_tb_wdl", Convention => C;
 
    Loaded    : Boolean := False;
    Largest_N : Natural := 0;

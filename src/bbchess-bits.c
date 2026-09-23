@@ -12,7 +12,7 @@
 #include <immintrin.h>
 
 /* Parallel bit extract, used by the sliding-attack lookup. */
-uint64_t bb_pext (uint64_t x, uint64_t mask) {
+uint64_t baba_pext (uint64_t x, uint64_t mask) {
 #if defined(__BMI2__)
    return _pext_u64 (x, mask);
 #else
