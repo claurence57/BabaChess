@@ -1068,15 +1068,22 @@ package body BBChess.Search is
          if In_Check then
             -- In check at the cap: the evasions cannot be searched (that would
             -- defeat the bound), so only mate is detected. If evasions exist,
-            -- the opponent's recapture (or any deeper continuation) is not
-            -- searched, so the real value is unknown: return alpha as a
-            -- fail-low bound instead of a static-based score the parent would
-            -- treat as exact.
+            -- the real value is unknown; return alpha as a fail-low bound
+            -- instead of a static-based score the parent would treat as exact.
+            --
+            -- Guard: never return a value in the mate band. Under negamax the
+            -- parent reads -A, so an A near +/-Mate_Score would make it believe
+            -- it found (or suffered) a proven mate from an unsearched node.
+            -- Clamping keeps the bound out of the mate band; with the default
+            -- parameters this is inert (A stays far from the band), so the
+            -- search tree is unchanged. A genuine mate (no evasion) is returned
+            -- above, before this clamp.
             Generate_Legal_Moves (Position, Moves, Count);
             if Count = 0 then
                return -(Mate_Score - Ply);
             end if;
-            return A;
+            return Score_Type'Max (-(Mate_Threshold - 1),
+                                   Score_Type'Min (A, Mate_Threshold - 1));
          else
             -- Not in check: the alpha-updated stand-pat score is the safe
             -- truncation (exactly the score the unbounded search would use
