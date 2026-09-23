@@ -2231,19 +2231,33 @@ de coups **ni** les perft.
   répétition racine, de la priorité mat et de l'interdiction du double
   null-move).
 
-### 50.3 Restant (audit externe, non traité)
+### 50.3 Restant (audit externe)
 
-- Compteurs de nœuds en 32 bits (`Natural`) : dépassement silencieux sous
-  `-gnatp` au-delà de 2³¹ nœuds, avec perte du `stop`/budget temps.
-- TT « key xor data » (fermeture complète de la course ABA).
-- Sortie UCI `info` (depth/score/pv/nodes) — absente.
-- SEE : reprise par le roi sur une case encore défendue (rayons X) comptée à
-  tort comme légale → captures gagnantes élaguées. **Corrigé**, voir §51
-  (SPRT INCONCLUSIVE à tendance positive ; conservé pour la correction du bug).
+Traité dans des commits dédiés (`6d98989`, `9c6d3be`, `c81d6ee`, `6cf1c44`,
+`e3f349a`) :
+
+- **Compteurs de nœuds** : passés en 64 bits (`Node_Count_Type`, 0 .. 2⁶²) —
+  fin du dépassement silencieux sous `-gnatp` et de la perte du
+  `stop`/budget temps au-delà de 2³¹ nœuds (`9c6d3be`).
+- **TT auto-vérifiante** : entrée « key xor data » en deux mots `Atomic`
+  (Data 64 bits + Key_Xor) — ferme la course ABA ; table 24 → 16 Mo
+  (`6cf1c44`).
+- **Sortie UCI `info`** : `depth/score/nodes/nps/pv`, avec score `mate` et
+  extraction de la PV depuis la TT (`c81d6ee`).
+- **SEE** : reprise par le roi sur une case encore défendue — **corrigé**,
+  voir §51 (`e3f349a`).
+- **En-tête `bbchess-attacks.ads`** : « fancy magic » → « PEXT (BMI2) lookup »
+  (`6d98989`).
+
+Tous ces lots gardent `--bench 9` à **518 612 nœuds** (arbre mono-thread
+inchangé, sauf le SEE de §51 qui modifie l'élagage : 496 570 → 518 612) et
+`--selftest` vert dans les trois modes.
+
+### 50.4 Restant (audit externe, non traité)
+
 - Discontinuité de `King_Safety` au seuil `Phase = 20` — **bloqué par le
-  moratoire** de §17 (deux refontes déjà régressives).
-- En-tête `bbchess-attacks.ads` parlant de « fancy magic » alors que
-  l'implémentation est PEXT/BMI2.
+  moratoire** de §17 (deux refontes déjà régressives) ; ne pas y toucher sans
+  modèle plus fin + auto-tuning validé SPRT.
 
 ## 51. SEE — reprise par le roi sur une case encore défendue (bug corrigé)
 
