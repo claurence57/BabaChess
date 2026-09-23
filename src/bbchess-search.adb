@@ -363,12 +363,12 @@ package body BBChess.Search is
          Slot := B;
       elsif Data_Depth_Signed (D_1) < 0 then
          Slot := B + 1;
-      elsif Data_Age (D_B) < TT_Generation mod 32_768
-        and then Data_Age (D_1) >= TT_Generation mod 32_768
+      elsif Data_Age (D_B) /= TT_Generation mod 32_768
+        and then Data_Age (D_1) = TT_Generation mod 32_768
       then
          Slot := B;
-      elsif Data_Age (D_1) < TT_Generation mod 32_768
-        and then Data_Age (D_B) >= TT_Generation mod 32_768
+      elsif Data_Age (D_1) /= TT_Generation mod 32_768
+        and then Data_Age (D_B) = TT_Generation mod 32_768
       then
          Slot := B + 1;
       elsif Data_Depth_Signed (D_1) < Data_Depth_Signed (D_B) then
@@ -385,7 +385,7 @@ package body BBChess.Search is
          Repl := Data_Depth_Signed (Old_D) < 0
            or else Match
            or else Depth >= Natural'Max (0, Data_Depth_Signed (Old_D))
-           or else Data_Age (Old_D) < TT_Generation mod 32_768;
+           or else Data_Age (Old_D) /= TT_Generation mod 32_768;
       end;
 
       if Repl then
@@ -850,13 +850,18 @@ package body BBChess.Search is
          Last := Last + S'Length;
       end Append;
 
+      --  'Image without its leading blank ("5", "-5").
+      function Img (X : Score_Type) return String is
+         S : constant String := Score_Type'Image (X);
+      begin
+         return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
+      end Img;
+
       procedure Append_Mate (Positive_Mate : in Boolean; Plies : in Score_Type) is
          M : constant Score_Type :=
            (if Positive_Mate then (Plies + 1) / 2 else Plies / 2);
       begin
-         Append (" score mate "
-                 & (if Positive_Mate then "" else "-")
-                 & Score_Type'Image (M));
+         Append (" score mate " & Img (if Positive_Mate then M else -M));
       end Append_Mate;
    begin
       if not UCI_Output and then not Post_Output then
@@ -883,7 +888,7 @@ package body BBChess.Search is
          elsif Score <= -Mate_Threshold then
             Append_Mate (False, Mate_Score + Score);
          else
-            Append (" score cp" & Score_Type'Image (Score));
+            Append (" score cp " & Img (Score));
          end if;
          Append (" time" & Long_Integer'Image (Millis));
          Append (" nodes" & Node_Count_Type'Image (Nodes));
@@ -1028,8 +1033,10 @@ package body BBChess.Search is
         and then Position.Pieces (Black_Knight) = 0
         and then Popcount (Position.Pieces (White_Bishop)) = 1
         and then Popcount (Position.Pieces (Black_Bishop)) = 1
-        and then (Lowest_Bit (Position.Pieces (White_Bishop)) mod 2)
-                   = (Lowest_Bit (Position.Pieces (Black_Bishop)) mod 2)
+        and then (Lowest_Bit (Position.Pieces (White_Bishop)) mod 8
+                  + Lowest_Bit (Position.Pieces (White_Bishop)) / 8) mod 2
+                 = (Lowest_Bit (Position.Pieces (Black_Bishop)) mod 8
+                  + Lowest_Bit (Position.Pieces (Black_Bishop)) / 8) mod 2
       then
          return True;
       end if;
@@ -1340,6 +1347,7 @@ package body BBChess.Search is
       -- because Probe_WDL sends rule50 = 0 (the WDL tables assume no 50-move
       -- context; DTZ would be needed to honour it exactly).
       if BBChess.Syzygy.Enabled
+        and then Position.Halfmove = 0
         and then Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest
       then
          declare
@@ -2135,6 +2143,8 @@ package body BBChess.Search is
    begin
       Abort_Request := False;
    end Clear_Stop;
+
+   function Stop_Requested return Boolean is (Abort_Request);
 
    --  Number of workers actually launched for the current search. It is
    --  snapshotted from Num_Threads when the search starts (Root_Num_Threads)

@@ -99,10 +99,10 @@ package body BBChess.Text is
       Lo : Natural := S'First;
       Hi : Natural := S'Last;
    begin
-      while Lo <= Hi and then S (Lo) in ' ' | ASCII.HT loop
+      while Lo <= Hi and then S (Lo) in ' ' | ASCII.HT | ASCII.CR loop
          Lo := Lo + 1;
       end loop;
-      while Hi >= Lo and then S (Hi) in ' ' | ASCII.HT loop
+      while Hi >= Lo and then S (Hi) in ' ' | ASCII.HT | ASCII.CR loop
          Hi := Hi - 1;
       end loop;
       if Lo > Hi then

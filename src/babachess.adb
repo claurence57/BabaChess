@@ -353,7 +353,7 @@ procedure BabaChess is
                declare
                   Tok : constant String := Token (Par, K);
                begin
-                  exit when Tok'Length = 0;
+                  exit when Tok'Length = 0 or else Tok = "moves";
                   if L > 0 then
                      Append_Bounded (Fen, L, " ", Over);
                   end if;
@@ -378,7 +378,7 @@ procedure BabaChess is
                end;
             end if;
          end;
-         I := 8;
+         I := 2;   -- the scan below finds "moves" (never a FEN field)
       else
          return;
       end if;
@@ -442,7 +442,8 @@ procedure BabaChess is
    task type UCI_Search_Task is
       entry Start (P : in Position_Type; D : in Natural;
                    Soft : in Duration; Hard : in Duration;
-                   Node_Cap : in Node_Count_Type);
+                   Node_Cap : in Node_Count_Type;
+                   Infinite : in Boolean);
       entry Stop_Now;
    end UCI_Search_Task;
 
@@ -453,13 +454,16 @@ procedure BabaChess is
       Soft_Alloc : Duration;
       Hard_Alloc : Duration;
       Cap      : Node_Count_Type;
+      Inf      : Boolean;
    begin
       loop
          select
             accept Start (P : in Position_Type; D : in Natural;
                           Soft : in Duration; Hard : in Duration;
-                          Node_Cap : in Node_Count_Type)
+                          Node_Cap : in Node_Count_Type;
+                          Infinite : in Boolean)
             do
+               Inf := Infinite;
                Position := P;
                Depth  := D;
                Soft_Alloc := Soft;
@@ -487,6 +491,11 @@ procedure BabaChess is
                   M := Empty_Move;
             end;
 
+            --  UCI: in "go infinite" the bestmove may only follow "stop".
+            while Inf and then not Stop_Requested loop
+               delay 0.005;
+            end loop;
+
             UCI_Busy.Set_Busy (False);
             if M = Empty_Move then
                Locked_Put_Line ("bestmove 0000");
@@ -496,6 +505,8 @@ procedure BabaChess is
          or
             accept Stop_Now;
             exit;
+         or
+            terminate;
          end select;
       end loop;
    end UCI_Search_Task;
@@ -534,6 +545,7 @@ procedure BabaChess is
       I        : Natural := 1;
       Infinite : Boolean := False;
       Node_Cap : Node_Count_Type := 0;
+      Depth_Given : Boolean := False;
    begin
       Fixed_Time := False;
       Clock_Left := 0.0;
@@ -562,6 +574,7 @@ procedure BabaChess is
                Move_Time := Parse_Duration (Next, 1.0) / 1000.0;
             elsif Name = "depth" then
                Max_Depth := Parse_Natural (Next, 64);
+               Depth_Given := True;
             elsif Name = "nodes" then
                Node_Cap := Parse_Node_Count (Next, 0);
             elsif Name = "infinite" then
@@ -594,7 +607,10 @@ procedure BabaChess is
       declare
          Alloc : BBChess.Clocks.Allocation;
       begin
-         if Infinite or else Node_Cap > 0 then
+         if Infinite or else Node_Cap > 0
+           or else (Depth_Given and then Clock_Left <= 0.0
+                    and then not Fixed_Time)
+         then
             Alloc := (Soft => 0.0, Hard => 0.0);
          else
             Alloc := Time_For_Next_Move;
@@ -612,7 +628,7 @@ procedure BabaChess is
 
          Ensure_UCI_Task;
          Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Node_Cap);
+                            Node_Cap, Infinite);
       end;
    end Handle_UCI_Go;
 
@@ -944,7 +960,7 @@ begin
              Ada.Text_IO.Put_Line ("feature myname=""BabaChess 1.0""");
             Ada.Text_IO.Put_Line ("feature setboard=1");
             Ada.Text_IO.Put_Line ("feature ping=1");
-            Ada.Text_IO.Put_Line ("feature memory=1");
+            Ada.Text_IO.Put_Line ("feature sigint=0 sigterm=0");
             Ada.Text_IO.Put_Line ("feature done=1");
             Ada.Text_IO.Flush;
 
@@ -1071,6 +1087,7 @@ begin
             begin
                if M /= Empty_Move then
                   Make_Move (Pos, M, Undo);
+                  Record_Current_Key;
                   -- The GUI has played its move: it is now our turn (the
                   -- clock was sent just before the move). Think right away.
                   Play_If_My_Turn;
@@ -1111,6 +1128,7 @@ begin
             begin
                if M /= Empty_Move then
                   Make_Move (Pos, M, Undo);
+                  Record_Current_Key;
                   Play_If_My_Turn;
                end if;
             end;

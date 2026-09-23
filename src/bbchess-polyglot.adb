@@ -335,7 +335,12 @@ package body BBChess.Polyglot is
       Move := Empty_Move;
       Generate_Legal_Moves (Position, Moves, Count);
       for I in 1 .. Count loop
-         if Moves (I).From = From and then Moves (I).To = To then
+         if Moves (I).From = From
+           and then To = (case Moves (I).Flag is
+                            when King_Side_Castle  => Moves (I).To + 1,
+                            when Queen_Side_Castle => Moves (I).To - 2,
+                            when others            => Moves (I).To)
+         then
             if Promo = 0 then
                if Moves (I).Flag /= Promotion then
                   Move := Moves (I);

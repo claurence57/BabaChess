@@ -281,6 +281,28 @@ package body BBChess.Fen is
          end if;
       end;
 
+      -- Material consistency: at most 8 pawns, none on rank 1/8, and no more
+      -- promoted pieces than missing pawns. This bounds the pseudo-legal
+      -- move count (Move_List is 1 .. 256 and unchecked under -gnatp).
+      if ((Pos.Pieces (White_Pawn) or Pos.Pieces (Black_Pawn))
+          and 16#FF000000000000FF#) /= 0
+      then
+         raise Constraint_Error with "FEN has a pawn on rank 1 or 8";
+      end if;
+      for C in Color_Type loop
+         declare
+            function N (K : Kind_Type) return Natural is
+              (Popcount (Pos.Pieces (Make (C, K))));
+            Extra : constant Natural :=
+              Natural'Max (0, N (Queen) - 1) + Natural'Max (0, N (Rook) - 2)
+              + Natural'Max (0, N (Bishop) - 2) + Natural'Max (0, N (Knight) - 2);
+         begin
+            if N (Pawn) > 8 or else Extra > 8 - N (Pawn) then
+               raise Constraint_Error with "FEN material is impossible";
+            end if;
+         end;
+      end loop;
+
       if King_In_Check (Pos, Opposite (Pos.Side)) then
          raise Constraint_Error with
            "FEN leaves the side not to move in check";
