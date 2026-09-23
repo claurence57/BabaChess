@@ -2360,7 +2360,16 @@ du bug puis test du correctif) avant adoption.
   d'échec après `Make_Move` ; un coup donnant échec n'est plus élagué.
   `--bench 9` **518 612 → 607 956** (+17 %). SPRT en cours.
 - **B2** — plafond de temps proportionnel à la pendule (`Max_Soft` absolu de 2 s
-  faisait ignorer la pendule dès les cadences moyennes). Lot SPRT.
-- **B18** — null-move renvoyant un score de mat non prouvé : borne. Lot SPRT.
-- **B17** — compteurs `info nodes`/`nps` mono-thread en SMP : compteur global.
-  Lot SPRT (affichage, arbre inchangé).
+  faisait ignorer la pendule dès les cadences moyennes). Lot SPRT : à 1+0,1 le
+  correctif est **inerte** (budget 0,11 s ≪ 2 s), il faut tester ≥ 60+0,6
+  (budget 2,45 s vs 2,00 s).
+- **B18** — null-move renvoyant un score de mat non prouvé : borne. `--bench
+  9/11/12` **bit-identique** (la branche ne se déclenche pas sur ces positions),
+  mais l'arbre change sur des lignes tactiques → lot SPRT.
+
+### 52.3 Corrigé sans SPRT (arbre inchangé)
+
+- **B17** — compteurs `info nodes`/`nps` mono-thread en SMP : compteur global
+  `SMP_Nodes` (atomique, incrémenté dans `Poll_Time_Slow`). Purement affichage :
+  l'arbre est inchangé (`--bench 9` = 518 612), validé par inspection
+  (4 threads depth 10 : 150 528 nœuds au lieu de ~39 000). Commit `b6b41f0`.
