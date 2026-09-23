@@ -13,6 +13,11 @@ BabaChess is a chess engine written in **Ada 2012**, using a **bitboard** board
 representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** and
 **UCI**.
 
+> **Name disambiguation.** BabaChess is unrelated to the other chess projects
+> with a similar name: **BabChess** (a C++ UCI engine) and **BabasChess** (the
+> FICS graphical client). This project is a bitboard engine written in Ada,
+> forked from AdaChess.
+
 ## Features
 
 - Bitboard move generation (PEXT/BMI2 sliding attacks, with a portable
