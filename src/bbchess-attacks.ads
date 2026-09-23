@@ -3,7 +3,8 @@
 --
 --  Precomputed attack sets:
 --    * Knight_Attacks / King_Attacks / Pawn_Attacks : leapers, table lookups.
---    * Bishop_Attacks / Rook_Attacks : "fancy magic bitboards" (one lookup).
+--    * Bishop_Attacks / Rook_Attacks : PEXT (BMI2) lookup (one indexed
+--      table read); a software fallback is used in the portable build.
 --    * Queen_Attacks = Rook_Attacks or Bishop_Attacks.
 --
 --  All tables are built once at elaboration (deterministic seed). The
@@ -52,7 +53,7 @@ package BBChess.Attacks is
 
 private
 
-   -- Maximum index used by the magic lookup (rook relevant bits <= 12,
+   -- Maximum index used by the PEXT sliding lookup (rook relevant bits <= 12,
    -- bishop relevant bits <= 9).
    Max_Rook_Index   : constant := 4095;
    Max_Bishop_Index : constant := 511;
