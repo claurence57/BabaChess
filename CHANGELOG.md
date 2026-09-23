@@ -8,6 +8,32 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Revue externe — correctifs sûrs (`67cc5ea`, `a77bd4f`)
+
+Correctifs d'une seconde revue externe (rapport et patch indépendants), chacun
+revérifié ici (bug reproduit puis correctif testé). Aucun ne change l'arbre :
+`--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722, `--selftest` vert. Détail :
+`DEVELOPMENT.md` §52.
+
+- **Syzygy (B1)** : ne sonder le WDL qu'après un coup irréversible
+  (`Halfmove = 0`). Avant, chaque coup gagnant valait `TB_Win - 1` et l'itération
+  s'arrêtait : le moteur **perdait des finales gagnées** en jouant au hasard.
+- **UCI (B3/B4/B5)** : `score cp -558` et `score mate -N` correctement formés ;
+  `go infinite` n'émet `bestmove` qu'après `stop` ; `go depth N` sans pendule
+  n'est plus coupé à 1 s.
+- **FEN (B6)** : validation matérielle (≤ 8 pions, aucun en rang 1/8, promotions
+  bornées par les pions manquants). Une FEN hostile (29 dames) **plantait** en
+  release `-gnatp` (corruption de pile) ; désormais `bad FEN`.
+- **UCI (B7/B19)** : `position fen <courte> moves …` n'oublie plus les coups ;
+  un coup invalide stoppe l'application au lieu de désynchroniser le moteur.
+- **Polyglot (B8)** : décodage des roques (« roi prend sa tour ») — un roque du
+  livre est désormais joué.
+- **Divers (B10/B11/B12/B14/B15/B16/B20)** : couleur des fous `(colonne+rang) mod
+  2` ; XBoard (clés de partie en mode force, `memory=1` mensonger retiré,
+  `sigint/sigterm=0`) ; `or terminate` sur la tâche UCI ; âge TT par `/=`
+  (robuste au repli 2¹⁵) ; `movetime 0` borné ; `CR` retiré par `Trim_Both` ;
+  `setoption` destructif ignoré pendant une recherche.
+
 ### SEE — reprise par le roi sur une case encore défendue (corrigé)
 
 `bbchess-see.adb` comptait la reprise par le **roi** comme terminale sans
