@@ -22,6 +22,11 @@ package BBChess.Search is
    Max_Game_Keys : constant := 512;
    type Game_Key_Array is array (0 .. Max_Game_Keys - 1) of Bitboard;
 
+   -- Node counters are 64-bit: a long "go infinite" can exceed 2**31 nodes,
+   -- where a 32-bit Natural would overflow silently under -gnatp and disable
+   -- the stop-flag / time polls. 2**62 leaves ample headroom.
+   type Node_Count_Type is range 0 .. 2 ** 62;
+
    procedure Set_Game_History (Keys  : in Game_Key_Array;
                                Count : in Natural);
    -- Record the keys of every position of the game so far (including the
@@ -52,7 +57,7 @@ package BBChess.Search is
    function Best_Move (Position   : in Position_Type;
                         Max_Depth  : in Natural;
                         Time_Alloc : in Duration;
-                        Node_Cap   : in Natural) return Move_Type;
+                        Node_Cap   : in Node_Count_Type) return Move_Type;
    -- Same as above plus a node cap: the search also stops once Node_Cap
    -- nodes have been visited (0 = no cap). The cap is polled inside the
    -- recursion like the deadline, so a move is returned within one poll
@@ -89,7 +94,7 @@ package BBChess.Search is
    -- history) between games. The position-independent data must not leak
    -- from one game to the next.
 
-   function Nodes_Searched return Natural;
+   function Nodes_Searched return Node_Count_Type;
    -- Number of nodes visited since the last Reset_Nodes (or the last timed
    -- search started). Used by the benchmark harness to report nodes/second.
 

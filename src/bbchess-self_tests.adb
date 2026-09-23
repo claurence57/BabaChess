@@ -551,8 +551,8 @@ package body BBChess.Self_Tests is
          Pos          : constant Position_Type := Start_Position;
          Ref_Move     : Move_Type;
          Got_Move     : Move_Type;
-         Ref_Nodes    : Natural;
-         Got_Nodes    : Natural;
+         Ref_Nodes    : Node_Count_Type;
+         Got_Nodes    : Node_Count_Type;
       begin
          Reset_Search;
          Reset_Nodes;
@@ -705,8 +705,8 @@ package body BBChess.Self_Tests is
          Pos       : Position_Type;
          Ref_Move  : Move_Type;
          Got_Move  : Move_Type;
-         Ref_Nodes : Natural;
-         Got_Nodes : Natural;
+         Ref_Nodes : Node_Count_Type;
+         Got_Nodes : Node_Count_Type;
          List      : Move_List;
          Count     : Natural;
          Found     : Boolean := False;
@@ -746,8 +746,8 @@ package body BBChess.Self_Tests is
          end loop;
 
          Ada.Text_IO.Put_Line
-           ("MT-then-ST search: ref nodes=" & Natural'Image (Ref_Nodes)
-            & ", got nodes=" & Natural'Image (Got_Nodes));
+           ("MT-then-ST search: ref nodes=" & Node_Count_Type'Image (Ref_Nodes)
+            & ", got nodes=" & Node_Count_Type'Image (Got_Nodes));
          Assert (Found, "single-threaded search after SMP returned an illegal move");
          Assert (Got_Nodes = Ref_Nodes,
                  "single-threaded search after SMP did not reach full depth");

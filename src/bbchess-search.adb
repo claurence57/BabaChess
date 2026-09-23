@@ -360,10 +360,10 @@ package body BBChess.Search is
          Search_Path      : Path_Array := (others => 0);
          Game_Keys        : Game_Key_Array := (others => 0);
          Game_Key_Count   : Natural := 0;
-         Nodes_Count      : Natural := 0;
-         Next_Checkpoint  : Natural := Check_Interval;
+         Nodes_Count      : Node_Count_Type := 0;
+         Next_Checkpoint  : Node_Count_Type := Check_Interval;
          Time_Limit_Armed : Boolean := False;
-         Node_Limit       : Natural := 0;
+         Node_Limit       : Node_Count_Type := 0;
          Start_Time       : Time := Clock;
          Time_Budget      : Duration := 0.0;
       end record;
@@ -407,7 +407,7 @@ package body BBChess.Search is
    procedure Init_Context (Ctx    : in Context_Access;
                            Arm    : in Boolean;
                            Budget : in Duration;
-                           Node_Cap : in Natural := 0) is
+                           Node_Cap : in Node_Count_Type := 0) is
    begin
       Ctx.Killers := (others => (others => Empty_Move));
       Ctx.History := (others => (others => (others => 0)));
@@ -663,7 +663,7 @@ package body BBChess.Search is
    procedure Report_Iteration (Depth      : in Natural;
                                Score      : in Score_Type;
                                Elapsed    : in Duration;
-                               Nodes      : in Natural;
+                               Nodes      : in Node_Count_Type;
                                Best       : in Move_Type) is
       Centis : constant Long_Integer :=
         Long_Integer (Elapsed * 100.0);
@@ -694,7 +694,7 @@ package body BBChess.Search is
       Append (Natural'Image (Depth));
       Append (" " & Score_Type'Image (Disp));
       Append (" " & Long_Integer'Image (Centis));
-      Append (" " & Natural'Image (Nodes));
+      Append (" " & Node_Count_Type'Image (Nodes));
       if Best /= Empty_Move then
          Append (" " & To_String (Best));
       end if;
@@ -1586,7 +1586,7 @@ package body BBChess.Search is
          Best  : Move_Type := Empty_Move;
          Score : Score_Type := -Infinity;
          Depth : Natural := 0;
-         Nodes : Natural := 0;
+         Nodes : Node_Count_Type := 0;
       end record;
 
    function Iterative_Search (Ctx        : in Context_Access;
@@ -1612,7 +1612,7 @@ package body BBChess.Search is
       Beta        : Score_Type := Infinity;
       Score       : Score_Type;
       T0          : constant Time := Clock;
-      Nodes_Base  : constant Natural := Ctx.Nodes_Count;
+      Nodes_Base  : constant Node_Count_Type := Ctx.Nodes_Count;
       Completed   : Boolean := False;
       Last_Depth  : Natural := 0;
       Elapsed     : Duration;
@@ -1723,9 +1723,9 @@ package body BBChess.Search is
    -- Node accounting (benchmark) --
    --------------------------------
 
-   Accum_Nodes : Natural := 0;
+   Accum_Nodes : Node_Count_Type := 0;
 
-   function Nodes_Searched return Natural is
+   function Nodes_Searched return Node_Count_Type is
    begin
       return Accum_Nodes;
    end Nodes_Searched;
@@ -1903,7 +1903,7 @@ package body BBChess.Search is
    Root_Max_Depth : Natural := 1;
    Root_Time      : Duration := 0.0;
    Root_Soft      : Duration := 0.0;
-   Root_Node_Cap  : Natural := 0;
+   Root_Node_Cap  : Node_Count_Type := 0;
    --  Worker count for the current search, snapshotted from Num_Threads at
    --  launch: Set_Threads can run from the UCI command loop while the search
    --  is in progress, and the barrier / result loop must use the count that
@@ -1971,7 +1971,7 @@ package body BBChess.Search is
                             Max_Depth  : in Natural;
                             Hard_Alloc : in Duration;
                             Soft_Alloc : in Duration;
-                            Node_Cap   : in Natural) return Move_Type
+                            Node_Cap   : in Node_Count_Type) return Move_Type
    is
       Best : Move_Type := Empty_Move;
    begin
@@ -2018,7 +2018,7 @@ package body BBChess.Search is
       --  whole search (~N nodes total) instead of each thread doing N.
       Root_Node_Cap :=
         (if Node_Cap = 0 then 0
-         else Natural'Max (1, Node_Cap / Root_Num_Threads));
+         else Node_Count_Type'Max (1, Node_Cap / Node_Count_Type (Root_Num_Threads)));
       Done.Reset (Root_Num_Threads);
 
       declare
@@ -2086,7 +2086,7 @@ package body BBChess.Search is
    function Best_Move (Position   : in Position_Type;
                         Max_Depth  : in Natural;
                         Time_Alloc : in Duration;
-                        Node_Cap   : in Natural) return Move_Type is
+                        Node_Cap   : in Node_Count_Type) return Move_Type is
    begin
       -- A single deadline doubles as both the hard and the soft limit.
       return Best_Move_Impl (Position, Max_Depth, Time_Alloc, Time_Alloc,

@@ -321,6 +321,17 @@ procedure BabaChess is
       when Constraint_Error => return Default;
    end Parse_Natural;
 
+   function Parse_Node_Count (S : String; Default : Node_Count_Type)
+     return Node_Count_Type is
+   begin
+      if S'Length = 0 then
+         return Default;
+      end if;
+      return Node_Count_Type'Value (S);
+   exception
+      when Constraint_Error => return Default;
+   end Parse_Node_Count;
+
    -- "position startpos moves ..." or "position fen <6 fields> moves ...".
    procedure Apply_UCI_Position (Par : in String) is
       T1 : constant String := Token (Par, 1);
@@ -431,7 +442,7 @@ procedure BabaChess is
    task type UCI_Search_Task is
       entry Start (P : in Position_Type; D : in Natural;
                    Soft : in Duration; Hard : in Duration;
-                   Node_Cap : in Natural);
+                   Node_Cap : in Node_Count_Type);
       entry Stop_Now;
    end UCI_Search_Task;
 
@@ -441,13 +452,13 @@ procedure BabaChess is
       Depth    : Natural;
       Soft_Alloc : Duration;
       Hard_Alloc : Duration;
-      Cap      : Natural;
+      Cap      : Node_Count_Type;
    begin
       loop
          select
             accept Start (P : in Position_Type; D : in Natural;
                           Soft : in Duration; Hard : in Duration;
-                          Node_Cap : in Natural)
+                          Node_Cap : in Node_Count_Type)
             do
                Position := P;
                Depth  := D;
@@ -522,7 +533,7 @@ procedure BabaChess is
       N        : constant Natural := Token_Count (Par);
       I        : Natural := 1;
       Infinite : Boolean := False;
-      Node_Cap : Natural := 0;
+      Node_Cap : Node_Count_Type := 0;
    begin
       Fixed_Time := False;
       Clock_Left := 0.0;
@@ -552,7 +563,7 @@ procedure BabaChess is
             elsif Name = "depth" then
                Max_Depth := Parse_Natural (Next, 64);
             elsif Name = "nodes" then
-               Node_Cap := Parse_Natural (Next, 0);
+               Node_Cap := Parse_Node_Count (Next, 0);
             elsif Name = "infinite" then
                Infinite := True;
             end if;
@@ -621,7 +632,7 @@ procedure BabaChess is
          6 => To_Unbounded_String ("r4r2/pppbnppk/3b4/3p4/8/5N2/PPP2PPP/R1BQ2K1 w - - 0 14"),
          7 => To_Unbounded_String ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1"),
          8 => To_Unbounded_String ("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"));
-      Total_Nodes : Natural := 0;
+      Total_Nodes : Node_Count_Type := 0;
       Pos         : Position_Type;
       T0          : constant Time := Clock;
       Elapsed     : Duration;
@@ -650,7 +661,7 @@ procedure BabaChess is
       Ada.Text_IO.Put_Line
         ("bench depth" & Natural'Image (Depth)
          & ": " & Natural'Image (Fens'Length) & " positions, "
-         & Natural'Image (Total_Nodes) & " nodes, "
+         & Node_Count_Type'Image (Total_Nodes) & " nodes, "
          & Duration'Image (Elapsed) & " s, "
          & Long_Float'Image (Nps / 1000.0) & " knps");
    end Run_Bench;
