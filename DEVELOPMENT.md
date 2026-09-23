@@ -2358,7 +2358,10 @@ du bug puis test du correctif) avant adoption.
 
 - **B9** — élagage de frontière aveugle aux échecs (RFP/LMP/futility) : test
   d'échec après `Make_Move` ; un coup donnant échec n'est plus élagué.
-  `--bench 9` **518 612 → 607 956** (+17 %). SPRT en cours.
+  `--bench 9` **518 612 → 607 956** (+17 %). **REJETÉ** : SPRT arrêté à
+  **628 parties**, NEW **50,6 %** (190 – 183 – 255), LLR **+0,12** — neutre,
+  pour un coût d'arbre de +17 % et un gain nul. Le lot n'est pas committé
+  (correctif conservé dans `/tmp/opencode/b9.patch`, non adopté).
 - **B2** — plafond de temps proportionnel à la pendule (`Max_Soft` absolu de 2 s
   faisait ignorer la pendule dès les cadences moyennes). Lot SPRT : à 1+0,1 le
   correctif est **inerte** (budget 0,11 s ≪ 2 s), il faut tester ≥ 60+0,6
