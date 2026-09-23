@@ -2363,12 +2363,22 @@ du bug puis test du correctif) avant adoption.
   pour un coût d'arbre de +17 % et un gain nul. Le lot n'est pas committé
   (correctif conservé dans `/tmp/opencode/b9.patch`, non adopté).
 - **B2** — plafond de temps proportionnel à la pendule (`Max_Soft` absolu de 2 s
-  faisait ignorer la pendule dès les cadences moyennes). Lot SPRT : à 1+0,1 le
-  correctif est **inerte** (budget 0,11 s ≪ 2 s), il faut tester ≥ 60+0,6
-  (budget 2,45 s vs 2,00 s).
+  faisait ignorer la pendule dès les cadences moyennes). Correctif **vérifié
+  fonctionnellement** : `go wtime 200000` donne `bestmove` à **2054 ms** (OLD,
+  plafonné) vs **4906 ms** (NEW), depth 17 → 19. **SPRT INCONCLUSIVE** à
+  **60+0,6, 400 parties** : NEW **48,1 %** (70 – 85 – 245), `-13,0 ± 21,2` Elo,
+  LOS 11,4 %, LLR **−0,67** (bornes ±2,94), **0 forfait au temps**. Nuance
+  importante : à 60+0,6 le correctif n'agit qu'en **transitoire** (2,00 → 2,45 s,
+  puis les deux convergent vers le même équilibre `Clock* = 7,5·Inc = 4,5 s`),
+  donc ce résultat mesure surtout du bruit ; la pathologie visée (incrément qui
+  **fait grossir** la pendule, ex. 900+10) n'est pas testable économiquement.
+  Par la règle du projet, un non-PASS ⇒ **non committé** ; correctif prêt
+  (`/tmp/opencode/batches/b2_full.patch`, avec test de non-régression).
 - **B18** — null-move renvoyant un score de mat non prouvé : borne. `--bench
-  9/11/12` **bit-identique** (la branche ne se déclenche pas sur ces positions),
-  mais l'arbre change sur des lignes tactiques → lot SPRT.
+  9/11/12` **bit-identique**, et la branche est **rare** (mesurée par
+  instrumentation : **0** déclenchement sur bench 9/11/12 et 5 positions de mat,
+  **4** sur les 40 positions de `bench/diag.tsv` à depth 12). C'est donc un vrai
+  correctif de bug rare → lot SPRT (en cours).
 
 ### 52.3 Corrigé sans SPRT (arbre inchangé)
 
