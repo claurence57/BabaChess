@@ -695,6 +695,13 @@ package body BBChess.Self_Tests is
          Ada.Text_IO.Put_Line ("polyglot key OK");
       end;
 
+      -- Transposition-table packed payload: score / depth / bound / age /
+      -- move round-trip and the self-verifying key.
+      if not TT_Data_Self_Test then
+         raise Program_Error with "TT data self-test failed";
+      end if;
+      Ada.Text_IO.Put_Line ("TT data round-trip OK");
+
       -- B2 regression: after a multi-threaded search, Stop_Search stays set
       -- (the Lazy SMP primary thread raises it to stop the helpers). A later
       -- single-threaded search must clear it, otherwise it aborts at the

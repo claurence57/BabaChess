@@ -113,6 +113,10 @@ package BBChess.Search is
    -- compile-time-fixed array (not resizable at run time), so this is the
    -- value reported through the UCI "Hash" option.
 
+   function TT_Data_Self_Test return Boolean;
+   -- Round-trip check of the packed TT payload (score min/max and mate,
+   -- depth 0 and max, and the empty marker). Used by --selftest.
+
    ---------------------------------
    -- Tunable search parameters --
    ---------------------------------

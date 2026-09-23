@@ -162,31 +162,29 @@ package body BBChess.Search is
 
    type Bound_Type is (Exact, Lower_Bound, Upper_Bound);
 
-   --  Depth only ever holds 0 .. Max_Ply (128) on store and -1 as the empty
-   --  marker, so it is carried in 16 bits. The wide members come first so the
-   --  record still packs to 24 bytes (8 key + 4 move + 4 score + 4 age + 1
-   --  bound + 2 depth + 1 padding) instead of 32; only Hash_Key moved to the
-   --  end (see below). Field values, entry acceptance and the replacement
-   --  policy are unchanged, so the search tree is bit-identical; the 32 MB
-   --  table becomes 24 MB, closer to the 8 MB L3.
-   type TT_Depth_Type is range -1 .. 32_767;
-   for TT_Depth_Type'Size use 16;
-
-   --  Hash_Key is deliberately the *last* field: Store writes the payload
-   --  field-by-field and the key last, so under Lazy SMP a racing reader can
-   --  never observe a new key paired with a stale payload. The reader checks
-   --  the key only to *decide* whether to use the slot, and only then copies
-   --  the entry, so a racing write is either seen whole or not at all (the
-   --  write may still tear, but the key test rejects the stale key).
+   --  Transposition-table entry: a single 64-bit Data word plus a
+   --  self-verifying Key_Xor = Key xor Data. Both are Atomic, so on x86-64
+   --  every read/write is one 64-bit access. A reader accepts a slot only
+   --  when (Key_Xor xor Data) = Position.Key; a torn read (Data from one
+   --  store, Key_Xor from another) cannot satisfy that, so a foreign payload
+   --  can never be used. This closes the ABA window of the previous
+   --  "key written last" scheme, where a slot replaced between the key test
+   --  and the copy could pair the new key with a stale payload.
+   --
+   --  Data layout (64 bits): Move 23 | Score 16 | Depth 8 | Bound 2 | Age 15.
+   --  Depth 255 marks an empty slot; the stored score fits 16 bits because
+   --  mate scores are normalised to the root and stay within +/-30_200.
    type TT_Entry is
       record
-         Move     : Packed_Move := 0;
-         Score    : Score_Type := 0;
-         Age      : Natural := 0;
-         Bound    : Bound_Type := Exact;
-         Depth    : TT_Depth_Type := -1;
-         Hash_Key : Bitboard := 0;
+         Data    : Bitboard := 0 with Atomic;
+         Key_Xor : Bitboard := 0 with Atomic;
       end record;
+
+   Data_Score_Shift : constant := 23;
+   Data_Depth_Shift : constant := 39;
+   Data_Bound_Shift : constant := 47;
+   Data_Age_Shift   : constant := 49;
+   Empty_Depth      : constant := 255;
 
    TT_Size   : constant := 1_048_576;
    TT_Mask   : constant := TT_Size - 1;
@@ -203,6 +201,76 @@ package body BBChess.Search is
    function TT_Bucket (Position : in Position_Type) return Natural is
      (Natural (Position.Key and Bitboard (TT_Mask - 1)));
    pragma Inline (TT_Bucket);
+
+   --  Data field encoding / decoding.
+   function Encode_Score (S : Score_Type) return Bitboard is
+      V : constant Integer :=
+        Integer'Max (-32_768, Integer'Min (32_767, Integer (S)));
+   begin
+      return Bitboard (V mod 65_536);
+   end Encode_Score;
+   pragma Inline (Encode_Score);
+
+   function Make_Data (Move : Packed_Move; Score : Score_Type;
+                       Depth : Natural; Bound : Bound_Type;
+                       Age : Natural) return Bitboard is
+     (Bitboard (Move mod (2 ** 23))
+      or Encode_Score (Score) * (2 ** Data_Score_Shift)
+      or Bitboard (Natural'Min (Depth, Empty_Depth - 1))
+           * (2 ** Data_Depth_Shift)
+      or Bitboard (Bound_Type'Pos (Bound)) * (2 ** Data_Bound_Shift)
+      or Bitboard (Age mod 32_768) * (2 ** Data_Age_Shift));
+   pragma Inline (Make_Data);
+
+   function Data_Move (D : Bitboard) return Packed_Move is
+     (Packed_Move (D mod (2 ** 23)));
+
+   function Data_Score (D : Bitboard) return Score_Type is
+      U : constant Natural :=
+        Natural ((D / (2 ** Data_Score_Shift)) mod 65_536);
+   begin
+      if U >= 32_768 then
+         return Score_Type (U - 65_536);
+      end if;
+      return Score_Type (U);
+   end Data_Score;
+
+   function Data_Depth (D : Bitboard) return Natural is
+     (Natural ((D / (2 ** Data_Depth_Shift)) mod 256));
+
+   --  Signed depth: -1 for an empty slot (the old TT_Depth_Type marker),
+   --  otherwise 0 .. 254. Keeps the replacement / acceptance policy
+   --  identical to the previous 16-bit depth field.
+   function Data_Depth_Signed (D : Bitboard) return Integer is
+      X : constant Natural := Data_Depth (D);
+   begin
+      if X = Empty_Depth then
+         return -1;
+      end if;
+      return Integer (X);
+   end Data_Depth_Signed;
+
+   function Data_Bound (D : Bitboard) return Bound_Type is
+      P : constant Natural :=
+        Natural ((D / (2 ** Data_Bound_Shift)) mod 4);
+   begin
+      if P <= 2 then
+         return Bound_Type'Val (P);
+      end if;
+      return Exact;
+   end Data_Bound;
+
+   function Data_Age (D : Bitboard) return Natural is
+     (Natural ((D / (2 ** Data_Age_Shift)) mod 32_768));
+
+   Data_Empty : constant Bitboard :=
+     Bitboard (Empty_Depth) * (2 ** Data_Depth_Shift);
+
+   --  A slot is usable only when the two atomic words are consistent with
+   --  the searched key.
+   function Key_Match (E : TT_Entry; Key : Bitboard) return Boolean is
+     ((E.Key_Xor xor E.Data) = Key);
+   pragma Inline (Key_Match);
 
    --  Software prefetch of a TT slot, issued at node entry so the probe's
    --  cache miss overlaps with the prologue (draw / repetition / mate checks).
@@ -227,22 +295,21 @@ package body BBChess.Search is
       -- Cleared entry by entry: an aggregate assignment of the whole table
       -- would be built on the (limited) main-thread stack.
       for I in Transposition_Table'Range loop
-         Transposition_Table (I) :=
-           (Hash_Key => 0, Depth => -1, Bound => Exact,
-            Score => 0, Move => 0, Age => 0);
+         Transposition_Table (I).Data    := Data_Empty;
+         -- Empty marker: stored key 0, so Key_Xor = 0 xor Data_Empty = 0.
+         -- A probe then matches only if Position.Key = Data_Empty, which a
+         -- real Zobrist key never is.
+         Transposition_Table (I).Key_Xor := 0;
       end loop;
    end Clear_Transposition_Table;
 
    -- Store a node. Mate scores are normalized by the distance to the root
    -- so they stay comparable across different depths. The two-way bucket
    -- keeps the deeper of the two entries and replaces stale ones first.
-   -- Under Lazy SMP the table is written without locking. The key is written
-   -- last (payload first, field-by-field), and the reader copies the whole
-   -- entry before testing its Hash_Key, so a slot replaced mid-copy fails
-   -- the test on the copied key. Two threads may still store different valid
-   -- entries in the same slot (last key wins); a torn copy that mixes two
-   -- concurrent stores is possible in principle, but the key test rejects
-   -- the common single-writer replacement.
+   -- Under Lazy SMP the table is written without locking: the payload and
+   -- the self-verifying key are published as two Atomic 64-bit words, and a
+   -- reader accepts the slot only when Key_Xor xor Data equals its key, so a
+   -- racing store can never present a foreign payload as valid.
    procedure Store (Position : in Position_Type;
                     Depth     : in Natural;
                     Bound     : in Bound_Type;
@@ -255,6 +322,7 @@ package body BBChess.Search is
       Saved  : Score_Type := Score;
       Slot   : Natural;
       Repl   : Boolean;
+      D_B, D_1 : Bitboard;
    begin
       if Saved >= Mate_Threshold then
          Saved := Saved + Ply;
@@ -262,51 +330,58 @@ package body BBChess.Search is
          Saved := Saved - Ply;
       end if;
 
+      -- Read both slots' Data once.
+      D_B := Transposition_Table (B).Data;
+      D_1 := Transposition_Table (B + 1).Data;
+
       -- Prefer a matching key, then an empty slot, then a stale entry, then
       -- the shallower of the two.
-      if Transposition_Table (B).Hash_Key = Position.Key then
+      if Key_Match (Transposition_Table (B), Position.Key) then
          Slot := B;
-      elsif Transposition_Table (B + 1).Hash_Key = Position.Key then
+      elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
          Slot := B + 1;
-      elsif Transposition_Table (B).Depth < 0 then
+      elsif Data_Depth_Signed (D_B) < 0 then
          Slot := B;
-      elsif Transposition_Table (B + 1).Depth < 0 then
+      elsif Data_Depth_Signed (D_1) < 0 then
          Slot := B + 1;
-      elsif Transposition_Table (B).Age < TT_Generation
-        and then Transposition_Table (B + 1).Age >= TT_Generation
+      elsif Data_Age (D_B) < TT_Generation mod 32_768
+        and then Data_Age (D_1) >= TT_Generation mod 32_768
       then
          Slot := B;
-      elsif Transposition_Table (B + 1).Age < TT_Generation
-        and then Transposition_Table (B).Age >= TT_Generation
+      elsif Data_Age (D_1) < TT_Generation mod 32_768
+        and then Data_Age (D_B) >= TT_Generation mod 32_768
       then
          Slot := B + 1;
-      elsif Transposition_Table (B + 1).Depth < Transposition_Table (B).Depth then
+      elsif Data_Depth_Signed (D_1) < Data_Depth_Signed (D_B) then
          Slot := B + 1;
       else
          Slot := B;
       end if;
 
       declare
-         Old : TT_Entry renames Transposition_Table (Slot);
+         Old_D : constant Bitboard := (if Slot = B then D_B else D_1);
+         Match : constant Boolean :=
+           Key_Match (Transposition_Table (Slot), Position.Key);
       begin
-         Repl := Old.Depth < 0
-           or else Old.Hash_Key = Position.Key
-           or else TT_Depth_Type (Depth) >= Old.Depth
-           or else Old.Age < TT_Generation;
+         Repl := Data_Depth_Signed (Old_D) < 0
+           or else Match
+           or else Depth >= Natural'Max (0, Data_Depth_Signed (Old_D))
+           or else Data_Age (Old_D) < TT_Generation mod 32_768;
       end;
 
       if Repl then
-         --  Payload first, Hash_Key last. The key is the only field the probe
-         --  tests, so publishing it last means a reader that sees the new key
-         --  also sees a fully written payload. The write may tear, but a torn
-         --  slot keeps either the old key (probe misses) or the new key only
-         --  once the payload is consistent.
-         Transposition_Table (Slot).Move  := Packed;
-         Transposition_Table (Slot).Score := Saved;
-         Transposition_Table (Slot).Age   := TT_Generation;
-         Transposition_Table (Slot).Bound := Bound;
-         Transposition_Table (Slot).Depth := TT_Depth_Type (Depth);
-         Transposition_Table (Slot).Hash_Key := Position.Key;
+         declare
+            New_Data : constant Bitboard :=
+              Make_Data (Packed, Saved, Depth, Bound,
+                         TT_Generation mod 32_768);
+         begin
+            -- Data first (with the old Key_Xor still in place the slot does
+            -- not verify), then Key_Xor = Key xor Data. A concurrent reader
+            -- sees either a non-verifying intermediate state or the final
+            -- consistent pair; it can never accept a foreign payload.
+            Transposition_Table (Slot).Data := New_Data;
+            Transposition_Table (Slot).Key_Xor := Position.Key xor New_Data;
+         end;
       end if;
    end Store;
 
@@ -677,13 +752,15 @@ package body BBChess.Search is
             Dup : Boolean := False;
          begin
             E := Transposition_Table (Bk);
-            if E.Hash_Key /= Work.Key then
+            if Key_Match (E, Work.Key) then
+               M := Unpack_Move (Data_Move (E.Data));
+            else
                E := Transposition_Table (Bk + 1);
-               if E.Hash_Key /= Work.Key then
+               if not Key_Match (E, Work.Key) then
                   exit;
                end if;
+               M := Unpack_Move (Data_Move (E.Data));
             end if;
-            M := Unpack_Move (E.Move);
             exit when M = Empty_Move;
 
             Generate_Legal_Moves (Work, Moves, Count);
@@ -1275,31 +1352,31 @@ package body BBChess.Search is
          end if;
       end;
 
-      -- Transposition table probe (two-way bucket). The entry is copied whole
-      -- and its Hash_Key is then checked *on the copy*: a concurrent Store
-      -- (Lazy SMP, lockless) may replace the slot between the copy and the
-      -- test, so testing the live slot first would let a foreign key's
-      -- payload be used. Store publishes Hash_Key last, so if the copied key
-      -- matches, the copied payload belongs to that key.
+      -- Transposition table probe (two-way bucket). Data and Key_Xor are read
+      -- as atomic words and the slot is accepted only when they verify against
+      -- Position.Key (self-verifying entry, no ABA window under Lazy SMP).
       declare
          Bk    : constant Natural := TT_Bucket (Position);
          Found : Boolean := False;
          E     : TT_Entry;
+         D     : Bitboard := 0;
       begin
          E := Transposition_Table (Bk);
-         if E.Hash_Key = Position.Key then
+         if Key_Match (E, Position.Key) then
+            D := E.Data;
             Found := True;
          else
             E := Transposition_Table (Bk + 1);
-            if E.Hash_Key = Position.Key then
+            if Key_Match (E, Position.Key) then
+               D := E.Data;
                Found := True;
             end if;
          end if;
 
          if Found then
-            TT_Score := Adjust_Score (E.Score, Ply);
-            if E.Depth >= TT_Depth_Type (Depth) then
-               case E.Bound is
+            TT_Score := Adjust_Score (Data_Score (D), Ply);
+            if Data_Depth_Signed (D) >= Integer (Depth) then
+               case Data_Bound (D) is
                   when Exact =>
                      return TT_Score;
                   when Lower_Bound =>
@@ -1312,7 +1389,7 @@ package body BBChess.Search is
                      end if;
                end case;
             end if;
-            Hash_Move := Unpack_Move (E.Move);
+            Hash_Move := Unpack_Move (Data_Move (D));
          end if;
       end;
 
@@ -1877,6 +1954,44 @@ package body BBChess.Search is
    begin
       return Bytes / (1024 * 1024);
    end Transposition_Size_MB;
+
+   function TT_Data_Self_Test return Boolean is
+      D : Bitboard;
+      R : Boolean := True;
+   begin
+      -- Score round-trip, including the signed extremes and mate scores.
+      for S in Score_Type range -30_200 .. 30_200 loop
+         D := Make_Data (0, S, 0, Exact, 0);
+         if Data_Score (D) /= S then
+            R := False;
+            exit;
+         end if;
+      end loop;
+
+      -- Depth 0 and the maximum depth, plus the empty marker.
+      D := Make_Data (123, 0, 0, Exact, 0);
+      R := R and then Data_Depth_Signed (D) = 0;
+      D := Make_Data (123, 0, Empty_Depth - 1, Lower_Bound, 7);
+      R := R and then Data_Depth_Signed (D) = Empty_Depth - 1;
+      R := R and then Data_Bound (D) = Lower_Bound;
+      R := R and then Data_Age (D) = 7;
+      R := R and then Data_Move (D) = 123;
+      R := R and then Data_Depth_Signed (Data_Empty) = -1;
+
+      -- Self-verifying key: matching key accepted, wrong key rejected.
+      D := Make_Data (0, 42, 3, Exact, 1);
+      declare
+         E : constant TT_Entry := (Data => D, Key_Xor => 16#1234# xor D);
+      begin
+         R := R and then Key_Match (E, 16#1234#);
+         R := R and then not Key_Match (E, 16#9999#);
+      end;
+
+      if not R then
+         Ada.Text_IO.Put_Line ("TT data self-test: FAILED");
+      end if;
+      return R;
+   end TT_Data_Self_Test;
 
    -----------------------------
    -- Tunable search params --
