@@ -392,8 +392,11 @@ procedure BabaChess is
       while I <= N loop
          M := From_String (Pos, Token (Par, I));
          if M = Empty_Move then
+            --  Applying the following moves to a desynchronised position
+            --  would silently corrupt the engine's view; stop instead.
             Ada.Text_IO.Put_Line
               ("info string unknown move " & Token (Par, I));
+            exit;
          else
             Make_Move (Pos, M, U);
             Record_Current_Key;
@@ -910,7 +913,14 @@ begin
              null;
 
           elsif Cmd = "setoption" and then UCI_Mode then
-             if Token (Par, 1) = "name" then
+             --  Options that reallocate or free engine state (the table, the
+             --  book, the tablebases) must not run while the search task is
+             --  using it: UCI forbids it, and tb_init during a probe is a
+             --  use-after-free in the C library. Ignore them while busy.
+             if UCI_Busy.Busy then
+                Locked_Put_Line
+                  ("info string setoption ignored while searching");
+             elsif Token (Par, 1) = "name" then
                 if Token (Par, 2) = "Clear" and then Token (Par, 3) = "Hash" then
                    Reset_Search;
                 elsif Token (Par, 2) = "Hash"

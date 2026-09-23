@@ -10,6 +10,13 @@ package body BBChess.Clocks is
       if T < 0.0 then
          T := 0.0;
       end if;
+      --  A zero budget means "no deadline" to the search (Hard_Alloc > 0.0
+      --  arms the clock), so "go movetime 0" / "st 0" would search until the
+      --  depth cap while the GUI waits. Floor it so a tiny budget still
+      --  interrupts.
+      if T < 0.001 then
+         T := 0.001;
+      end if;
       return (Soft => T, Hard => T);
    end Exact;
 
