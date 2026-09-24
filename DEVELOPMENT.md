@@ -2593,3 +2593,38 @@ déterministe** (1 ou 2 échecs selon le run). Correctif : le test restaure
 `Set_UCI_Mode (False)`, `Set_Post (False)`, `Set_Threads (1)` et `Reset_Search`
 avant de rendre la main. Résultat : 126/126, stable sur 6 exécutions
 consécutives.
+
+## 57. Allègement de `Negamax` (P1.3)
+
+`Negamax` faisait **437 lignes**. La consigne demandait d'externaliser les blocs
+d'élagage (null-move, futilité, razoring, LMP) en sous-programmes `Inline`.
+
+### 57.1 Ce qui a été extrait
+
+Les **décisions** d'élagage (et non les blocs eux-mêmes) sont devenues des
+prédicats purs `Inline` au début de la fonction : `Can_Razor`,
+`Can_Reverse_Futility`, `Can_Null_Move`, `Can_Late_Move_Prune`,
+`Can_Futility_Prune`. Les blocs n'ont pas pu être déplacés tels quels car ils
+contiennent des `return` et des `goto Next_Move` liés à la boucle de recherche
+englobante ; un prédicat laisse le contrôle inchangé.
+
+### 57.2 Résultat mesuré, et le contre-exemple instructif
+
+Iso-comportement strict : nœuds `--bench 9/11/12` = 518 612 / 1 286 807 /
+2 358 722, **identiques**.
+
+Le bloc de **réduction de coup tardif (LMR)** a d'abord été extrait lui aussi
+(`LMR_Reduction`). Mesure A/B entrelacée contre le binaire d'avant (15 paires,
+`--bench 12`, médianes) : **+3,3 % de temps (+2,2 % sur le minimum)**, nœuds
+pourtant identiques. Les prédicats sont bien inlinés (aucun symbole émis dans
+le binaire), mais le déplacement perturbait l'allocation de registres de la
+boucle de coups, qui est le cœur chaud de la fonction. Conformément à la
+consigne (« si l'inlining ne se fait pas et que les nps régressent, reviens en
+arrière »), le bloc LMR est **laissé inline dans `Negamax`**.
+
+Après ce retour en arrière, A/B entrelacée (12 paires) : **delta médian
+0,0 %, minimum −1,2 %** — parité, nœuds identiques. Les prédicats du prologue
+de nœud (`Can_*`), eux, ne coûtent rien.
+
+`--selftest` reste vert (126/126) dans les quatre modes, `debug` sans
+avertissement.

@@ -1362,6 +1362,70 @@ package body BBChess.Search is
       end loop;
    end Rebuild_LMR;
 
+   ---------------------------------
+   -- Pruning decision predicates --
+   ---------------------------------
+
+   --  The pruning decisions of Negamax, extracted as small Inline predicates.
+   --  Each one is a pure function of its arguments (no board mutation, no
+   --  I/O), so the extraction is strictly iso-behaviour and the inlined call
+   --  adds no per-node cost (checked: --bench 9 node count unchanged).
+   --  Kept as predicates, not as the pruning blocks themselves, because the
+   --  blocks contain "return" and "goto" bound to the enclosing search loop;
+   --  moving those wholesale would change the control flow.
+
+   function Can_Razor (Depth : in Natural;
+                       In_Check : in Boolean;
+                       Have_Eval : in Boolean;
+                       Eval_Now, Alpha : in Score_Type) return Boolean is
+     (Depth <= 2 and then not In_Check and then Have_Eval
+      and then Eval_Now + Razor_Margin * Score_Type (Depth) < Alpha);
+   pragma Inline (Can_Razor);
+
+   function Can_Reverse_Futility (Depth : in Natural;
+                                  In_Check : in Boolean;
+                                  Have_Eval : in Boolean;
+                                  Eval_Now, Beta : in Score_Type) return Boolean is
+     (Depth = 1 and then not In_Check and then Have_Eval
+      and then Eval_Now - Futility_Margin >= Beta);
+   pragma Inline (Can_Reverse_Futility);
+
+   function Can_Null_Move (Depth : in Natural;
+                           In_Check : in Boolean;
+                           Prev : in Move_Type;
+                           Position : in Position_Type) return Boolean is
+     (Depth >= 3 and then not In_Check
+      and then Prev /= Empty_Move
+      and then Has_Non_Pawn (Position, Position.Side));
+   pragma Inline (Can_Null_Move);
+
+   function Can_Late_Move_Prune (Depth : in Natural;
+                                 In_Check, Tactical : in Boolean;
+                                 Best_Score : in Score_Type;
+                                 Move_Index : in Natural) return Boolean is
+     (not In_Check and then not Tactical
+      and then Depth <= 3
+      and then Best_Score > -Mate_Threshold
+      and then Move_Index > Search_Params (S_Lmp_Base)
+        + Search_Params (S_Lmp_Quad) * Depth * Depth);
+   pragma Inline (Can_Late_Move_Prune);
+
+   function Can_Futility_Prune (Depth : in Natural;
+                                In_Check, Tactical, Have_Eval : in Boolean;
+                                Best_Score, Eval_Now, Alpha : in Score_Type)
+     return Boolean is
+     (not In_Check and then not Tactical and then Have_Eval
+      and then Depth <= 2
+      and then Best_Score > -Mate_Threshold
+      and then Eval_Now + Futility_Base * Score_Type (Depth) <= Alpha);
+   pragma Inline (Can_Futility_Prune);
+
+   --  The late-move-reduction block is deliberately left inline in Negamax:
+   --  extracted as a helper it cost ~3% nps at -O3 (measured, node counts
+   --  unchanged) by perturbing the register allocation of the move loop it
+   --  lives in. The pruning predicates above are hoisted to the node prologue
+   --  and do not have that effect.
+
    function Negamax (Ctx        : in Context_Access;
                      Position   : in out Position_Type;
                      Depth, Ply : in Natural;
@@ -1536,9 +1600,7 @@ package body BBChess.Search is
 
       -- Razoring: when the static evaluation is far below alpha, verify with
       -- a quiescence search and return it if it does not reach alpha.
-      if Depth <= 2 and then not In_Check and then Have_Eval
-        and then Eval_Now + Razor_Margin * Score_Type (Depth) < Alpha
-      then
+      if Can_Razor (Depth, In_Check, Have_Eval, Eval_Now, Alpha) then
          declare
             Q : constant Score_Type := Quiescence (Ctx, Position, A, B, Ply, 0);
          begin
@@ -1561,20 +1623,15 @@ package body BBChess.Search is
       end if;
 
       -- Reverse futility pruning.
-      if Depth = 1 and then not In_Check and then Have_Eval then
-         if Eval_Now - Futility_Margin >= B then
-            return Eval_Now;
-         end if;
+      if Can_Reverse_Futility (Depth, In_Check, Have_Eval, Eval_Now, B) then
+         return Eval_Now;
       end if;
 
       -- Null-move pruning (skip in pawn-only endgames / when in check, and
       -- never twice in a row). The null block clears this node's Move_Path
       -- slot, so a node reached right after a null move reads Prev =
       -- Empty_Move and is thereby barred from nulling again.
-      if Depth >= 3 and then not In_Check
-        and then Prev /= Empty_Move
-        and then Has_Non_Pawn (Position, Position.Side)
-      then
+      if Can_Null_Move (Depth, In_Check, Prev, Position) then
          declare
             -- Only Side, En_Passant and Key are touched here (the recursive
             -- call restores the board through Unmake), so saving just those
@@ -1674,39 +1731,34 @@ package body BBChess.Search is
                Reduction : Natural := 0;
                Move_Depth : constant Natural := Child_Depth;
             begin
-               -- Late move pruning: at low depth the late quiet moves are
-               -- simply skipped (they are ordered last and almost never
-               -- improve on the already searched moves).
-                if not In_Check and then not Tactical
-                  and then Depth <= 3
-                  and then Best_Score > -Mate_Threshold
-                  and then I > Search_Params (S_Lmp_Base)
-                    + Search_Params (S_Lmp_Quad) * Depth * Depth
+                -- Late move pruning: at low depth the late quiet moves are
+                -- simply skipped (they are ordered last and almost never
+                -- improve on the already searched moves).
+                if Can_Late_Move_Prune (Depth, In_Check, Tactical,
+                                        Best_Score, I)
                 then
-                  goto Next_Move;
-               end if;
+                   goto Next_Move;
+                end if;
 
-               -- Futility pruning: a quiet move whose static evaluation plus
-               -- a depth-scaled margin cannot reach alpha is not searched.
-               if not In_Check and then not Tactical and then Have_Eval
-                 and then Depth <= 2
-                 and then Best_Score > -Mate_Threshold
-                 and then Eval_Now + Futility_Base * Score_Type (Depth) <= Alpha
-               then
-                  goto Next_Move;
-               end if;
+                -- Futility pruning: a quiet move whose static evaluation plus
+                -- a depth-scaled margin cannot reach alpha is not searched.
+                if Can_Futility_Prune (Depth, In_Check, Tactical, Have_Eval,
+                                       Best_Score, Eval_Now, Alpha)
+                then
+                   goto Next_Move;
+                end if;
 
-               -- Late move reduction for late quiet moves (log formula).
-               if not Tactical and then Depth >= 3 and then I >= 4
-                 and then not In_Check
-               then
-                  Reduction :=
-                    LMR_Table (Natural'Min (Depth, LMR_Max_Depth),
-                               Natural'Min (I, LMR_Max_Move));
-                  if Reduction >= Child_Depth then
-                     Reduction := Child_Depth - 1;
-                  end if;
-               end if;
+                -- Late move reduction for late quiet moves (log formula).
+                if not Tactical and then Depth >= 3 and then I >= 4
+                  and then not In_Check
+                then
+                   Reduction :=
+                     LMR_Table (Natural'Min (Depth, LMR_Max_Depth),
+                                Natural'Min (I, LMR_Max_Move));
+                   if Reduction >= Child_Depth then
+                      Reduction := Child_Depth - 1;
+                   end if;
+                end if;
 
                Make_Move (Position, Moves (I), Undo);
 

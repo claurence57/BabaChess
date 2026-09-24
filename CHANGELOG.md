@@ -8,6 +8,22 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Allègement de `Negamax` (P1.3)
+
+Les décisions d'élagage de `Negamax` (razoring, reverse futility, null-move,
+LMP, futilité) sont extraites en prédicats purs `Inline`
+(`Can_Razor`, `Can_Reverse_Futility`, `Can_Null_Move`, `Can_Late_Move_Prune`,
+`Can_Futility_Prune`). Détail : `DEVELOPMENT.md` §57.
+
+- Iso-comportement : `--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722 nœuds,
+  identiques.
+- Le bloc **LMR** a été testé extrait puis **remis inline** : l'extraction
+  coûtait +3,3 % de nps (mesure A/B entrelacée) à nœuds identiques, en
+  perturbant l'allocation de registres de la boucle de coups. Après retour,
+  parité (delta médian 0,0 %).
+- `--selftest` vert (126/126) dans les quatre modes ; `debug` sans
+  avertissement.
+
 ### Découpage des self-tests et harnais pass/fail (P1.2)
 
 `Self_Tests.Run` (823 lignes, 116 vérifications) est scindé en dix-neuf
