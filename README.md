@@ -1,5 +1,7 @@
 # BabaChess
 
+[![CI](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml/badge.svg)](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml)
+
 > **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
 > It was born from the fork of the AdaChess project, then from the conversion of
 > the board representation from **mailbox** to **bitboard**. After many
