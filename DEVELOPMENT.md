@@ -2664,3 +2664,44 @@ tables d'attaque), mais elle démontre que le motif « données privées + acces
 `Inline` » passe bien l'optimiseur sans coût. C'est le préalable technique du
 chantier qui débloquera, pour `Position_Type`, le `Type_Invariant` laissé en
 suspens en §54.3.
+
+## 59. Fin du busy-wait de `Reclaim_Worker` (P2.1)
+
+`Reclaim_Worker` attendait la terminaison effective d'une tâche de recherche
+avec `while not Is_Terminated (...) loop delay 0.0; end loop;` : `delay 0.0`
+n'est pas une attente mais un **tour de boucle actif**, qui garde un cœur à
+100 % pendant la fenêtre de terminaison.
+
+Le remplacement par une attente sur la barrière `Completion` n'est **pas
+possible** : `Done.Wait_All` rend la main dès que chaque worker a exécuté son
+dernier énoncé (`Done.Signal`), alors que `Is_Terminated` ne devient vrai
+qu'une fois la comptabilité de terminaison du runtime achevée — un instant
+**postérieur**, non observable via la barrière. La condition est donc
+conservée, mais le délai passe à **1 ms** (`delay 0.001`), qui cède le
+processeur au lieu de le brûler. Le test précède le délai et `Wait_All` a déjà
+rendu la main : en pratique la tâche est terminée au premier test et aucun
+délai n'est payé.
+
+Vérifié : recherche à 8 threads, trois `go depth 8` enchaînés → trois
+`bestmove`, aucune fuite ni blocage (le `--selftest` compte d'ailleurs un test
+de régression SMP).
+
+## 60. Journalisation des exceptions avalées (P2.2)
+
+Deux `when others => null` masquaient toute exception : dans la tâche
+`Searcher` (le worker de recherche Lazy SMP) et dans la tâche `UCI_Search_Task`.
+Un crash de worker devenait un **ralentissement inexpliqué**.
+
+Nouveau `BBChess.Search.Log_Worker_Exception`, qui écrit
+`Exception_Information` sur la **sortie d'erreur standard** (jamais `stdout` :
+le protocole UCI/XBoard doit rester propre), sous le **verrou console** déjà
+partagé par `Locked_Put_Line`, donc sans entrelacement entre tâches.
+
+- La tâche `Searcher` journalise puis garde son comportement : elle atteint
+  toujours `Done.Signal` (sinon la barrière `Done.Wait_All` bloquerait à
+  jamais).
+- La tâche `UCI_Search_Task` journalise puis répond `bestmove 0000` : le
+  protocole reste servi.
+- Vérification par injection : une exception forcée dans le worker produit
+  bien `warning: search worker exception: raised PROGRAM_ERROR : ...` sur
+  `stderr`, tandis que `stdout` continue d'émettre `bestmove` normalement.

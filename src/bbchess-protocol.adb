@@ -276,7 +276,12 @@ package body BBChess.Protocol is
                   M := Best_Move (Position, Depth, Soft_Alloc, Hard_Alloc);
                end if;
             exception
-               when others =>
+               when E : others =>
+                  --  A search must still answer (bestmove 0000), but the
+                  --  failure is logged on stderr instead of vanishing: a
+                  --  silent crash would look like an unexplained slowdown.
+                  BBChess.Search.Log_Worker_Exception
+                    ("UCI search task exception", E);
                   M := Empty_Move;
             end;
 

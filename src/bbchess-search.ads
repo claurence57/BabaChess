@@ -15,6 +15,8 @@ use BBChess.Board;
 with BBChess.Moves;
 use BBChess.Moves;
 
+with Ada.Exceptions;
+
 package BBChess.Search is
 
    -- History of the positions of the current game (Zobrist keys), used for
@@ -98,6 +100,14 @@ package BBChess.Search is
    -- Ada.Text_IO is not task-safe and the Phase 5 UCI search runs in a task,
    -- so the command loop ("readyok", "bestmove") and the XBoard "post"
    -- iteration reports go through this single lock.
+
+   procedure Log_Worker_Exception
+     (Context : in String; Occurrence : in Ada.Exceptions.Exception_Occurrence);
+   -- Report an otherwise-swallowed task exception on standard *error* (never
+   -- stdout: the UCI/XBoard protocol must stay clean), under the console lock
+   -- so concurrent tasks do not interleave. A worker that dies silently turns
+   -- into an unexplained slowdown; this makes it visible without bringing the
+   -- engine down.
 
    procedure Reset_Search;
    -- Clear the per-search heuristics (transposition table, killers and

@@ -923,6 +923,27 @@ package body BBChess.Search is
       Console.Release;
    end Locked_Put_Line;
 
+   procedure Log_Worker_Exception
+     (Context : in String; Occurrence : in Ada.Exceptions.Exception_Occurrence)
+   is
+   begin
+      --  Same lock as Locked_Put_Line (one console lock for the whole
+      --  package); the target is stderr, so the protocol stream is untouched.
+      Console.Seize;
+      begin
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "warning: " & Context & ": "
+            & Ada.Exceptions.Exception_Information (Occurrence));
+         Ada.Text_IO.Flush (Ada.Text_IO.Standard_Error);
+      exception
+         when others =>
+            Console.Release;
+            raise;
+      end;
+      Console.Release;
+   end Log_Worker_Exception;
+
    procedure Report_Iteration (Root       : in Position_Type;
                                Depth      : in Natural;
                                Score      : in Score_Type;
@@ -2363,8 +2384,8 @@ package body BBChess.Search is
                                            Root_Max_Depth, Root_Time, Root_Soft,
                                            Report => (Id = 1));
       exception
-         when others =>
-            null;
+         when E : others =>
+            Log_Worker_Exception ("search worker exception", E);
       end;
       if Ctx /= null then
          Free_Context (Ctx);
@@ -2392,8 +2413,18 @@ package body BBChess.Search is
          --  The task has signalled completion (Done.Signal) and run off the
          --  end of its body; wait for the runtime to mark it terminated
          --  before freeing the object it lives in.
+         --
+         --  The Completion barrier cannot replace this wait: Done.Wait_All
+         --  returns as soon as every worker has executed its last statement
+         --  (Done.Signal), whereas Is_Terminated only becomes true once the
+         --  runtime has finished the task's termination bookkeeping, which
+         --  happens a little later and is not observable through the barrier.
+         --  The delay is 1 ms, not 0.0: "delay 0.0" is a busy spin that keeps
+         --  a core hot for the (tiny) termination window; 1 ms yields it. The
+         --  check comes first, and Wait_All already returned, so in practice
+         --  the task is terminated on the first test and no delay is paid.
          while not Ada.Task_Identification.Is_Terminated (W.all'Identity) loop
-            delay 0.0;
+            delay 0.001;
          end loop;
          Free_Searcher (W);
       end if;

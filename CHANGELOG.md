@@ -8,6 +8,18 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Robustesse tâches : busy-wait et exceptions avalées (P2.1, P2.2)
+
+- `Reclaim_Worker` ne tourne plus en boucle active (`delay 0.0` → `delay
+  0.001`) ; la barrière `Completion` ne peut pas le remplacer, `Is_Terminated`
+  étant observable *après* `Done.Signal`. Détail : `DEVELOPMENT.md` §59.
+- Deux `when others => null` (workers Lazy SMP, tâche de recherche UCI)
+  journalisent désormais l'exception sur `stderr` (`Log_Worker_Exception`),
+  sans toucher `stdout` : un crash de worker n'est plus un ralentissement
+  silencieux. Vérifié par injection. Détail : `DEVELOPMENT.md` §60.
+- Iso-comportement : `--bench 9/12` = 518 612 / 2 358 722 nœuds, inchangés ;
+  `--selftest` vert ; `debug` sans avertissement.
+
 ### Encapsulation des tables d'attaque (P1.4)
 
 Les neuf tables d'attaque globales de `bbchess-attacks.ads` passent en partie
