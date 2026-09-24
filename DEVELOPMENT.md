@@ -2377,8 +2377,17 @@ du bug puis test du correctif) avant adoption.
 - **B18** — null-move renvoyant un score de mat non prouvé : borne. `--bench
   9/11/12` **bit-identique**, et la branche est **rare** (mesurée par
   instrumentation : **0** déclenchement sur bench 9/11/12 et 5 positions de mat,
-  **4** sur les 40 positions de `bench/diag.tsv` à depth 12). C'est donc un vrai
-  correctif de bug rare → lot SPRT (en cours).
+  **4** sur les 40 positions de `bench/diag.tsv` à depth 12). **SPRT
+  INCONCLUSIVE** à **1+0,1, 2000 parties** : NEW **51,0 %** (610 – 568 – 822),
+  **+7,3 ± 11,7** Elo, LOS **88,9 %**, LLR **+0,68** (bornes ±2,94), 0 forfait.
+  Tendance positive mais sous le seuil : par la règle du projet, **non
+  committé** (correctif prêt dans `/tmp/opencode/batches/b18.patch`).
+
+**Bilan des trois lots SPRT** : aucun n'atteint le PASS requis — **B9 neutre et
+coûteux (rejeté)**, **B2 INCONCLUSIVE (bénéfice long-TC non mesurable ici)**,
+**B18 INCONCLUSIVE à tendance positive (bug rare)**. Conformément à la règle
+« un non-PASS ne se committe pas », aucun n'est intégré ; les trois correctifs
+sont conservés hors arbre et documentés.
 
 ### 52.3 Corrigé sans SPRT (arbre inchangé)
 
