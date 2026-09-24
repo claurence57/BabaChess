@@ -873,21 +873,41 @@ package body BBChess.Search is
    -- Single console lock shared by the command loop and the search threads
    -- (Ada.Text_IO is not task-safe). Both the XBoard "post" iteration reports
    -- and the UCI "readyok"/"bestmove" lines go through it.
+   --  A lock, not a protected output action: Ada.Text_IO may block, and a
+   --  potentially blocking operation inside a protected action is a bounded
+   --  error (RM 9.5.1). Seize/Release the lock around the I/O instead.
    protected Console is
-      procedure Put_Line (S : in String);
+      entry Seize;
+      procedure Release;
+   private
+      Busy : Boolean := False;
    end Console;
 
    protected body Console is
-      procedure Put_Line (S : in String) is
+      entry Seize when not Busy is
       begin
-         Ada.Text_IO.Put_Line (S);
-         Ada.Text_IO.Flush;
-      end Put_Line;
+         Busy := True;
+      end Seize;
+
+      procedure Release is
+      begin
+         Busy := False;
+      end Release;
    end Console;
 
    procedure Locked_Put_Line (S : in String) is
    begin
-      Console.Put_Line (S);
+      Console.Seize;
+      begin
+         Ada.Text_IO.Put_Line (S);
+         Ada.Text_IO.Flush;
+      exception
+         when others =>
+            --  Never leave the lock held if the I/O raises.
+            Console.Release;
+            raise;
+      end;
+      Console.Release;
    end Locked_Put_Line;
 
    procedure Report_Iteration (Root       : in Position_Type;
@@ -967,7 +987,7 @@ package body BBChess.Search is
             -- The TT gave nothing usable: fall back to the iteration's move.
             Append (" pv " & To_String (Best));
          end if;
-         Console.Put_Line (Line (1 .. Last));
+         Locked_Put_Line (Line (1 .. Last));
       else
          -- XBoard "post": depth score centiseconds nodes, then the full PV
          -- (or the best move when the PV is empty). Mate scores use the
@@ -990,7 +1010,7 @@ package body BBChess.Search is
          elsif Best /= Empty_Move then
             Append (" " & To_String (Best));
          end if;
-         Console.Put_Line (Line (1 .. Last));
+         Locked_Put_Line (Line (1 .. Last));
       end if;
    end Report_Iteration;
 
