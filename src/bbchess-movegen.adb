@@ -150,6 +150,16 @@ package body BBChess.Movegen is
       Count    : out Natural;
       Tactical : in Boolean := False;
       King_First : out Natural)
+   with
+     Post =>
+       --  The generator never writes past the end of the scratch buffer: every
+       --  move is appended through Add, which increments Count before storing
+       --  Moves (Count). Move_List is 1 .. 256 and the maximum number of
+       --  pseudo-legal moves in a legal position is bounded well below that,
+       --  so this asserts the buffer contract the unchecked (release) build
+       --  relies on.
+       Count <= Moves'Length
+       and then King_First in 1 .. Count + 1
    is
       Side  : constant Color_Type := Position.Side;
       Opp   : constant Color_Type := Opposite (Side);

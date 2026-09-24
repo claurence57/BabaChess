@@ -2436,3 +2436,63 @@ l'arbre) ; le surcoût est du temps CPU. `--selftest` vert en `checked`.
 Conséquence pratique : un SPRT en `checked` est ~11 % plus lent à cadence de
 temps fixe ; pour comparer deux binaires, les deux doivent être `checked` (ou
 tous deux `release`), jamais un de chaque.
+
+## 54. Contrats Ada 2012 (P0.3)
+
+Le projet n'avait jusqu'ici **aucun** contrat (`Pre`, `Post`, `Type_Invariant`).
+Le cœur de la représentation (cohérence mailbox `Squares` ↔ bitboards) était
+décrit en prose dans les commentaires, jamais exprimé au compilateur. Ce
+chantier ajoute les contrats là où ils sont à la fois **utiles et sûrs**.
+
+### 54.1 Ce qui a été ajouté
+
+- **`Pre` sur `Make_Move`** (`bbchess-moves.ads`) : `From /= To`, la pièce du
+  coup est bien sur la case de départ, et la case d'arrivée n'est pas occupée
+  par une pièce amie. C'est la partie *structurelle* du « pseudo-légal ».
+- **`Pre` sur `Unmake_Move`** : `From /= To`, le trait est bien l'adversaire du
+  joueur du coup (il a été inversé par `Make_Move`), et la case d'arrivée est
+  occupée.
+- **`Pre` sur `Static_Exchange_Value`** (`bbchess-see.ads`) : `From /= To` et,
+  hors promotion, la pièce est sur la case de départ.
+- **`Post` sur `Generate_Pseudo_Moves`** (`bbchess-movegen.adb`) : `Count <= 256`
+  et `King_First in 1 .. Count + 1` — le générateur n'écrit jamais au-delà du
+  tampon `Move_List` (contrat dont dépend le build `release` sans `-gnatp`).
+
+### 54.2 Coût nul en release
+
+Les contrats ne sont compilés que sous `-gnata` (modes `debug` et `checked`).
+`release` et `portable` (sans `-gnata`) les **éliminent entièrement** : vérifié
+par `--bench 9` = 518 612 et `--bench 12` = 2 358 722 nœuds, **identiques** à
+avant le chantier, et par `--bench 11` en release dont le temps reste dans le
+bruit de mesure (< 1 %). En `debug` et `checked`, `--selftest` reste vert : les
+préconditions sont donc bien satisfaites par tout le code existant.
+
+### 54.3 Pourquoi pas un `Type_Invariant` sur `Position_Type`
+
+La demande initiale était un `Type_Invariant` sur `Position_Type` (cohérence
+mailbox ↔ bitboards, un roi par camp, occupation = union des bitboards).
+**Ada l'interdit** : `Type_Invariant` n'est autorisé que sur un type **privé**
+(erreur GNAT vérifiée : *« only allowed for private type or corresponding full
+view »*). Or `Position_Type` est **public** et ses champs sont lus/écrits
+directement partout : ~395 accès dans 13 fichiers, dont le chemin chaud de la
+recherche. Le privatiser proprement relève du chantier P1.4 (encapsulation de la
+représentation), pas de P0.3.
+
+L'ersatz disponible sur un type public, `Dynamic_Predicate`, a été mesuré puis
+écarté :
+
+- il est vérifié **à chaque frontière de sous-programme** (entrée et sortie) ;
+- la version complète (mailbox 64 cases + couleurs + deux rois) fait passer
+  `--bench 11` en `checked` de **0,53 s à 1,30 s (~2,6×)**, ce qui détruirait le
+  mode SPRT que §53 vient précisément de créer ;
+- même la version réduite à l'occupation seule coûte déjà ~9 % ;
+- surtout, un `Dynamic_Predicate` sur le *type* se déclenche sur les états
+  intermédiaires **légitimes** : le champ global `Root_Position : Position_Type;`
+  (initialisé vide, `bbchess-search.adb:2285`) et les `Position_Type` locaux par
+  défaut pendant la construction (`Load`, `Start_Position`, `Put_Piece`
+  incrémental). Le contrat aborte donc au démarrage de `--selftest`.
+
+Ces contrats seront donc revisités **après** P1.4, une fois `Position_Type`
+privatisé : un vrai `Type_Invariant` deviendra alors possible, appliqué aux
+seuls constructeurs/mutateurs plutôt qu'à chaque appel (la forme correcte pour
+un invariant de type, et gratuite à l'exécution hors `-gnata`).

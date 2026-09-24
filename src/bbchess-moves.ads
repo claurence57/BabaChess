@@ -63,14 +63,37 @@ package BBChess.Moves is
    procedure Make_Move
      (Position : in out Position_Type;
       Move      : in Move_Type;
-      Undo      : out Undo_Info);
+      Undo      : out Undo_Info)
+   with
+     Pre =>
+       --  The move is applied to a board it actually belongs to: the origin
+       --  square holds the piece the move carries, the destination is not
+       --  occupied by a friendly piece, and the two squares differ. This is
+       --  the structural part of "pseudo-legal"; the geometric part (path
+       --  clearance, castling, check evasion) is deliberately not re-checked
+       --  here because that would require the move generator, which depends
+       --  on this package. Note it is NOT required that Color (Move.Piece) be
+       --  the side to move: the self tests legitimately play an off-turn move
+       --  to exercise castling-right updates.
+       Move.From /= Move.To
+       and then (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0
+       and then (Position.Color_Occ (Color (Move.Piece)) and Bit (Move.To)) = 0;
    -- Apply Move to Position (moving side = Color (Move.Piece)). Undo holds
    -- enough data for Unmake_Move to restore Position exactly.
 
    procedure Unmake_Move
      (Position : in out Position_Type;
       Move      : in Move_Type;
-      Undo      : in Undo_Info);
+      Undo      : in Undo_Info)
+   with
+     Pre =>
+       --  Unmake only ever undoes the immediately preceding Make_Move: the
+       --  side to move is therefore the opponent of the mover (it was flipped
+       --  by Make_Move) and the destination still holds the piece that was
+       --  placed there.
+       Move.From /= Move.To
+       and then Position.Side = Opposite (Color (Move.Piece))
+       and then (Position.All_Occ and Bit (Move.To)) /= 0;
    -- Restore Position to the state it had before Make_Move (Position, Move, Undo).
 
    function Start_Position return Position_Type;

@@ -8,6 +8,26 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Contrats Ada 2012 (`Pre`/`Post`) et mode `checked` — durcissement P0.3
+
+Premiers contrats du projet, ajoutés là où ils sont utiles **et** sûrs, et
+**gratuits en release** (`-gnata` uniquement, donc `debug`/`checked`). Détail :
+`DEVELOPMENT.md` §54.
+
+- `Pre` sur `Make_Move` (pièce présente sur la case de départ, arrivée non
+  occupée par une pièce amie, cases distinctes), sur `Unmake_Move` (trait =
+  adversaire du joueur, arrivée occupée, cases distinctes) et sur
+  `Static_Exchange_Value` (coup bien formé).
+- `Post` sur `Generate_Pseudo_Moves` : `Count ≤ 256` — le tampon `Move_List`
+  n'est jamais débordé (contrat dont dépend le `release` sans `-gnatp`).
+- `--bench 9/12` = 518 612 / 2 358 722 nœuds, **identiques** ; `--selftest` vert
+  en `debug`, `checked`, `release` et `portable` ; `debug` sans avertissement.
+- **Écart assumé** : le `Type_Invariant` sur `Position_Type` demandé n'est pas
+  exprimable tel quel (Ada l'interdit sur un type public ; `Position_Type` a
+  ~395 accès directs dans 13 fichiers). L'ersatz `Dynamic_Predicate` a été
+  mesuré (~2,6× en `checked`) puis écarté ; à revisiter après l'encapsulation
+  P1.4. Voir `DEVELOPMENT.md` §54.3.
+
 ### Revue externe — correctifs sûrs (`67cc5ea`, `a77bd4f`)
 
 Correctifs d'une seconde revue externe (rapport et patch indépendants), chacun
