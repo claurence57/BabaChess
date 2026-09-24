@@ -47,8 +47,16 @@ project BabaChess is
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
                "-gnatep=../src/prep.data", "-gnateDREL",
                "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
+            --  No -flto on the C side: gprbuild archives the C objects with
+            --  "ar" and links libbabachess.a, and the standard (FSF) gprbuild
+            --  ships a "gcc-ar" that is not used here, so an LTO bytecode
+            --  archive fails the link ("lto1: bytecode stream ... generated
+            --  with LTO version ..."). The C is not on the hot path in
+            --  release (PEXT is the inlined BMI2 intrinsic; the C left is the
+            --  Fathom wrapper and the portable PEXT shim), so dropping -flto
+            --  here costs nothing measurable.
             for Switches ("c") use
-              ("-O3", "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
+              ("-O3", "-mpopcnt", "-mbmi", "-mbmi2") & Arch_Switches;
          when "debug" =>
             --  -gnatwa enables all warnings; the debug build is the only one
             --  that carries them (release/portable stay quiet and fast).
