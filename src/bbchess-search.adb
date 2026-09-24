@@ -177,6 +177,23 @@ package body BBChess.Search is
    --  "key written last" scheme, where a slot replaced between the key test
    --  and the copy could pair the new key with a stale payload.
    --
+   --  MEMORY MODEL (x86-64 only): the lock-free TT relies on the x86-64 TSO
+   --  (Total Store Order) model. There are exactly three pragma Atomic in the
+   --  tree (Data, Key_Xor, Num_Threads), no pragma Volatile and no explicit
+   --  memory barrier anywhere; correctness rests on two TSO guarantees:
+   --    * a naturally aligned 64-bit load/store is a single atomic access
+   --      (no tearing), which is what makes the self-verifying key work;
+   --    * each thread's stores are observed in program order by every other
+   --      thread, so a reader that sees a slot's Data also sees the Key_Xor
+   --      written before it (and vice versa), and the xor verification
+   --      rejects any pair that was not written together.
+   --  This is NOT portable to a weak model (ARM/AArch64, POWER): there the
+   --  compiler and CPU may reorder the two independent stores, and a reader
+   --  could observe a Data/Key_Xor pair from different writes that still
+   --  verifies. Porting to such a target would require release/acquire
+   --  semantics or an explicit barrier. Do not change this scheme without
+   --  revisiting the assumption; see DEVELOPMENT.md section 61.
+   --
    --  Data layout (64 bits): Move 23 | Score 16 | Depth 8 | Bound 2 | Age 15.
    --  Depth 255 marks an empty slot; the stored score fits 16 bits because
    --  mate scores are normalised to the root and stay within +/-30_200.

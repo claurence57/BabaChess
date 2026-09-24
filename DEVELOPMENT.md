@@ -2705,3 +2705,37 @@ partagé par `Locked_Put_Line`, donc sans entrelacement entre tâches.
 - Vérification par injection : une exception forcée dans le worker produit
   bien `warning: search worker exception: raised PROGRAM_ERROR : ...` sur
   `stderr`, tandis que `stdout` continue d'émettre `bestmove` normalement.
+
+## 61. Contrôles de style (P2.3) et hypothèse mémoire x86-64 (P2.4)
+
+### 61.1 `-gnatyy` en mode `debug`
+
+Le mode `debug` compile désormais avec `-gnatyy` (contrôles de style GNAT :
+indentation, espaces, casse, largeur des lignes…). Le style du projet était
+déjà cohérent : **zéro violation** après activation. Le flag est vérifié
+comme réellement actif (un `X=0` volontaire déclenche bien
+`(style) space required`). Comme la CI compile déjà `debug` avec
+`-cargs:ada -gnatwe` (tout avertissement devient une erreur), toute dérive de
+style fait maintenant échouer la CI.
+
+### 61.2 Hypothèse mémoire x86-64 (TT lock-free)
+
+Le dépôt ne compte que **3 `pragma Atomic`** (`Data`, `Key_Xor`, `Num_Threads`),
+**0 `Volatile`** et **aucune barrière mémoire explicite**. La TT lock-free
+(entrée auto-vérifiante `Key_Xor xor Data = Key`) est néanmoins correcte — mais
+**uniquement sur x86-64**, grâce au modèle **TSO** (Total Store Order) :
+
+- un accès 64 bits aligné naturellement est **atomique** (pas de déchirure),
+  ce qui fait fonctionner la clé auto-vérifiante ;
+- les écritures d'un thread sont observées par les autres **dans l'ordre du
+  programme** : un lecteur qui voit le `Data` d'un emplacement voit aussi le
+  `Key_Xor` écrit avant lui, et la vérification par xor rejette tout couple
+  non écrit ensemble.
+
+Ce schéma **casserait sur un modèle faible** (ARM/AArch64, POWER) : le
+compilateur ou le CPU pourrait réordonner les deux écritures indépendantes, et
+un lecteur pourrait observer un couple `Data`/`Key_Xor` issus d'écritures
+différentes qui vérifie quand même. Un portage sur une telle cible exigerait
+des sémantiques release/acquire ou une barrière explicite. L'hypothèse est
+documentée en commentaire au-dessus de `TT_Entry` (et ci-dessus), sans
+modification du code de la TT.

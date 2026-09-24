@@ -57,11 +57,14 @@ project BabaChess is
             --  here costs nothing measurable.
             for Switches ("c") use
               ("-O3", "-mpopcnt", "-mbmi", "-mbmi2") & Arch_Switches;
-         when "debug" =>
+          when "debug" =>
             --  -gnatwa enables all warnings; the debug build is the only one
             --  that carries them (release/portable stay quiet and fast).
+            --  -gnatyy enables the GNAT style checks (indentation, spacing,
+            --  casing, ...): the style is already consistent, so the build
+            --  stays warning-free and CI catches any drift.
             for Switches ("ada") use
-              ("-gnat2012", "-gnata", "-g", "-gnatwa", "-gnatVa",
+              ("-gnat2012", "-gnata", "-g", "-gnatwa", "-gnatVa", "-gnatyy",
                "-gnatep=../src/prep.data") & Arch_Switches;
             for Switches ("c") use ("-O0", "-g") & Arch_Switches;
          when "portable" =>

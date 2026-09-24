@@ -8,6 +8,16 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Style et hypothèse mémoire x86-64 (P2.3, P2.4)
+
+- Le mode `debug` compile avec `-gnatyy` (contrôles de style) : zéro violation,
+  et la CI (`-gnatwe`) échoue désormais sur toute dérive de style. Détail :
+  `DEVELOPMENT.md` §61.1.
+- L'hypothèse mémoire **x86-64 TSO** de la TT lock-free est documentée
+  explicitement (3 `pragma Atomic`, 0 `Volatile`, aucune barrière ; casse sur
+  modèle faible ARM/POWER). Aucune modification du code de la TT. Détail :
+  `DEVELOPMENT.md` §61.2.
+
 ### Robustesse tâches : busy-wait et exceptions avalées (P2.1, P2.2)
 
 - `Reclaim_Worker` ne tourne plus en boucle active (`delay 0.0` → `delay
