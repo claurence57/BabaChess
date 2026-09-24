@@ -1,33 +1,30 @@
 --
---  AdaChess-BB - main entry point.
+--  BabaChess - main entry point.
 --
 --  * With "--selftest": run the internal test-suite.
---  * Otherwise: an XBoard/Winboard chess engine (protocol subset: xboard,
---    protover, new, setboard, force, white/black, go, level, time, otim,
---    st, sd, usermove, ping, quit). The engine plays via iterative
---    deepening search, replying "move <coord>".
---
---  Time management follows the XBoard clock commands: "level" gives the
---  time control (increment, base) and "time"/"otim" give the clocks. The
---  GUI sends an up-to-date "time" just before the opponent's move, so the
---  engine thinks as soon as the opponent's move has been applied (or when
---  a "go" / "?" prompt arrives) and always searches with a fresh view of
---  its remaining time. The search itself is interruptible (see
---  BBChess.Search), which bounds the worst-case duration of a move.
+--  * Otherwise: a UCI / XBoard chess engine. The command loop itself lives in
+--    BBChess.Protocol (which owns the session state and dispatch); this file
+--    keeps the command-line modes, the special benchmark / eval-dump modes and
+--    the standard input loop, and supplies the output writer (the shared
+--    console lock).
 --
 
 with Ada.Text_IO;
 with Ada.Command_Line;
-with Ada.Characters.Handling;
-with Ada.Environment_Variables;
 with Ada.IO_Exceptions;
 with Ada.Real_Time;
 with Ada.Strings.Unbounded;
 
 use Ada.Real_Time;
 
-with BBChess.Pieces;
-use BBChess.Pieces;
+with BBChess.Search;
+use BBChess.Search;
+
+with BBChess.Eval;
+use BBChess.Eval;
+
+with BBChess.Fen;
+use BBChess.Fen;
 
 with BBChess.Board;
 use BBChess.Board;
@@ -35,28 +32,9 @@ use BBChess.Board;
 with BBChess.Moves;
 use BBChess.Moves;
 
-with BBChess.Hash;
-
-with BBChess.Fen;
-use BBChess.Fen;
-
-with BBChess.Search;
-use BBChess.Search;
-
-with BBChess.Clocks;
-use BBChess.Clocks;
-
-with BBChess.Notation;
-use BBChess.Notation;
-
-with BBChess.Eval;
-use BBChess.Eval;
-
 with BBChess.Self_Tests;
 
-with BBChess.Polyglot;
-
-with BBChess.Syzygy;
+with BBChess.Protocol;
 
 with BBChess.Text;
 use BBChess.Text;
@@ -65,586 +43,6 @@ procedure BabaChess is
 
    Input_Line : String (1 .. 8192);
    Last       : Natural;
-
-   procedure Read_Line is
-   begin
-      -- Input_Line is 8192 characters (the protocol's longest line is far
-      -- shorter); a longer line is simply truncated by Get_Line, which never
-      -- writes past the buffer.
-      Ada.Text_IO.Get_Line (Input_Line, Last);
-   end Read_Line;
-
-   -- Engine state.
-   Pos         : Position_Type := Start_Position;
-   Engine_Side : Color_Type := Black;
-   Force       : Boolean := True;
-   Protocol    : Boolean := False;
-   UCI_Mode    : Boolean := False;
-
-   -- Game history (Zobrist keys of every position played, oldest first) for
-   -- the threefold-repetition detection in the search. Keys are recorded
-   -- after every real move applied to Pos (both sides) and at "new"/FEN.
-   Game_Keys : BBChess.Search.Game_Key_Array := (others => 0);
-   Game_N    : Natural := 0;
-
-   procedure Push_Game_Key (Key : in Bitboard) is
-   begin
-      if Game_N = BBChess.Search.Max_Game_Keys then
-         -- Drop the oldest position: the game is longer than the buffer.
-         for I in 1 .. Game_N - 1 loop
-            Game_Keys (I - 1) := Game_Keys (I);
-         end loop;
-         Game_N := Game_N - 1;
-      end if;
-      Game_Keys (Game_N) := Key;
-      Game_N := Game_N + 1;
-   end Push_Game_Key;
-
-   -- Record the current position (freshly computed Zobrist key) as a new
-   -- entry of the game history, unless it is already the last one.
-   procedure Record_Current_Key is
-      K : constant Bitboard := BBChess.Hash.Compute (Pos);
-   begin
-      if Game_N = 0 or else Game_Keys (Game_N - 1) /= K then
-         Push_Game_Key (K);
-      end if;
-   end Record_Current_Key;
-
-   -- Hand the game history to the search before it starts to think.
-   procedure Sync_Game_History is
-   begin
-      BBChess.Search.Set_Game_History (Game_Keys, Game_N);
-   end Sync_Game_History;
-
-   -- Start a fresh game history and record the given position.
-   procedure Reset_Game_History is
-   begin
-      Game_N := 0;
-      Record_Current_Key;
-   end Reset_Game_History;
-
-   -- Clock state, driven by the XBoard "st", "level" and "time" commands and
-   -- by the UCI "go" parameters.
-   Fixed_Time     : Boolean := False;  -- "st <s>": think exactly that long
-   Move_Time      : Duration := 1.0;   -- fixed budget, or fallback w/o clock
-   Clock_Left     : Duration := 0.0;   -- own remaining time ("time", seconds)
-   Time_Increment : Duration := 0.0;   -- per-move increment ("level", seconds)
-   Moves_To_Go    : Natural := 0;      -- 0 = unknown ("movestogo"/"level")
-   --  Moves per session from "level MPS": when Moves_To_Go reaches 0 the
-   --  session restarts with a fresh clock, so it is re-armed to this value.
-   Moves_Per_Session : Natural := 0;
-   Max_Depth      : Natural := 64;
-
-   Current_Command : String (1 .. 64);
-   Cmd_Last        : Natural;
-   Parameter       : String (1 .. 8192);
-   Par_Last        : Natural;
-
-   -- Time to spend on the next move, as a soft/hard pair. With a clock the
-   -- budget is a fraction of the remaining time plus part of the increment;
-   -- the fraction shrinks when the GUI announces fewer moves to go
-   -- ("movestogo" / "level"), and a fixed safety margin is always reserved
-   -- on the clock. A fixed budget ("st" / UCI movetime) is exact.
-   function Time_For_Next_Move return BBChess.Clocks.Allocation is
-   begin
-      if Fixed_Time then
-         return Exact (Move_Time);
-      end if;
-      if Clock_Left <= 0.0 then
-         return Exact (Move_Time);
-      end if;
-      return Clock_Based (Clock_Left, Time_Increment, Moves_To_Go);
-   end Time_For_Next_Move;
-
-   -------------------
-   -- Opening book --
-   -------------------
-
-   Book_Max_Ply : constant := 16;   -- stop using the book after this ply
-   Own_Book     : Boolean := True;  -- UCI "OwnBook" (default on)
-
-   -- Probe the book for the engine's side. Returns False when the book is
-   -- disabled, empty, past the opening phase, or the position is not in it.
-   function Try_Book (Move : out Move_Type) return Boolean is
-      M : Move_Type;
-   begin
-      Move := Empty_Move;
-      if not Own_Book or else not BBChess.Polyglot.Book_Loaded then
-         return False;
-      end if;
-      if Game_N = 0 or else Game_N - 1 > Book_Max_Ply then
-         return False;
-      end if;
-      if BBChess.Polyglot.Probe (Pos, M) and then M /= Empty_Move then
-         Move := M;
-         return True;
-      end if;
-      return False;
-   end Try_Book;
-
-   -- Load the book from conventional locations (CWD, executable directory
-   -- and its parent, home). The first readable file wins.
-   procedure Load_Default_Book is
-      use Ada.Strings.Unbounded;
-      Exe : constant String := Ada.Command_Line.Command_Name;
-
-      function Exe_Dir return String is
-         Slash : Natural := 0;
-      begin
-         for I in Exe'Range loop
-            if Exe (I) = '/' then
-               Slash := I;
-            end if;
-         end loop;
-         if Slash = 0 then
-            return ".";
-         end if;
-         return Exe (Exe'First .. Slash - 1);
-      end Exe_Dir;
-
-      D    : constant String := Exe_Dir;
-      Home : constant String :=
-        (if Ada.Environment_Variables.Exists ("HOME")
-         then Ada.Environment_Variables.Value ("HOME") else "");
-      Candidates : constant array (1 .. 6) of Unbounded_String :=
-        (1 => To_Unbounded_String ("books/book.bin"),
-         2 => To_Unbounded_String (D & "/books/book.bin"),
-         3 => To_Unbounded_String (D & "/../books/book.bin"),
-         4 => To_Unbounded_String (Home & "/.babachess/book.bin"),
-         5 => To_Unbounded_String ("book.bin"),
-         6 => To_Unbounded_String (D & "/book.bin"));
-      Ok : Boolean;
-   begin
-      if BBChess.Polyglot.Book_Loaded then
-         return;
-      end if;
-      for C in Candidates'Range loop
-         BBChess.Polyglot.Open_Book (To_String (Candidates (C)), Ok);
-         if Ok then
-            return;
-         end if;
-      end loop;
-   end Load_Default_Book;
-
-   -- Count down the moves left in the current session ("level" moves /
-   -- "movestogo"), so the fraction of the clock allocated per move grows as
-   -- the session limit approaches.
-   procedure Consume_Move_Count is
-   begin
-      if Moves_To_Go > 0 then
-         Moves_To_Go := Moves_To_Go - 1;
-         --  End of the session: the GUI resets the clock and the move count,
-         --  so re-arm from the "level MPS" value instead of falling back to
-         --  the unknown-move-count default.
-         if Moves_To_Go = 0 then
-            Moves_To_Go := Moves_Per_Session;
-         end if;
-      end if;
-   end Consume_Move_Count;
-
-   -- Search and play when it is the engine's turn. Called after the
-   -- opponent's move has been applied and from the "go" / "?" prompts, so
-   -- that the search always starts with an up-to-date view of the clock.
-   procedure Play_If_My_Turn is
-   begin
-      if Protocol and then not Force and then Pos.Side = Engine_Side then
-         -- Make sure the game history ends with the current position (a
-         -- real move may have been played since the last sync).
-         Record_Current_Key;
-
-         -- Opening book: play a book move without searching.
-         declare
-            BM   : Move_Type;
-            Undo : Undo_Info;
-         begin
-            if Try_Book (BM) then
-               Ada.Text_IO.Put ("move ");
-               Ada.Text_IO.Put (To_String (BM));
-               Ada.Text_IO.New_Line;
-               Ada.Text_IO.Flush;
-               Make_Move (Pos, BM, Undo);
-               Record_Current_Key;
-               Consume_Move_Count;
-               return;
-            end if;
-         end;
-
-         -- Give the game history to the search before it thinks.
-         Sync_Game_History;
-         declare
-            Alloc : constant BBChess.Clocks.Allocation := Time_For_Next_Move;
-            M     : constant Move_Type :=
-              Best_Move (Pos, Max_Depth, Alloc.Soft, Alloc.Hard);
-            Undo  : Undo_Info;
-         begin
-            if M /= Empty_Move then
-               Ada.Text_IO.Put ("move ");
-               Ada.Text_IO.Put (To_String (M));
-               Ada.Text_IO.New_Line;
-               Ada.Text_IO.Flush;
-               Make_Move (Pos, M, Undo);
-               Record_Current_Key;
-               Consume_Move_Count;
-            end if;
-         end;
-      end if;
-   end Play_If_My_Turn;
-
-   ----------------
-   -- UCI support --
-   ----------------
-
-   function Token_Count (S : in String) return Natural is
-      I : Natural := S'First;
-      N : Natural := 0;
-   begin
-      while I <= S'Last loop
-         while I <= S'Last and then S (I) = ' ' loop
-            I := I + 1;
-         end loop;
-         exit when I > S'Last;
-         N := N + 1;
-         while I <= S'Last and then S (I) /= ' ' loop
-            I := I + 1;
-         end loop;
-      end loop;
-      return N;
-   end Token_Count;
-
-   function Parse_Duration (S : String; Default : Duration) return Duration is
-   begin
-      if S'Length = 0 then
-         return Default;
-      end if;
-      return Duration'Value (S);
-   exception
-      when Constraint_Error => return Default;
-   end Parse_Duration;
-
-   function Parse_Natural (S : String; Default : Natural) return Natural is
-   begin
-      if S'Length = 0 then
-         return Default;
-      end if;
-      return Natural'Value (S);
-   exception
-      when Constraint_Error => return Default;
-   end Parse_Natural;
-
-   function Parse_Node_Count (S : String; Default : Node_Count_Type)
-     return Node_Count_Type is
-   begin
-      if S'Length = 0 then
-         return Default;
-      end if;
-      return Node_Count_Type'Value (S);
-   exception
-      when Constraint_Error => return Default;
-   end Parse_Node_Count;
-
-   -- "position startpos moves ..." or "position fen <6 fields> moves ...".
-   procedure Apply_UCI_Position (Par : in String) is
-      T1 : constant String := Token (Par, 1);
-      I  : Natural := 1;
-      N  : constant Natural := Token_Count (Par);
-      M  : Move_Type;
-      U  : Undo_Info;
-   begin
-      if T1 = "startpos" then
-         Pos := Start_Position;
-         I := 2;
-      elsif T1 = "fen" then
-         declare
-            Fen  : String (1 .. 256);
-            L    : Natural := 0;
-            Over : Boolean := False;
-         begin
-            for K in 2 .. 7 loop
-               declare
-                  Tok : constant String := Token (Par, K);
-               begin
-                  exit when Tok'Length = 0 or else Tok = "moves";
-                  if L > 0 then
-                     Append_Bounded (Fen, L, " ", Over);
-                  end if;
-                  Append_Bounded (Fen, L, Tok, Over);
-               end;
-            end loop;
-            -- A FEN field list too long for the buffer is rejected rather
-            -- than loaded truncated (the buffer is ample for a legal FEN).
-            -- On any rejection, do not keep going: applying "moves" to the
-            -- previous (unrelated) position would silently desynchronise the
-            -- engine from the GUI.
-            if Over then
-               Ada.Text_IO.Put_Line ("info string bad FEN");
-               return;
-            else
-               begin
-                  Load (Pos, Fen (1 .. L));
-               exception
-                  when Constraint_Error =>
-                     Ada.Text_IO.Put_Line ("info string bad FEN");
-                     return;
-               end;
-            end if;
-         end;
-         I := 2;   -- the scan below finds "moves" (never a FEN field)
-      else
-         return;
-      end if;
-
-      Reset_Game_History;
-      while I <= N loop
-         exit when Token (Par, I) = "moves";
-         I := I + 1;
-      end loop;
-      I := I + 1;
-      while I <= N loop
-         M := From_String (Pos, Token (Par, I));
-         if M = Empty_Move then
-            --  Applying the following moves to a desynchronised position
-            --  would silently corrupt the engine's view; stop instead.
-            Ada.Text_IO.Put_Line
-              ("info string unknown move " & Token (Par, I));
-            exit;
-         else
-            Make_Move (Pos, M, U);
-            Record_Current_Key;
-         end if;
-         I := I + 1;
-      end loop;
-   end Apply_UCI_Position;
-
-   ----------------------------
-   -- Asynchronous UCI search --
-   ----------------------------
-
-   -- Phase 5: the UCI search runs in a task so that the command loop keeps
-   -- reading stdin while it thinks. "isready" then answers "readyok" during a
-   -- search, "stop" sets the stop request the search polls, and "quit" stops
-   -- the search before leaving. The search parameters are handed over through
-   -- the task entry (copied), so the command loop is released as soon as they
-   -- are received; the search itself runs outside the rendezvous.
-
-   -- All UCI output goes through BBChess.Search.Locked_Put_Line, whose lock
-   -- is shared with the XBoard "post" iteration reports: Ada.Text_IO is not
-   -- task-safe and the search task may print while the command loop answers
-   -- "readyok".
-
-   protected type UCI_Status is
-      procedure Set_Busy (B : in Boolean);
-      function Busy return Boolean;
-   private
-      Is_Busy : Boolean := False;
-   end UCI_Status;
-
-   protected body UCI_Status is
-      procedure Set_Busy (B : in Boolean) is
-      begin
-         Is_Busy := B;
-      end Set_Busy;
-
-      function Busy return Boolean is
-      begin
-         return Is_Busy;
-      end Busy;
-   end UCI_Status;
-
-   UCI_Busy : UCI_Status;
-
-   task type UCI_Search_Task is
-      entry Start (P : in Position_Type; D : in Natural;
-                   Soft : in Duration; Hard : in Duration;
-                   Node_Cap : in Node_Count_Type;
-                   Infinite : in Boolean);
-      entry Stop_Now;
-   end UCI_Search_Task;
-
-   task body UCI_Search_Task is
-      Position : Position_Type;
-      M        : Move_Type;
-      Depth    : Natural;
-      Soft_Alloc : Duration;
-      Hard_Alloc : Duration;
-      Cap      : Node_Count_Type;
-      Inf      : Boolean;
-   begin
-      loop
-         select
-            accept Start (P : in Position_Type; D : in Natural;
-                          Soft : in Duration; Hard : in Duration;
-                          Node_Cap : in Node_Count_Type;
-                          Infinite : in Boolean)
-            do
-               Inf := Infinite;
-               Position := P;
-               Depth  := D;
-               Soft_Alloc := Soft;
-               Hard_Alloc := Hard;
-               Cap    := Node_Cap;
-               -- Busy from the moment the request is taken, and a "stop"
-               -- that arrived after the previous search ended must not
-               -- abort this one.
-               UCI_Busy.Set_Busy (True);
-               Clear_Stop;
-            end Start;
-
-            begin
-               if Cap > 0 then
-                  -- "go nodes"/"infinite": no soft target, deadline only.
-                  M := Best_Move (Position, Depth, Hard_Alloc, Cap);
-               else
-                  M := Best_Move (Position, Depth, Soft_Alloc, Hard_Alloc);
-               end if;
-            exception
-               when others =>
-                  -- A search must never take the task down without clearing
-                  -- the busy flag and answering: otherwise the GUI would wait
-                  -- forever and the next "go" would hit a dead task.
-                  M := Empty_Move;
-            end;
-
-            --  UCI: in "go infinite" the bestmove may only follow "stop".
-            while Inf and then not Stop_Requested loop
-               delay 0.005;
-            end loop;
-
-            UCI_Busy.Set_Busy (False);
-            if M = Empty_Move then
-               Locked_Put_Line ("bestmove 0000");
-            else
-               Locked_Put_Line ("bestmove " & To_String (M));
-            end if;
-         or
-            accept Stop_Now;
-            exit;
-         or
-            terminate;
-         end select;
-      end loop;
-   end UCI_Search_Task;
-
-   type UCI_Search_Task_Access is access UCI_Search_Task;
-
-   -- Created on the first UCI search only: the special modes (--selftest,
-   -- --bench, ...) return before any "go", so no task is ever left running.
-   Active_Task : UCI_Search_Task_Access := null;
-
-   procedure Ensure_UCI_Task is
-   begin
-      if Active_Task = null then
-         Active_Task := new UCI_Search_Task;
-      end if;
-   end Ensure_UCI_Task;
-
-   -- Stop a running search (if any) and terminate the task. Safe to call when
-   -- no task exists (XBoard-only session) or when the task is idle.
-   procedure Shutdown_UCI_Search is
-   begin
-      if Active_Task /= null then
-         if UCI_Busy.Busy then
-            Request_Stop;
-         end if;
-         Active_Task.Stop_Now;
-         Active_Task := null;
-      end if;
-   end Shutdown_UCI_Search;
-
-   -- "go wtime .. btime .. winc .. binc .. movestogo .. depth .. movetime ..
-   --  nodes .. infinite". The search runs asynchronously in a task (Phase 5);
-   --  the command loop stays free to answer "isready" and to service "stop".
-   procedure Handle_UCI_Go (Par : in String) is
-      N        : constant Natural := Token_Count (Par);
-      I        : Natural := 1;
-      Infinite : Boolean := False;
-      Node_Cap : Node_Count_Type := 0;
-      Depth_Given : Boolean := False;
-   begin
-      Fixed_Time := False;
-      Clock_Left := 0.0;
-      Time_Increment := 0.0;
-      Moves_To_Go := 0;
-      Max_Depth := 64;
-
-      while I <= N loop
-         declare
-            Name : constant String := Token (Par, I);
-            Next : constant String :=
-              (if I < N then Token (Par, I + 1) else "");
-         begin
-            if Name = "wtime" and then Pos.Side = White then
-               Clock_Left := Parse_Duration (Next, 0.0) / 1000.0;
-            elsif Name = "btime" and then Pos.Side = Black then
-               Clock_Left := Parse_Duration (Next, 0.0) / 1000.0;
-            elsif Name = "winc" and then Pos.Side = White then
-               Time_Increment := Parse_Duration (Next, 0.0) / 1000.0;
-            elsif Name = "binc" and then Pos.Side = Black then
-               Time_Increment := Parse_Duration (Next, 0.0) / 1000.0;
-            elsif Name = "movestogo" then
-               Moves_To_Go := Parse_Natural (Next, 0);
-            elsif Name = "movetime" then
-               Fixed_Time := True;
-               Move_Time := Parse_Duration (Next, 1.0) / 1000.0;
-            elsif Name = "depth" then
-               Max_Depth := Parse_Natural (Next, 64);
-               Depth_Given := True;
-            elsif Name = "nodes" then
-               Node_Cap := Parse_Node_Count (Next, 0);
-            elsif Name = "infinite" then
-               Infinite := True;
-            end if;
-         end;
-         I := I + 1;
-      end loop;
-
-      -- Opening book: only for a normal timed/depth move, never for the
-      -- "infinite" / "nodes" analysis modes (which must run the search).
-      -- Also skipped when a previous search is still running: the book move
-      -- would print its "bestmove" while that search later prints its own,
-      -- violating the one-bestmove-per-go contract. In that case the normal
-      -- path below stops the old search and starts this one.
-      if not Infinite and then Node_Cap = 0 and then not UCI_Busy.Busy then
-         declare
-            BM : Move_Type;
-         begin
-            if Try_Book (BM) then
-               Locked_Put_Line ("bestmove " & To_String (BM));
-               return;
-            end if;
-         end;
-      end if;
-
-      -- Time budget handed to the search. "infinite" and "nodes" ignore the
-      -- clock: they are bounded only by "stop" / the node cap. A normal move
-      -- uses the soft/hard allocation derived from the clock.
-      declare
-         Alloc : BBChess.Clocks.Allocation;
-      begin
-         if Infinite or else Node_Cap > 0
-           or else (Depth_Given and then Clock_Left <= 0.0
-                    and then not Fixed_Time)
-         then
-            Alloc := (Soft => 0.0, Hard => 0.0);
-         else
-            Alloc := Time_For_Next_Move;
-         end if;
-
-         -- A running search (double "go") is stopped first; the task then
-         -- accepts this Start and the queued request runs next.
-         if UCI_Busy.Busy then
-            Request_Stop;
-         end if;
-
-         -- Hand the game history to the search (threefold-repetition
-         -- detection), exactly like the XBoard path does before thinking.
-         Sync_Game_History;
-
-         Ensure_UCI_Task;
-         Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Node_Cap, Infinite);
-      end;
-   end Handle_UCI_Go;
-
 
    -- Fixed set of positions exercising the evaluation and the search. The
    -- benchmark searches every one at a fixed depth and reports the total
@@ -695,24 +93,20 @@ procedure BabaChess is
          & Long_Float'Image (Nps / 1000.0) & " knps");
    end Run_Bench;
 
-   -------------------------
-   -- Eval dump (tuning) --
-   -------------------------
-
    -- Read one position per line ("FEN" or "FEN;result") and print the
    -- White-positive static evaluation, one integer per line. Used by the
    -- automatic tuner.
    procedure Run_Eval_Fens (File_Name : in String) is
       F    : Ada.Text_IO.File_Type;
       Line : String (1 .. 512);
-      Last : Natural;
+      L_Last : Natural;
       Pos  : Position_Type;
    begin
       Ada.Text_IO.Open (F, Ada.Text_IO.In_File, File_Name);
       while not Ada.Text_IO.End_Of_File (F) loop
-         Ada.Text_IO.Get_Line (F, Line, Last);
+         Ada.Text_IO.Get_Line (F, Line, L_Last);
          declare
-            S    : constant String := Line (1 .. Last);
+            S    : constant String := Line (1 .. L_Last);
             Semi : Natural := 0;
          begin
             for I in S'Range loop
@@ -758,11 +152,7 @@ begin
       if Ada.Command_Line.Argument (I) = "--book"
         and then I < Ada.Command_Line.Argument_Count
       then
-         declare
-            Ok : Boolean;
-         begin
-            BBChess.Polyglot.Open_Book (Ada.Command_Line.Argument (I + 1), Ok);
-         end;
+         BBChess.Protocol.Configure_Book (Ada.Command_Line.Argument (I + 1));
       end if;
    end loop;
 
@@ -771,11 +161,8 @@ begin
       if Ada.Command_Line.Argument (I) = "--syzygy"
         and then I < Ada.Command_Line.Argument_Count
       then
-         declare
-            Ok : Boolean;
-         begin
-            BBChess.Syzygy.Init (Ada.Command_Line.Argument (I + 1), Ok);
-         end;
+         BBChess.Protocol.Configure_Syzygy
+           (Ada.Command_Line.Argument (I + 1));
       end if;
    end loop;
 
@@ -784,7 +171,7 @@ begin
    for I in 1 .. Ada.Command_Line.Argument_Count loop
       declare
          A : constant String := Ada.Command_Line.Argument (I);
-         N : constant Natural := BBChess.Text.Thread_Count (A, 0);
+         N : constant Natural := Thread_Count (A, 0);
       begin
          if A = "--threads"
            and then I < Ada.Command_Line.Argument_Count
@@ -843,338 +230,27 @@ begin
       return;
    end if;
 
-   -- Load the opening book (unless --book already did; the special modes
-   -- return before this point).
-   Load_Default_Book;
+   -- Interactive / protocol mode: hand the command loop to BBChess.Protocol,
+   -- which owns the session state and emits every output line through the
+   -- console lock installed here (BBChess.Search.Locked_Put_Line). Ada.Text_IO
+   -- is not task-safe and the asynchronous UCI search task prints "bestmove"
+   -- while the command loop may answer "readyok"; a single shared lock keeps
+   -- the two streams from interleaving. The book is loaded unless --book
+   -- already did (the special modes returned before this point).
+   BBChess.Protocol.Initialize (Locked_Put_Line'Access);
+   BBChess.Protocol.Load_Default_Book;
 
    Main_Loop : loop
-      Read_Line;
-
-      -- Normalize the current input.
-      declare
-         Trimmed : constant String := Trim_Both (Input_Line (1 .. Last));
-      begin
-         if Trimmed'Length = 0 then
-            goto Continue_Loop;
-         end if;
-         Split_Command (Trimmed, Current_Command, Cmd_Last,
-                        Parameter, Par_Last);
-      end;
-
-      declare
-         Cmd : constant String := Current_Command (1 .. Cmd_Last);
-         Par : constant String := Parameter (1 .. Par_Last);
-      begin
-         if Cmd = "xboard" then
-            Protocol := True;
-
-          elsif Cmd = "uci" then
-             UCI_Mode := True;
-             Set_UCI_Mode (True);
-             Ada.Text_IO.Put_Line ("id name BabaChess 1.0");
-             Ada.Text_IO.Put_Line ("id author BabaChess");
-             -- The transposition table is a compile-time-fixed array shared by
-             -- the Lazy SMP threads; it cannot be resized safely at run time
-             -- (reallocating it under in-flight searchers is not provably
-             -- race-free). The option therefore advertises the real fixed size
-             -- instead of a fake tunable range. Setting a different value is
-             -- acknowledged with an "info string" (see "setoption" below).
-             Ada.Text_IO.Put_Line
-               ("option name Hash type spin default "
-                & Trim_Both (Natural'Image (Transposition_Size_MB))
-                & " min " & Trim_Both (Natural'Image (Transposition_Size_MB))
-                & " max " & Trim_Both (Natural'Image (Transposition_Size_MB)));
-             Ada.Text_IO.Put_Line
-               ("option name Threads type spin default 1 min 1 max 16");
-             Ada.Text_IO.Put_Line
-               ("option name OwnBook type check default true");
-             Ada.Text_IO.Put_Line
-               ("option name BookFile type string default books/book.bin");
-             Ada.Text_IO.Put_Line
-               ("option name SyzygyPath type string default <empty>");
-             Ada.Text_IO.Put_Line ("uciok");
-             Ada.Text_IO.Flush;
-
-          elsif Cmd = "isready" and then UCI_Mode then
-             -- Answered from the command loop, so it replies "readyok" even
-             -- while the search task is thinking.
-             Locked_Put_Line ("readyok");
-
-          elsif Cmd = "ucinewgame" and then UCI_Mode then
-             --  Guard like setoption: Reset_Search clears the shared table and
-             --  resets the search generation while workers may be using them.
-             if UCI_Busy.Busy then
-                Locked_Put_Line
-                  ("info string ucinewgame ignored while searching");
-             else
-                Reset_Search;
-                Reset_Game_History;
-             end if;
-
-          elsif Cmd = "position" and then UCI_Mode then
-             Apply_UCI_Position (Par);
-
-          elsif Cmd = "go" and then UCI_Mode then
-             Handle_UCI_Go (Par);
-
-          elsif Cmd = "stop" and then UCI_Mode then
-             -- Interrupt the running search; it prints "bestmove" itself.
-             if UCI_Busy.Busy then
-                Request_Stop;
-             end if;
-
-          elsif UCI_Mode
-            and then (Cmd = "ponderhit" or else Cmd = "debug"
-                      or else Cmd = "register")
-          then
-             null;
-
-          elsif Cmd = "setoption" and then UCI_Mode then
-             --  Option names and values are case-insensitive in UCI, and a
-             --  path value may contain spaces, so compare on the lower-cased
-             --  name and take the whole remainder as the value.
-             declare
-                use Ada.Characters.Handling;
-                Name  : constant String := To_Lower (Token (Par, 2));
-                IsVal : constant Boolean :=
-                  To_Lower (Token (Par, 3)) = "value";
-                Value : constant String := Token_Rest (Par, 4);
-             begin
-                --  Options that reallocate or free engine state (the table,
-                --  the book, the tablebases) must not run while the search
-                --  task is using it: UCI forbids it, and tb_init during a
-                --  probe is a use-after-free in the C library.
-                if UCI_Busy.Busy then
-                   Locked_Put_Line
-                     ("info string setoption ignored while searching");
-                elsif Name = "clear" and then To_Lower (Token (Par, 3)) = "hash"
-                then
-                   Reset_Search;
-                elsif Name = "hash" and then IsVal then
-                   -- The table size is fixed at compile time. A different
-                   -- request is accepted as "Clear Hash" (a fresh, empty table
-                   -- of the real size) and the mismatch is reported, so the
-                   -- option is no longer silently misleading.
-                   if Parse_Natural (Value, 0) /= Transposition_Size_MB then
-                      Locked_Put_Line
-                        ("info string Hash size is fixed at "
-                         & Trim_Both (Natural'Image (Transposition_Size_MB))
-                         & " MB (compile-time); clearing table");
-                   end if;
-                   Reset_Search;
-                elsif Name = "threads" and then IsVal then
-                   Set_Threads (Parse_Natural (Value, 1));
-                elsif Name = "ownbook" and then IsVal then
-                   Own_Book := To_Lower (Value) = "true";
-                elsif Name = "bookfile" and then IsVal then
-                   declare
-                      Ok : Boolean;
-                   begin
-                      BBChess.Polyglot.Open_Book (Value, Ok);
-                   end;
-                elsif Name = "syzygypath" and then IsVal then
-                   declare
-                      Ok : Boolean;
-                   begin
-                      BBChess.Syzygy.Init (Value, Ok);
-                   end;
-                end if;
-             end;
-
-          elsif Cmd = "protover" then
-             Ada.Text_IO.Put_Line ("feature myname=""BabaChess 1.0""");
-            Ada.Text_IO.Put_Line ("feature setboard=1");
-            Ada.Text_IO.Put_Line ("feature ping=1");
-            Ada.Text_IO.Put_Line ("feature sigint=0 sigterm=0");
-            --  No color pre-selection (the engine follows "go" and the move
-            --  sent by the GUI) and no analyze mode.
-            Ada.Text_IO.Put_Line ("feature colors=0 analyze=0");
-            Ada.Text_IO.Put_Line ("feature done=1");
-            Ada.Text_IO.Flush;
-
-          elsif Cmd = "new" then
-             Pos := Start_Position;
-             Engine_Side := Black;
-             Force := False;
-             Fixed_Time := False;
-             Move_Time := 1.0;
-             Clock_Left := 0.0;
-             Time_Increment := 0.0;
-             Moves_To_Go := 0;
-             Max_Depth := 64;
-             Reset_Search;
-             Reset_Game_History;
-
-         elsif Cmd = "setboard" then
-            begin
-               Load (Pos, Par);
-               Force := True;
-               Reset_Game_History;
-            exception
-               when Constraint_Error =>
-                  Ada.Text_IO.Put_Line ("Error (bad FEN): " & Par);
-            end;
-
-         elsif Cmd = "force" then
-            Force := True;
-
-         elsif Cmd = "white" then
-            --  XBoard v2: "white" means White is on move and the ENGINE plays
-            --  Black (mirrored for "black").
-            Engine_Side := Black;
-
-         elsif Cmd = "black" then
-            Engine_Side := White;
-
-         elsif Cmd = "go" then
-            Force := False;
-            Engine_Side := Pos.Side;
-            Play_If_My_Turn;
-         elsif Cmd = "level" then
-            declare
-               Mps_Token  : constant String := Token (Par, 1);
-               Base_Token : constant String := Token (Par, 2);
-               Inc_Token  : constant String := Token (Par, 3);
-               Has_Colon  : Boolean := False;
-            begin
-               begin
-                  if Inc_Token'Length > 0 then
-                     Time_Increment := Duration'Value (Inc_Token);
-                  else
-                     Time_Increment := 0.0;
-                  end if;
-               exception
-                  when Constraint_Error =>
-                     Time_Increment := 0.0;
-               end;
-
-               -- Moves per session: 0 means "no session limit" and is kept as
-               -- the unknown case. The engine decrements it after each move
-               -- and re-arms it from Moves_Per_Session at the session end.
-               begin
-                  Moves_Per_Session := Natural'Value (Mps_Token);
-               exception
-                  when Constraint_Error =>
-                     Moves_Per_Session := 0;
-               end;
-               Moves_To_Go := Moves_Per_Session;
-
-               -- A plain "level M base" uses whole minutes as the base.
-               -- An "MM:SS" base (used by cutechess) means the real clock
-               -- will be provided later by the "time" command.
-               for I in Base_Token'Range loop
-                  if Base_Token (I) = ':' then
-                     Has_Colon := True;
-                     exit;
-                  end if;
-               end loop;
-               if not Has_Colon then
-                  begin
-                     Clock_Left := Duration (Natural'Value (Base_Token) * 60);
-                  exception
-                     when Constraint_Error =>
-                        Clock_Left := 0.0;
-                  end;
-               end if;
-            end;
-
-         elsif Cmd = "time" then
-            begin
-               Clock_Left := Duration'Value (Par) / 100.0;
-            exception
-               when Constraint_Error => null;
-            end;
-
-         elsif Cmd = "otim" then
-            -- Opponent clock: not needed for the time management above.
-            null;
-
-         elsif Cmd = "st" then
-            begin
-               Move_Time := Duration'Value (Par);
-               Fixed_Time := True;
-            exception
-               when Constraint_Error => null;
-            end;
-
-         elsif Cmd = "sd" then
-            begin
-               Max_Depth := Natural'Value (Par);
-            exception
-               when Constraint_Error => null;
-            end;
-
-         elsif Cmd = "ping" then
-            if Par'Length > 0 then
-               Ada.Text_IO.Put_Line ("pong " & Par);
-            else
-               Ada.Text_IO.Put_Line ("pong");
-            end if;
-            Ada.Text_IO.Flush;
-
-         elsif Cmd = "usermove" or else Cmd = "move" then
-            declare
-               M    : constant Move_Type := From_String (Pos, Par);
-               Undo : Undo_Info;
-            begin
-               if M /= Empty_Move then
-                  Make_Move (Pos, M, Undo);
-                  Record_Current_Key;
-                  -- The GUI has played its move: it is now our turn (the
-                  -- clock was sent just before the move). Think right away.
-                  Play_If_My_Turn;
-               end if;
-            end;
-
-         elsif Cmd = "?" then
-            -- "?" is the XBoard prompt asking the engine to move now.
-            Play_If_My_Turn;
-
-         elsif Cmd = "post" then
-            Set_Post (True);
-
-         elsif Cmd = "nopost" then
-            Set_Post (False);
-
-         elsif Cmd = "accepted" or else Cmd = "rejected" then
-            null;
-
-         elsif Cmd = "easy" or else Cmd = "hard"
-           or else Cmd = "hint"
-         then
-            null;
-
-          elsif Cmd = "quit" or else Cmd = "exit" then
-             -- Stop any running UCI search before leaving, so the process
-             -- exits promptly and no task is left active.
-             Shutdown_UCI_Search;
-             exit Main_Loop;
-
-         else
-            -- Try to interpret the line as a raw coordinate move (console
-            -- use and cutechess, which sends the opponent move bare).
-            declare
-               M    : constant Move_Type :=
-                 From_String (Pos, Trim_Both (Input_Line (1 .. Last)));
-               Undo : Undo_Info;
-            begin
-               if M /= Empty_Move then
-                  Make_Move (Pos, M, Undo);
-                  Record_Current_Key;
-                  Play_If_My_Turn;
-               end if;
-            end;
-         end if;
-      end;
-
-      <<Continue_Loop>>
-      null;
+      Ada.Text_IO.Get_Line (Input_Line, Last);
+      BBChess.Protocol.Process (Input_Line (1 .. Last));
+      exit Main_Loop when BBChess.Protocol.Exit_Requested;
    end loop Main_Loop;
 
+   BBChess.Protocol.Shutdown;
    Ada.Text_IO.Put_Line ("Thanks for playing with AdaChess-BB!");
 exception
    -- A clean close of the input (e.g. the GUI quitting) must not abort.
    -- If a UCI search is still running, stop it so the process can exit.
    when Ada.IO_Exceptions.End_Error =>
-      Shutdown_UCI_Search;
+      BBChess.Protocol.Shutdown;
 end BabaChess;

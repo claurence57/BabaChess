@@ -49,6 +49,8 @@ use BBChess.Polyglot;
 with BBChess.Text;
 use BBChess.Text;
 
+with BBChess.Protocol.Self_Tests;
+
 package body BBChess.Self_Tests is
 
    procedure Assert (Condition : in Boolean; Message : in String) is
@@ -817,6 +819,9 @@ package body BBChess.Self_Tests is
       Assert (Thread_Count ("--threads", 0) = 0, "--threads needs a value");
       Assert (Thread_Count ("-T12", 0) = 12, "two-digit -T12");
       Ada.Text_IO.Put_Line ("thread argument parsing OK");
+
+      -- Protocol layer: pure parsers and captured dispatch.
+      BBChess.Protocol.Self_Tests.Run;
 
       Ada.Text_IO.Put_Line ("all self tests OK");
    end Run;

@@ -2496,3 +2496,62 @@ Ces contrats seront donc revisités **après** P1.4, une fois `Position_Type`
 privatisé : un vrai `Type_Invariant` deviendra alors possible, appliqué aux
 seuls constructeurs/mutateurs plutôt qu'à chaque appel (la forme correcte pour
 un invariant de type, et gratuite à l'exécution hors `-gnata`).
+
+## 55. Extraction de la couche protocole (P1.1)
+
+`babachess.adb` était une procédure de **1 180 lignes** mêlant le protocole UCI,
+le protocole XBoard, la gestion d'horloges, le livre d'ouvertures, le parsing de
+la ligne de commande et la lecture directe de `stdin`. Aucun de ces chemins
+n'était testé. Ce chantier extrait la couche protocole dans des paquets dédiés.
+
+### 55.1 Découpage
+
+| Unité | Lignes | Rôle |
+|---|---|---|
+| `BBChess.Protocol` | 825 (corps) | état de session + dispatch + tâche de recherche UCI asynchrone |
+| `BBChess.Protocol.UCI` | 118 | parsers purs `go` / `setoption` |
+| `BBChess.Protocol.XBoard` | 84 | parser pur `level` / `time` |
+| `BBChess.Protocol.Self_Tests` | 274 | tests unitaires de la couche |
+| `babachess.adb` | 256 (était 1 180) | modes CLI + boucle mince de lecture |
+
+Les 20 clauses `with` de `babachess.adb` tombent à **13**.
+
+### 55.2 Le contrat « une ligne → une réponse » n'est pas littéral
+
+La consigne demandait une API prenant une ligne et **retournant** une réponse,
+découplée de `Text_IO`. C'est impossible tel quel, pour une raison de fond : la
+recherche UCI est **asynchrone**. Un `go` lance la recherche dans une tâche qui
+émet son `bestmove` (et la recherche ses lignes `info`) **après** le retour du
+traitement, et `isready` doit répondre `readyok` pendant que cette tâche tourne.
+Une valeur de retour ne peut pas transporter une sortie produite plus tard par
+une autre tâche, et un tampon borné ne peut pas porter un handshake multi-ligne.
+
+Le compromis fidèle retenu : un **callback d'écriture** (`Line_Writer`). Les
+paquets `BBChess.Protocol.*` ne touchent jamais `Ada.Text_IO` ; chaque ligne
+sortie passe par le writer installé par l'appelant. En production c'est
+`BBChess.Search.Locked_Put_Line` — le **même verrou console** que la tâche de
+recherche, donc les réponses du protocole et les `info`/`bestmove` ne peuvent
+pas s'entrelacer. En test, c'est un writer capturant, ce qui rend le dispatch
+vérifiable **sans `stdin` ni recherche**. La partie réellement « ligne → valeur »
+est constituée par les parsers purs (`Protocol.UCI`/`.XBoard`).
+
+### 55.3 Iso-comportement vérifié
+
+- `debug` : 0 avertissement.
+- `--selftest` vert en `debug`, `checked`, `release` et `portable`, avec les
+  nouveaux tests protocole.
+- Nœuds `--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722, **identiques**.
+- Transcripts UCI et XBoard **octet pour octet identiques** (hors champs
+  temporels `time`/`nps`), y compris sur les cas malformés et le cas
+  asynchrone `go infinite` + `isready` + `stop` (le `readyok` apparaît bien au
+  milieu de la recherche, et un seul `bestmove` est émis).
+- Comportement pré-existant conservé : `--bench` n'est reconnu que comme
+  **premier** argument (`Argument(1) = "--bench"`), inchangé.
+
+### 55.4 Tests
+
+`BBChess.Protocol.Self_Tests.Run` (appelé depuis `--selftest`) teste les parsers
+purs (`go` avec valeurs valides/malformées/absentes, `setoption`, `level`,
+`time`) et le dispatch capturé (`uci`, `isready`, `position startpos|fen` avec
+coups valides et invalides, FEN rejetée, `setoption`, `protover`, `ping`, ligne
+vide, `quit`, coup nu). Aucun de ces tests ne démarre de recherche.

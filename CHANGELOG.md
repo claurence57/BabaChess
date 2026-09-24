@@ -8,6 +8,26 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Extraction de la couche protocole (P1.1)
+
+`babachess.adb` (1 180 lignes) ne contient plus le protocole : celui-ci vit dans
+`BBChess.Protocol` (+ `.UCI`, `.XBoard`), et `babachess.adb` retombe à 256 lignes
+(boucle mince + modes CLI). Détail : `DEVELOPMENT.md` §55.
+
+- La couche protocole est **découplée de `Text_IO`** : chaque ligne sortie passe
+  par un callback `Line_Writer`, que `babachess.adb` branche sur
+  `BBChess.Search.Locked_Put_Line` (le verrou console partagé avec la tâche de
+  recherche). La recherche UCI asynchrone (`bestmove` émis après le `go`,
+  `readyok` pendant la recherche) est préservée à l'identique.
+- **Tests unitaires** de la couche ajoutés (`Protocol.Self_Tests`, exécutés par
+  `--selftest`) : parsers `go`/`setoption`/`level`/`time` et dispatch capturé
+  (`uci`, `position`, FEN rejetée, `ping`, `quit`, coup nu, entrées malformées).
+- Aucune clause `with` inutile : `babachess.adb` passe de 20 à 13.
+- Iso-comportement : `--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722 nœuds
+  (identiques), transcripts UCI/XBoard octet pour octet identiques (hors
+  `time`/`nps`), `--selftest` vert dans les quatre modes, `debug` sans
+  avertissement.
+
 ### Contrats Ada 2012 (`Pre`/`Post`) et mode `checked` — durcissement P0.3
 
 Premiers contrats du projet, ajoutés là où ils sont utiles **et** sûrs, et
