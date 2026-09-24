@@ -8,6 +8,19 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Encapsulation des tables d'attaque (P1.4)
+
+Les neuf tables d'attaque globales de `bbchess-attacks.ads` passent en partie
+`private`, exposées par des accesseurs `Inline` de même nom (les sites d'appel
+sont inchangés) : plus aucun module extérieur ne peut les corrompre après
+`Init`. Détail : `DEVELOPMENT.md` §58.
+
+- Coût nul à -O3, vérifié : accesseurs entièrement inlinés (aucun symbole de
+  fonction dans le binaire), A/B entrelacée à **−1,2 %** (bruit), nœuds
+  `--bench 9/11/12` identiques.
+- `--selftest` vert (126/126) dans les quatre modes ; `debug` sans
+  avertissement.
+
 ### Allègement de `Negamax` (P1.3)
 
 Les décisions d'élagage de `Negamax` (razoring, reverse futility, null-move,

@@ -182,10 +182,60 @@ package body BBChess.Attacks is
    end Rook_Attacks;
 
    function Queen_Attacks (Square : in Square_Type; Occupancy : in Bitboard)
-     return Bitboard is
+      return Bitboard is
    begin
       return Rook_Attacks (Square, Occupancy) or Bishop_Attacks (Square, Occupancy);
    end Queen_Attacks;
+
+   ----------------
+   -- Accessors --
+   ----------------
+
+   function Knight_Attacks (Square : in Square_Type) return Bitboard is
+   begin
+      return Knight_Table (Square);
+   end Knight_Attacks;
+
+   function King_Attacks (Square : in Square_Type) return Bitboard is
+   begin
+      return King_Table (Square);
+   end King_Attacks;
+
+   function Pawn_Attacks (Color : in Color_Type; Square : in Square_Type)
+     return Bitboard is
+   begin
+      return Pawn_Table (Color, Square);
+   end Pawn_Attacks;
+
+   function Between (A, B : in Square_Type) return Bitboard is
+   begin
+      return Between_Table (A, B);
+   end Between;
+
+   function Line (A, B : in Square_Type) return Bitboard is
+   begin
+      return Line_Table (A, B);
+   end Line;
+
+   function Rook_Ray (Square : in Square_Type) return Bitboard is
+   begin
+      return Rook_Ray_Table (Square);
+   end Rook_Ray;
+
+   function Bishop_Ray (Square : in Square_Type) return Bitboard is
+   begin
+      return Bishop_Ray_Table (Square);
+   end Bishop_Ray;
+
+   function File_A_BB return Bitboard is
+   begin
+      return File_A_Table;
+   end File_A_BB;
+
+   function File_H_BB return Bitboard is
+   begin
+      return File_H_Table;
+   end File_H_BB;
 
 begin
    -- Sliding tables (no search: PEXT indexes the subsets directly).
@@ -196,8 +246,8 @@ begin
 
    -- Leaper tables.
    for Square in Square_Type loop
-      Build_Leaper (Knight_Attacks (Square), Square, Knight_Deltas);
-      Build_Leaper (King_Attacks (Square), Square, King_Deltas);
+      Build_Leaper (Knight_Table (Square), Square, Knight_Deltas);
+      Build_Leaper (King_Table (Square), Square, King_Deltas);
 
       -- Pawn attacks: White moves up the ranks (+1), Black moves down (-1).
       declare
@@ -216,21 +266,21 @@ begin
                end if;
             end if;
          end loop;
-         Pawn_Attacks (White, Square) := White_Pawn_Acc;
-         Pawn_Attacks (Black, Square) := Black_Pawn_Acc;
+         Pawn_Table (White, Square) := White_Pawn_Acc;
+         Pawn_Table (Black, Square) := Black_Pawn_Acc;
       end;
    end loop;
 
    -- File masks.
    for R in 0 .. 7 loop
-      File_A_BB := File_A_BB or Bit (Square_Type (R * 8));
-      File_H_BB := File_H_BB or Bit (Square_Type (R * 8 + 7));
+      File_A_Table := File_A_Table or Bit (Square_Type (R * 8));
+      File_H_Table := File_H_Table or Bit (Square_Type (R * 8 + 7));
    end loop;
 
    -- Full sliding rays (empty board), reused by the pin computation.
    for Square in Square_Type loop
-      Rook_Ray (Square)   := Rook_Attacks (Square, 0);
-      Bishop_Ray (Square) := Bishop_Attacks (Square, 0);
+      Rook_Ray_Table (Square)   := Rook_Attacks (Square, 0);
+      Bishop_Ray_Table (Square) := Bishop_Attacks (Square, 0);
    end loop;
 
    -- Between / Line tables (both empty when the squares are not aligned).
@@ -238,15 +288,15 @@ begin
       for B in Square_Type loop
          if A /= B then
             if (Rook_Attacks (A, 0) and Bit (B)) /= 0 then
-               Between (A, B) :=
+               Between_Table (A, B) :=
                  Rook_Attacks (A, Bit (B)) and Rook_Attacks (B, Bit (A));
-               Line (A, B) :=
+               Line_Table (A, B) :=
                  (Rook_Attacks (A, 0) and Rook_Attacks (B, 0))
                  or Bit (A) or Bit (B);
             elsif (Bishop_Attacks (A, 0) and Bit (B)) /= 0 then
-               Between (A, B) :=
+               Between_Table (A, B) :=
                  Bishop_Attacks (A, Bit (B)) and Bishop_Attacks (B, Bit (A));
-               Line (A, B) :=
+               Line_Table (A, B) :=
                  (Bishop_Attacks (A, 0) and Bishop_Attacks (B, 0))
                  or Bit (A) or Bit (B);
             end if;

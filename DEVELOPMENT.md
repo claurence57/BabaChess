@@ -2628,3 +2628,39 @@ de nœud (`Can_*`), eux, ne coûtent rien.
 
 `--selftest` reste vert (126/126) dans les quatre modes, `debug` sans
 avertissement.
+
+## 58. Encapsulation des tables d'attaque (P1.4)
+
+`bbchess-attacks.ads` exposait en clair des variables globales mutables
+(`Knight_Attacks`, `King_Attacks`, `Pawn_Attacks`, `Between`, `Line`,
+`Rook_Ray`, `Bishop_Ray`, `File_A_BB`, `File_H_BB`), sans partie `private` :
+n'importe quel module pouvait les corrompre après `Init`.
+
+### 58.1 Ce qui a changé
+
+Les neuf tables sont désormais dans la partie **`private`** (`Knight_Table`,
+`King_Table`, `Pawn_Table`, `Between_Table`, `Line_Table`, `Rook_Ray_Table`,
+`Bishop_Ray_Table`, `File_A_Table`, `File_H_Table`). L'accès se fait par des
+**accesseurs `Inline` portant le même nom** que les anciennes variables :
+`Knight_Attacks (S)`, `Between (A, B)`, `File_A_BB`, etc. Les sites d'appel
+(movegen, SEE, évaluation, pin mask) restent donc textuellement identiques.
+
+### 58.2 Coût nul à -O3, vérifié
+
+- Les accesseurs sont **entièrement inlinés** : `nm` sur le binaire release ne
+  montre que les neuf **données** privées, aucun symbole de fonction
+  d'accès.
+- Iso-comportement : nœuds `--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722,
+  **identiques**.
+- Mesure A/B entrelacée (12 paires, `--bench 12`, contre le binaire précédent) :
+  **delta médian −1,2 %** (dans le bruit, donc coût nul).
+- `--selftest` vert (126/126) dans les quatre modes, `debug` sans
+  avertissement.
+
+### 58.3 Effet sur le `Type_Invariant` différé (P0.3)
+
+Cette encapsulation ne privatise pas `Position_Type` (elle ne concerne que les
+tables d'attaque), mais elle démontre que le motif « données privées + accesseurs
+`Inline` » passe bien l'optimiseur sans coût. C'est le préalable technique du
+chantier qui débloquera, pour `Position_Type`, le `Type_Invariant` laissé en
+suspens en §54.3.
