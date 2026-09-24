@@ -895,6 +895,39 @@ consigne interdit explicitement. Aucune tentative relancée.
   `P_MOBILITY_Q_EG 2`) est un vrai changement d'arbre (eval modifiée). Son SPRT
   est consigné ci-dessous.
 
+### 65.5 Résultat SPRT du candidat « mobilité de phase »
+
+Candidat : majeurs (tour/dame) plus mobiles en finale
+(`P_MOBILITY_R_EG 3`, `P_MOBILITY_Q_EG 2`). SPRT 600 parties, cadence 1+0.1,
+ouvertures neutres, livre désactivé, `release` vs `release` + `--params`.
+
+| | valeur |
+|---|---|
+| Score NEW vs OLD | **171-185-244 (48,8 %)** |
+| Différence Elo | **−8,1 ± 21,4** |
+| LOS (NEW meilleur) | **22,9 %** |
+| LLR | −0,45 (bornes ±2,94) |
+| Verdict | **INCONCLUSIVE au plafond** |
+
+L'estimation ponctuelle est **négative** (−8 Elo) et la LOS n'est que de 22,9 % :
+le candidat n'apporte rien, et probablement coûte un peu. Conformément à la règle
+du projet (un patch neutre ou négatif n'est **pas** fusionné), les paramètres du
+candidat **ne sont pas adoptés**.
+
+### 65.6 Conclusion de la phase P3
+
+L'infrastructure de **mobilité pondérée par phase** est **conservée** (défauts
+égaux → évaluation bit-identique, coût nul, patron D4 §43) : elle rend le poste
+le plus chaud (11,35 %) tunable par phase, ce qu'aucun tuner ne pouvait inventer.
+Le candidat essayé perd ~8 Elo et est rejeté ; il n'y a **pas** de gain de force
+facile dans l'évaluation au-delà des réglages actuels, ce que confirment les
+quatre campagnes déjà consignées (Texel §21, SPSA éval §20, SPSA recherche §44,
+sécurité du roi §17). La phase P3 se solde par : un terme mesurable (P3.1), une
+table de pions **refusée sur mesure** (P3.2), un tuning **déjà tenté et négatif**
+(P3.3), la sécurité du roi **close** et une mobilité de phase **en infrastructure
+sans gain démontré** (P3.4). Aucune puissance n'a été ajoutée ni perdue :
+`--bench 9/11/12` restent 518 612 / 1 286 807 / 2 358 722 nœuds.
+
 ## 64. Incident CI : `-gnatyy` et suivi interrompu (corrigé)
 
 ### 64.1 Les faits

@@ -24,8 +24,12 @@ Détail : `DEVELOPMENT.md` §65.
   pondérée par phase** implémentée comme *infrastructure* : nouveaux paramètres
   `P_Mobility_*_Eg` de défaut **égal** aux poids d'ouverture, donc évaluation
   **bit-identique** (nœuds, `--eval-fens`, A/B 0,0 %) tant qu'aucun fichier ne
-  les change — patron D4 §43. Un candidat (majeurs plus mobiles en finale) a été
-  testé par SPRT.
+  les change — patron D4 §43. Un candidat (majeurs plus mobiles en finale,
+  `P_MOBILITY_R_EG 3`, `P_MOBILITY_Q_EG 2`) a été testé par SPRT : **600
+  parties, 171-185-244 (48,8 %), −8,1 ± 21,4 Elo, LOS 22,9 % → INCONCLUSIVE**
+  au plafond, estimation **négative** → **candidat rejeté** (règle : un patch
+  neutre/négatif n'est pas fusionné). L'infrastructure reste (bit-identique,
+  coût nul).
 
 ### Élagage de la documentation (P2.6)
 
