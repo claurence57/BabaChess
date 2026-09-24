@@ -197,6 +197,15 @@ package body BBChess.Search is
 
    Mate_Threshold : constant Score_Type := Mate_Score - 1000;
 
+   --  Keep an unsearched fail-low bound out of the mate band: under negamax
+   --  the parent reads -S, so a bound already in the band would be mistaken
+   --  for a proven mate. Inert at the default parameters (the bound stays far
+   --  from the band), so the tree is unchanged.
+   function Mate_Clamp (S : in Score_Type) return Score_Type is
+     (Score_Type'Max (-(Mate_Threshold - 1),
+                      Score_Type'Min (S, Mate_Threshold - 1)));
+   pragma Inline (Mate_Clamp);
+
    -- Two entries form a bucket (even index and the next one).
    function TT_Bucket (Position : in Position_Type) return Natural is
      (Natural (Position.Key and Bitboard (TT_Mask - 1)));
@@ -458,6 +467,10 @@ package body BBChess.Search is
          Next_Checkpoint  : Node_Count_Type := Check_Interval;
          Time_Limit_Armed : Boolean := False;
          Node_Limit       : Node_Count_Type := 0;
+         --  True when this context runs as one of several Lazy SMP workers:
+         --  the reported node count is then the shared total, otherwise it is
+         --  this context's exact count.
+         Shared_Report    : Boolean := False;
          Start_Time       : Time := Clock;
          Time_Budget      : Duration := 0.0;
       end record;
@@ -488,14 +501,33 @@ package body BBChess.Search is
    -- Whole-search node counter shared by all Lazy SMP workers, so the UCI
    -- "info nodes/nps" lines report the real total and not just thread 1.
    -- Updated only every Check_Interval nodes (in Poll_Time_Slow), so the
-   -- atomic add is off the hot path.
-   SMP_Nodes : Node_Count_Type := 0;
-   pragma Atomic (SMP_Nodes);
+   -- counter is off the hot path. A protected object is used rather than an
+   -- Atomic variable: "X := X + N" on an Atomic is a load/add/store, not an
+   -- atomic read-modify-write, so concurrent workers could lose increments.
+   protected SMP_Counter is
+      procedure Reset;
+      procedure Add (N : in Node_Count_Type);
+      function  Value return Node_Count_Type;
+   private
+      Count : Node_Count_Type := 0;
+   end SMP_Counter;
 
-   procedure Reset_SMP_Nodes is
-   begin
-      SMP_Nodes := 0;
-   end Reset_SMP_Nodes;
+   protected body SMP_Counter is
+      procedure Reset is
+      begin
+         Count := 0;
+      end Reset;
+
+      procedure Add (N : in Node_Count_Type) is
+      begin
+         Count := Count + N;
+      end Add;
+
+      function Value return Node_Count_Type is
+      begin
+         return Count;
+      end Value;
+   end SMP_Counter;
 
    procedure Set_Game_History (Keys  : in Game_Key_Array;
                                Count : in Natural) is
@@ -513,7 +545,8 @@ package body BBChess.Search is
    procedure Init_Context (Ctx    : in Context_Access;
                            Arm    : in Boolean;
                            Budget : in Duration;
-                           Node_Cap : in Node_Count_Type := 0) is
+                           Node_Cap : in Node_Count_Type := 0;
+                           Shared_Report : in Boolean := False) is
    begin
       Ctx.Killers := (others => (others => Empty_Move));
       Ctx.History := (others => (others => (others => 0)));
@@ -526,10 +559,16 @@ package body BBChess.Search is
          Ctx.Game_Keys (I) := Init_Game_Keys (I);
       end loop;
       Ctx.Nodes_Count := 0;
-      Ctx.Next_Checkpoint := Check_Interval;
+      --  The node cap must be checked at the cap itself, not only at the
+      --  next Check_Interval multiple, or "go nodes N" would overshoot N by
+      --  up to Check_Interval - 1 nodes (per worker).
+      Ctx.Next_Checkpoint :=
+        (if Node_Cap > 0 and then Node_Cap < Check_Interval
+         then Node_Cap else Check_Interval);
       Ctx.Time_Limit_Armed := Arm;
       Ctx.Time_Budget := Budget;
       Ctx.Node_Limit := Node_Cap;
+      Ctx.Shared_Report := Shared_Report;
       Ctx.Start_Time := Clock;
    end Init_Context;
 
@@ -540,8 +579,13 @@ package body BBChess.Search is
    -- same exceptions as before, only the layout changed.
    procedure Poll_Time_Slow (Ctx : in Context_Access) is
    begin
-      SMP_Nodes := SMP_Nodes + Check_Interval;
+      SMP_Counter.Add (Check_Interval);
+      --  Next deadline: the regular interval, but not past the node cap, so
+      --  "go nodes N" stops exactly at N instead of the next interval.
       Ctx.Next_Checkpoint := Ctx.Nodes_Count + Check_Interval;
+      if Ctx.Node_Limit > 0 and then Ctx.Next_Checkpoint > Ctx.Node_Limit then
+         Ctx.Next_Checkpoint := Ctx.Node_Limit;
+      end if;
       if Stop_Search or else Abort_Request then
          raise Search_Interrupted;
       end if;
@@ -1102,8 +1146,7 @@ package body BBChess.Search is
             if Count = 0 then
                return -(Mate_Score - Ply);
             end if;
-            return Score_Type'Max (-(Mate_Threshold - 1),
-                                   Score_Type'Min (A, Mate_Threshold - 1));
+            return Mate_Clamp (A);
          else
             -- Not in check: the alpha-updated stand-pat score is the safe
             -- truncation (exactly the score the unbounded search would use
@@ -1115,7 +1158,7 @@ package body BBChess.Search is
             if Stand > A then
                A := Stand;
             end if;
-            return A;
+            return Mate_Clamp (A);
          end if;
       end if;
 
@@ -1927,9 +1970,15 @@ package body BBChess.Search is
             Prev_Iter := To_Duration (Clock - Ctx.Start_Time) - Elapsed;
 
             if Report then
+               --  Single-thread: report the exact counter. Lazy SMP: the
+               --  per-context counter only covers this worker, so report the
+               --  shared total (rounded to the poll interval).
                Report_Iteration (Work, D, Best_Score,
                                  To_Duration (Clock - T0),
-                                 SMP_Nodes, Best);
+                                 (if Ctx.Shared_Report
+                                  then SMP_Counter.Value
+                                  else Ctx.Nodes_Count),
+                                 Best);
             end if;
 
             exit when Abs (Best_Score) >= Mate_Score - 200
@@ -2108,7 +2157,7 @@ package body BBChess.Search is
       Hash.Set_Keys_Enabled (True);
       TT_Generation := TT_Generation + 1;
       Stop_Search := False;
-      Reset_SMP_Nodes;
+      SMP_Counter.Reset;
 
       declare
          Ctx : Context_Access := new Search_Context;
@@ -2219,7 +2268,7 @@ package body BBChess.Search is
       begin
          Ctx := new Search_Context;
          Init_Context (Ctx, Arm => Root_Time > 0.0, Budget => Root_Time,
-                       Node_Cap => Root_Node_Cap);
+                       Node_Cap => Root_Node_Cap, Shared_Report => True);
          Results (Id) := Iterative_Search (Ctx, Root_Position,
                                            Root_Max_Depth, Root_Time, Root_Soft,
                                            Report => (Id = 1));
@@ -2282,7 +2331,7 @@ package body BBChess.Search is
       -- multi-threaded search leaves it set, and the single-threaded path
       -- (which never clears it) would otherwise abort at the first poll.
       Stop_Search := False;
-      Reset_SMP_Nodes;
+      SMP_Counter.Reset;
 
       if Num_Threads <= 1 then
          declare

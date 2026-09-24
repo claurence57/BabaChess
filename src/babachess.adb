@@ -891,8 +891,15 @@ begin
              Locked_Put_Line ("readyok");
 
           elsif Cmd = "ucinewgame" and then UCI_Mode then
-             Reset_Search;
-             Reset_Game_History;
+             --  Guard like setoption: Reset_Search clears the shared table and
+             --  resets the search generation while workers may be using them.
+             if UCI_Busy.Busy then
+                Locked_Put_Line
+                  ("info string ucinewgame ignored while searching");
+             else
+                Reset_Search;
+                Reset_Game_History;
+             end if;
 
           elsif Cmd = "position" and then UCI_Mode then
              Apply_UCI_Position (Par);
