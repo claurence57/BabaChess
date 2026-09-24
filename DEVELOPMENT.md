@@ -686,15 +686,30 @@ partagé par `Locked_Put_Line`, donc sans entrelacement entre tâches.
 
 ## 61. Contrôles de style (P2.3) et hypothèse mémoire x86-64 (P2.4)
 
-### 61.1 `-gnatyy` en mode `debug`
+### 61.1 `-gnatyy` : tentative puis **retrait** (correction d'une erreur)
 
-Le mode `debug` compile désormais avec `-gnatyy` (contrôles de style GNAT :
-indentation, espaces, casse, largeur des lignes…). Le style du projet était
-déjà cohérent : **zéro violation** après activation. Le flag est vérifié
-comme réellement actif (un `X=0` volontaire déclenche bien
-`(style) space required`). Comme la CI compile déjà `debug` avec
-`-cargs:ada -gnatwe` (tout avertissement devient une erreur), toute dérive de
-style fait maintenant échouer la CI.
+La consigne demandait d'activer `-gnatyy` (contrôles de style GNAT :
+indentation, espaces, casse, largeur des lignes…) **si le style est déjà
+cohérent**. Il ne l'est pas : l'activation a produit **1 445 messages
+`(style)`** dans **38 fichiers** — dont 1 033 « space required », 257 « this
+line is too long », 134 « subprogram body has no previous spec » — et la CI,
+qui compile `debug` avec `-cargs:ada -gnatwe` (tout avertissement devient une
+erreur), est passée au **rouge**.
+
+Deux erreurs distinctes, toutes deux corrigées :
+
+1. **L'affirmation « zéro violation » était fausse.** La première vérification
+   avait filtré `error|warning` ; les messages `(style) …` ne contiennent ni
+   l'un ni l'autre et ont échappé au filtre. La mesure correcte (`grep
+   '(style)'`) donne les 1 445 ci-dessus.
+2. **Le suivi de la CI avait été interrompu** après P1.1 ; les échecs de P2.3,
+   P2.5 et suivants n'ont pas été vus tout de suite.
+
+`-gnatyy` est donc **retiré** de `babachess.gpr` : le mettre aurait exigé un
+reformatage massif des 38 unités (coût élevé, risque de régression nps), hors
+du périmètre « écarts résiduels » de la tâche. Le build `debug` revient à
+`-gnat2012 -gnata -g -gnatwa -gnatVa`, et la CI recompile `debug` avec
+`-gnatwe` **sans erreur**. Détail de l'incident : §64.
 
 ### 61.2 Hypothèse mémoire x86-64 (TT lock-free)
 
@@ -789,3 +804,39 @@ Vérifié :
 
 La décomposition ne change pas la force ; elle rend chaque terme mesurable et
 prépare tout tuning ultérieur terme par terme.
+
+## 64. Incident CI : `-gnatyy` et suivi interrompu (corrigé)
+
+### 64.1 Les faits
+
+Le commit P2.3 (`5db30fb`) a ajouté `-gnatyy` au mode `debug`. La CI a échoué
+(`compilation phase failed`, code 4) sur `babachess.adb`, puis sur chaque push
+suivant (P2.5, P2.6/P3.1), jusqu'à ce que l'échec soit remarqué et corrigé.
+
+### 64.2 Les deux causes
+
+1. **Mesure erronée du style.** La vérification de P2.3 filtrait la sortie de
+   compilation sur `error|warning`. Les messages de style GNAT ont la forme
+   `fichier:ligne:col: (style) …` et ne contiennent **ni** « error », **ni**
+   « warning » : ils sont passés à travers le filtre. La mesure correcte
+   (`grep '(style)'`) donne **1 445 messages dans 38 fichiers**. L'affirmation
+   « zéro violation » de §61.1 était donc fausse.
+2. **Suivi de la CI interrompu.** Après P1.1, les pushs n'ont plus été suivis
+   par `gh run watch`. Les échecs ont donc persisté plusieurs commits.
+
+### 64.3 Le correctif
+
+- `-gnatyy` est **retiré** de `babachess.gpr` ; le mode `debug` retrouve ses
+  commutateurs d'origine (`-gnatwa -gnatVa`).
+- Le build exact de la CI a été rejoué localement
+  (`gprbuild -P babachess.gpr -XMode=debug -cargs:ada -gnatwe`) : **code 0**.
+- Le suivi de la CI par `gh run watch` est repris pour chaque push.
+
+### 64.4 Leçon
+
+Une vérification qui filtre sur `error|warning` **rate les messages `(style)`**
+et, plus généralement, tout diagnostic dont le libellé diffère. Mesurer un
+critère doit se faire sur le motif propre à ce critère (ici `(style)`), pas sur
+un filtre supposé. Et un build « propre » localement ne vaut rien tant que la
+**CI** n'a pas confirmé (le `-gnatwe` de la CI promeut des messages que le
+build local, sans `-gnatwe`, laisse passer).

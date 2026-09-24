@@ -50,9 +50,11 @@ silencieux des emplacements par défaut reste muet). Détail :
 
 ### Style et hypothèse mémoire x86-64 (P2.3, P2.4)
 
-- Le mode `debug` compile avec `-gnatyy` (contrôles de style) : zéro violation,
-  et la CI (`-gnatwe`) échoue désormais sur toute dérive de style. Détail :
-  `DEVELOPMENT.md` §61.1.
+- `-gnatyy` a été activé puis **retiré** : le style du projet n'est pas propre
+  (1 445 messages `(style)` dans 38 fichiers), et la CI (`-gnatwe`) est passée
+  au rouge. Le reformatage des 38 unités sort du périmètre « écarts
+  résiduels » ; `debug` revient à ses commutateurs d'origine et la CI repasse
+  au vert. Détail et analyse de l'erreur : `DEVELOPMENT.md` §61.1 et §64.
 - L'hypothèse mémoire **x86-64 TSO** de la TT lock-free est documentée
   explicitement (3 `pragma Atomic`, 0 `Volatile`, aucune barrière ; casse sur
   modèle faible ARM/POWER). Aucune modification du code de la TT. Détail :
