@@ -54,10 +54,11 @@ les cas ; c'est du levier de **vitesse**, pas de force directement.
 ## Modes de construction
 
 `babachess.gpr` expose le scénario `Mode` (`release` par défaut, `debug`,
-`portable`). Le binaire est écrit dans `bin/babachess`.
+`portable`, `checked`). Le binaire est écrit dans `bin/babachess`.
 
 ```bash
 gprbuild -P babachess.gpr -XMode=release    # défaut : POPCNT/BMI2/PEXT, -flto
+gprbuild -P babachess.gpr -XMode=checked    # vitesse release + contrôles actifs (SPRT)
 gprbuild -P babachess.gpr -XMode=portable   # tout x86-64, repli PEXT logiciel
 gprbuild -P babachess.gpr -XMode=debug      # assertions (-gnata), sans -gnatp
 ```
@@ -69,7 +70,8 @@ ci-dessous restent la référence.
 
 | Mode | Ada (`Switches ("ada")`) | C (`Switches ("c")`) |
 |---|---|---|
-| **release** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2 -flto` |
+| **release** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2` |
+| **checked** | `-gnat2012 -gnata -gnatN -O3 -gnatf -gnatep=../src/prep.data -gnateDREL -mpopcnt -mbmi -mbmi2 -flto` | `-O3 -mpopcnt -mbmi -mbmi2` |
 | **portable** | `-gnat2012 -gnatp -gnatN -O3 -gnatf -gnatep=../src/prep.data` | `-O3` |
 | **debug** | `-gnat2012 -gnata -g -gnatep=../src/prep.data` | `-O0 -g` |
 
@@ -79,17 +81,25 @@ le Makefile utilise pour ajouter le commutateur ISA du CPU (`-march=x86-64-v3`,
 
 - `-gnatep=../src/prep.data` + `-gnateDREL` : **préprocesseur intégré** GNAT.
   `prep.data` ouvre la session avec `* -u` (symboles indéfinis = faux) ; `REL`
-  n'est défini qu'en `release`, donc `#if REL` sélectionne l'intrinsèque **PEXT**
-  BMI2, `#else` le repli logiciel. Un seul binaire porte les deux variantes.
-- `-gnatp` supprime les contrôles d'exécution (release/portable) → tout accès aux
-  tampons doit être borné explicitement (`BBChess.Text`).
-- `-flto` (release, Ada **et** C) : édition de liens inter-unités.
+  n'est défini qu'en `release`/`checked`, donc `#if REL` sélectionne
+  l'intrinsèque **PEXT** BMI2, `#else` le repli logiciel.
+- `-gnatp` supprime les contrôles d'exécution (`release`/`portable`) → tout accès
+  aux tampons doit être borné explicitement (`BBChess.Text`).
+- `-flto` (Ada, `release` et `checked`) : édition de liens inter-unités. **Pas
+  sur le C** : gprbuild archive les objets C avec `ar` et lie
+  `libbabachess.a`, or le gprbuild FSF standard n'utilise pas `gcc-ar`, donc une
+  archive bytecode LTO fait échouer le lien (`lto1: bytecode stream ... LTO
+  version ...`) ; le C n'est pas sur le chemin chaud.
+- **`checked`** : la vitesse de `release` (`-O3 -gnatN -flto`) **avec** les
+  contrôles d'exécution (`-gnata`, sans `-gnatp`). Mesuré **≈ 11 % plus lent**
+  que `release` (`--bench 11`, médiane), nœuds **identiques**. C'est le mode des
+  **campagnes SPRT longues** ; `release` reste le mode de distribution.
 - **portable** retire `-mpopcnt/-mbmi/-mbmi2/-flto` et laisse `REL` indéfini :
   tourne sur **tout x86-64**, avec le repli logiciel PEXT de `bbchess-bits.c`
   (≈ 25 % plus lent). C'est le mode à distribuer pour un CPU ancien.
-- **Gotcha** : `release` et `portable` partagent `obj/`. Après une
-  construction `portable`, faire `rm -rf obj` avant de rebâtir en `release`
-  (et ne jamais comparer `--bench` entre les deux modes sans rebuild propre).
+- **Gotcha** : tous les modes partagent `obj/`. Après une construction d'un
+  autre mode, faire `rm -rf obj` avant de rebâtir (et ne jamais comparer
+  `--bench` entre deux modes sans rebuild propre).
 
 ### Alias du nombre de threads
 

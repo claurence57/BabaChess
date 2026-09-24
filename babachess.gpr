@@ -20,7 +20,7 @@ project BabaChess is
    for Languages use ("Ada", "C");
 
    type Mode_Type is
-      ("release", "debug", "portable");
+      ("release", "debug", "portable", "checked");
    Mode : Mode_Type := external ("Mode", "release");
 
    --  Extra CPU/ISA switches, injected by the Makefile (e.g. "-march=native"
@@ -71,6 +71,18 @@ project BabaChess is
               ("-gnat2012", "-gnatp", "-gnatN", "-O3", "-gnatf",
                "-gnatep=../src/prep.data") & Arch_Switches;
             for Switches ("c") use ("-O3") & Arch_Switches;
+         when "checked" =>
+            --  "release" speed (-O3, -gnatN, -flto) with the run-time checks
+            --  kept ON (-gnata, no -gnatp): assertions, range and index
+            --  checks are active. Slower but defined behaviour, so this is
+            --  the mode for long SPRT campaigns; "release" is for
+            --  distribution. Same ISA switches and preprocessing as release.
+            for Switches ("ada") use
+              ("-gnat2012", "-gnata", "-gnatN", "-O3", "-gnatf",
+               "-gnatep=../src/prep.data", "-gnateDREL",
+               "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
+            for Switches ("c") use
+              ("-O3", "-mpopcnt", "-mbmi", "-mbmi2") & Arch_Switches;
       end case;
    end Compiler;
 

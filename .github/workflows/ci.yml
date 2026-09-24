@@ -54,3 +54,13 @@ jobs:
 
       - name: Self-test (portable)
         run: ./bin/babachess --selftest
+
+      # "checked" = release speed with run-time checks; the mode used for
+      # long SPRT campaigns. It must build and pass the self-test too.
+      - name: Build checked (runtime checks on)
+        run: |
+          rm -rf obj
+          gprbuild -P babachess.gpr -XMode=checked
+
+      - name: Self-test (checked)
+        run: ./bin/babachess --selftest

@@ -2395,3 +2395,44 @@ sont conservés hors arbre et documentés.
   `SMP_Nodes` (atomique, incrémenté dans `Poll_Time_Slow`). Purement affichage :
   l'arbre est inchangé (`--bench 9` = 518 612), validé par inspection
   (4 threads depth 10 : 150 528 nœuds au lieu de ~39 000). Commit `b6b41f0`.
+
+## 53. Mode de build `checked` (vitesse release + contrôles runtime)
+
+`release` et `portable` compilent avec `-gnatp`, qui **supprime tous les
+contrôles d'exécution**, combiné à `-gnatN -O3 -flto`. Avec seulement 5
+`pragma Assert` (actifs en `debug` uniquement), un dépassement d'indice ou de
+`Score_Type` devenait un comportement indéfini silencieux en production.
+
+### 53.1 Le mode
+
+`babachess.gpr` gagne un quatrième mode `checked` : **identique à `release`**
+(`-O3`, `-gnatN`, `-flto`, préprocesseur `REL`, mêmes commutateurs ISA) **mais
+sans `-gnatp` et avec `-gnata`** — assertions, contrôles de plage et d'indice
+actifs. Exposé par `make checked` et par la CI (build + `--selftest`).
+
+### 53.2 Coût mesuré
+
+`--bench 11`, 15 runs appariés entrelacés (min et médiane) sur le CPU de
+développement :
+
+| | min (s) | médiane (s) | nœuds |
+|---|---|---|---|
+| `release` | 0,4320 | 0,4545 | 1 286 807 |
+| `checked` | 0,4814 | 0,5063 | 1 286 807 |
+| **delta** | **+11,4 %** | **+11,4 %** | **identiques** |
+
+Le nombre de nœuds est **strictement identique** (les contrôles ne changent pas
+l'arbre) ; le surcoût est du temps CPU. `--selftest` vert en `checked`.
+
+### 53.3 Convention d'usage
+
+- **`checked` est le mode à utiliser pour toutes les campagnes SPRT longues** :
+  comportement défini au lieu d'un comportement indéfini silencieux si un
+  invariant venait à être violé.
+- **`release` reste le mode de distribution** (binaire le plus rapide).
+- `debug` reste le mode des avertissements (`-gnatwa`), `portable` celui du
+  repli PEXT pour CPU sans BMI2.
+
+Conséquence pratique : un SPRT en `checked` est ~11 % plus lent à cadence de
+temps fixe ; pour comparer deux binaires, les deux doivent être `checked` (ou
+tous deux `release`), jamais un de chaque.

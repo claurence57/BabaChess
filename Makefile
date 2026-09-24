@@ -10,6 +10,7 @@
 # Targets:
 #   make                 release build, ISA detected from the host CPU
 #   make release         same as above
+#   make checked         release flags with checks ON (SPRT campaigns)
 #   make portable        generic x86-64 build (software PEXT, no BMI2/POPCNT)
 #   make debug           assertions + all warnings (the only mode with them)
 #   make ARCH=native     force -march=native instead of the detected level
@@ -84,13 +85,18 @@ define do_build
 	$(GPRBUILD) -P $(GPR) -XMode=$(1) $(ARCH_OPT)
 endef
 
-.PHONY: all release portable debug test bench info clean help
+.PHONY: all release checked portable debug test bench info clean help
 
 all: release
 
 release:
 	@echo "== BabaChess release ($(ARCH_SEL)$(if $(ARCH_FLAGS), : $(ARCH_FLAGS))) =="
 	$(call do_build,release)
+	@echo "   -> $(EXE)"
+
+checked:
+	@echo "== BabaChess checked (release + runtime checks; use for SPRT) =="
+	$(call do_build,checked)
 	@echo "   -> $(EXE)"
 
 portable:
@@ -121,6 +127,7 @@ clean:
 help:
 	@echo "BabaChess build targets"
 	@echo "  make [ARCH=...]   release build (default: ISA auto-detected)"
+	@echo "  make checked      release flags with runtime checks (SPRT campaigns)"
 	@echo "  make portable     generic x86-64 (software PEXT)"
 	@echo "  make debug        assertions + all warnings"
 	@echo "  make test         release + --selftest"

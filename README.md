@@ -45,16 +45,23 @@ Requires **GNAT** (Ada 2012) and **gprbuild**.
 
 ```bash
 gprbuild -P babachess.gpr -XMode=release    # -> bin/babachess  (POPCNT/BMI2/PEXT)
+gprbuild -P babachess.gpr -XMode=checked    # -> bin/babachess  (release + runtime checks)
 gprbuild -P babachess.gpr -XMode=portable   # -> bin/babachess  (any x86-64)
 gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess  (assertions + warnings)
 ```
 
 - `release` compiles with `-mpopcnt -mbmi -mbmi2` and inlines the PEXT intrinsic
   (`_pext_u64`) for sliding attacks; it **requires** a CPU with BMI2/POPCNT.
+- `checked` is `release` speed (`-O3 -gnatN -flto`) but **keeps the run-time
+  checks on** (`-gnata`, no `-gnatp`): assertions, range and index checks are
+  active. It is ~11% slower, and is the mode to use for **long SPRT
+  campaigns** (defined behaviour instead of silent undefined behaviour).
 - `portable` drops those switches and uses the software PEXT fallback in
   `bbchess-bits.c`, so it runs on any x86-64 CPU (~25% slower).
 - `debug` enables the Ada assertions and all warnings, and is the only mode that
   carries them.
+
+`release` is the mode to distribute; `checked` is the mode to validate with.
 
 See `src/doc/build-and-cpu.md` for the exact compiler switches and the CPU
 optimization history.
