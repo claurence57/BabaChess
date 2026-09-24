@@ -8,6 +8,30 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Élagage de la documentation (P2.6)
+
+`DEVELOPMENT.md` (2 780 lignes) est scindé : la partie courante (§48-§62,
+solidité/propreté/performance) reste dans `DEVELOPMENT.md` (758 lignes, 0
+référence pré-fork) et l'historique pré-fork (§1-§47) part dans le nouveau
+`DEVELOPMENT_HISTORY.md` (2 035 lignes). Les références obsolètes
+(`adachess_bb.gpr`, `bin_bb/`, `src_bb/`) de la partie courante sont corrigées,
+la duplication de §48 avec `CHANGELOG_TECHNIQUE.md` est réduite à un pointeur
+(rationale et mesures conservés), et `AGENTS.md` pointe désormais vers le bon
+fichier. Aucune donnée d'ingénierie perdue (§68 sections = 15 + 53).
+
+### Décomposition de `Positional_Score` en termes nommés (P3.1)
+
+La fonction (281 lignes) est scindée en six termes nommés et mesurables
+(`Bishop_Pair_Term`, `Mobility_Term`, `Connected_Rooks_Term`,
+`Pawn_Structure_Term`, `Pawn_Threats_Term`, `King_Activity_Term`). Détail :
+`DEVELOPMENT.md` §63.
+
+- Iso-comportement **strict** : nœuds `--bench 9/11/12` identiques, évaluations
+  `--eval-fens` identiques (et identiques entre `debug` et `release`), A/B
+  entrelacée à **0,0 %** médian.
+- Aucun changement de force (refactoring) ; prérequis à tout tuning terme par
+  terme.
+
 ### Durcissement du parseur Polyglot (P2.5)
 
 `Open_Book` valide désormais le livre et renvoie un statut explicite

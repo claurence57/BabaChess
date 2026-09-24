@@ -690,25 +690,35 @@ package body BBChess.Eval is
       Near     : constant Bitboard := Near_Zone (Enemy_King);
       Far      : constant Bitboard := Far_Zone (Enemy_King);
       Result   : Tapered_Score_Type := (Opening => 0, End_Game => 0);
-   begin
-      -- Enemy-king danger posed by Color's pieces, accumulated below along
-      -- the mobility loop (same attack sets) and consumed by the enemy's
-      -- King_Safety term in Static.
-      Near_Danger := 0;
-      Far_Danger  := 0;
-      Attackers   := 0;
 
-      -- Bishop pair.
-      if Popcount (Position.Pieces (Make (Color, Bishop))) = 2 then
-         Result := Result +
-           (Opening => Bishop_Pair_Opening, End_Game => Bishop_Pair_Endgame);
-      end if;
+      --  ------------------------------------------------------------------
+      --  Positional terms. Each one is a named, self-contained function so
+      --  the evaluation can be read, reasoned about and tuned term by term;
+      --  summing them reproduces exactly the previous arithmetic (integer
+      --  addition is exact at these magnitudes, so the order is irrelevant).
+      --  ------------------------------------------------------------------
 
-      -- Mobility (and the special rook-on-7th bonus). Split into one inlined
-      -- body per kind so that Piece_Attacks and the (loop-invariant) weights
-      -- see a literal Kind and constant-fold; the emitted move scores and the
-      -- accumulation order are unchanged.
-      declare
+      --  Bishop pair: two bishops on one side gain a bonus.
+      function Bishop_Pair_Term return Tapered_Score_Type is
+        (if Popcount (Position.Pieces (Make (Color, Bishop))) = 2
+         then (Opening => Bishop_Pair_Opening, End_Game => Bishop_Pair_Endgame)
+         else (Opening => 0, End_Game => 0));
+
+      --  Mobility, plus the terms that share the piece attack sets: the
+      --  weighted attackers of the enemy king (out parameters, consumed by
+      --  King_Safety), the minor-piece threat on an enemy major, and the
+      --  rook open/semi-open file and 7th-rank bonuses.
+      --
+      --  Split into one inlined body per kind so that Piece_Attacks and the
+      --  (loop-invariant) weights see a literal Kind and constant-fold; the
+      --  emitted move scores and the accumulation order are unchanged.
+      function Mobility_Term (Near_Danger : out Score_Type;
+                              Far_Danger  : out Score_Type;
+                              Attackers   : out Natural)
+        return Tapered_Score_Type
+      is
+         Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
+
          procedure Mobility_Of (Kind          : in Kind_Type;
                                 Weight        : in Score_Type;
                                 Attack_Weight : in Score_Type) is
@@ -719,8 +729,7 @@ package body BBChess.Eval is
                   Sq  : constant Square_Type := Lowest_Bit (Pieces_Here);
                   A   : constant Bitboard := Piece_Attacks (Kind, Sq, Occ);
                begin
-                  Result := Result +
-                    Both (Weight * Score_Type (Popcount (A and Free)));
+                  Acc := Acc + Both (Weight * Score_Type (Popcount (A and Free)));
 
                   -- Weighted attacker of the enemy king (mirrors the old
                   -- King_Safety scan, now sharing this attack set).
@@ -743,7 +752,7 @@ package body BBChess.Eval is
                               Pc  : Piece_Type;
                            begin
                               if Piece_At (Position, Sq2, Pc) then
-                                 Result := Result +
+                                 Acc := Acc +
                                    Both (Threat_Minor
                                          * Piece_Value
                                              (BBChess.Pieces.Kind (Pc)) / 100);
@@ -755,48 +764,52 @@ package body BBChess.Eval is
                   end if;
 
                   if Kind = Rook then
-                      declare
-                         Fm : constant Bitboard := File_Mask (File_Of (Sq));
-                      begin
-                         -- Open (no pawn at all) or semi-open (no friendly
-                         -- pawn) file: the rook is activated.
-                         if (Own_Pawns and Fm) = 0 then
-                            if (Enemy_Pawns and Fm) = 0 then
-                               Result := Result +
-                                 (Opening => Rook_Open_File_Opening,
-                                  End_Game => Rook_Open_File_Endgame);
-                            else
-                               Result := Result +
-                                 (Opening => Rook_Semi_Open_Opening,
-                                  End_Game => Rook_Semi_Open_Endgame);
-                            end if;
-                         end if;
-                      end;
+                     declare
+                        Fm : constant Bitboard := File_Mask (File_Of (Sq));
+                     begin
+                        -- Open (no pawn at all) or semi-open (no friendly
+                        -- pawn) file: the rook is activated.
+                        if (Own_Pawns and Fm) = 0 then
+                           if (Enemy_Pawns and Fm) = 0 then
+                              Acc := Acc +
+                                (Opening => Rook_Open_File_Opening,
+                                 End_Game => Rook_Open_File_Endgame);
+                           else
+                              Acc := Acc +
+                                (Opening => Rook_Semi_Open_Opening,
+                                 End_Game => Rook_Semi_Open_Endgame);
+                           end if;
+                        end if;
+                     end;
 
-                      if Own_Row (Color, Sq) = 6 then
-                         Result := Result +
-                           (Opening => Rook_On_7th_Opening,
-                            End_Game => Rook_On_7th_Endgame);
-                         if Own_Row (Enemy, Enemy_King) <= 1 then
-                            Result := Result + Both (Rook_On_7th_King);
-                         end if;
-                      end if;
-                   end if;
+                     if Own_Row (Color, Sq) = 6 then
+                        Acc := Acc +
+                          (Opening => Rook_On_7th_Opening,
+                           End_Game => Rook_On_7th_Endgame);
+                        if Own_Row (Enemy, Enemy_King) <= 1 then
+                           Acc := Acc + Both (Rook_On_7th_King);
+                        end if;
+                     end if;
+                  end if;
                end;
                Pieces_Here := Pieces_Here and (Pieces_Here - 1);
             end loop;
          end Mobility_Of;
          pragma Inline (Mobility_Of);
       begin
+         Near_Danger := 0;
+         Far_Danger  := 0;
+         Attackers   := 0;
          Mobility_Of (Knight, Mobility_N, King_Attack_Knight);
          Mobility_Of (Bishop, Mobility_B, King_Attack_Bishop);
          Mobility_Of (Rook,   Mobility_R, King_Attack_Rook);
          Mobility_Of (Queen,  Mobility_Q, King_Attack_Queen);
-      end;
+         return Acc;
+      end Mobility_Term;
 
-      -- Connected rooks: when a rook is defended by a friendly rook (same
-      -- file or rank with a clear line), both gain a small bonus.
-      declare
+      --  Connected rooks: when a rook is defended by a friendly rook (same
+      --  file or rank with a clear line), both gain a small bonus.
+      function Connected_Rooks_Term return Tapered_Score_Type is
          RR : Bitboard := Position.Pieces (Make (Color, Rook));
          R1 : Square_Type;
       begin
@@ -804,19 +817,19 @@ package body BBChess.Eval is
             R1 := Lowest_Bit (RR);
             RR := RR and (RR - 1);
             if (Rook_Attacks (R1, Occ) and RR) /= 0 then
-               Result := Result +
-                 (Opening => Rook_Connected_Opening,
-                  End_Game => Rook_Connected_Endgame);
+               return (Opening => Rook_Connected_Opening,
+                       End_Game => Rook_Connected_Endgame);
             end if;
          end if;
-      end;
+         return (Opening => 0, End_Game => 0);
+      end Connected_Rooks_Term;
 
-      -- Pawn structure, pure bitboard: per-file counts derived from masks
-      -- (doubled / isolated penalties), and a passed-pawn bonus read from
-      -- the front-span bitboard, with an extra reward when the passed pawn
-      -- is defended by a friendly pawn ("protected") or far from the enemy
-      -- king ("outside", good to deflect it in king-pawn endgames).
-      declare
+      --  Pawn structure, pure bitboard: per-file counts derived from masks
+      --  (doubled / isolated penalties), and a passed-pawn bonus read from
+      --  the front-span bitboard, with an extra reward when the passed pawn
+      --  is defended by a friendly pawn ("protected") or far from the enemy
+      --  king ("outside", good to deflect it in king-pawn endgames).
+      function Pawn_Structure_Term return Tapered_Score_Type is
          Passed : constant Bitboard := Passed_Pawns (Position, Color);
          PB     : Bitboard;
          -- Per-file presence collapse: OR the eight ranks of each file into
@@ -827,6 +840,7 @@ package body BBChess.Eval is
          Num_Files  : Natural;
          Iso_Files  : Bitboard;
          Iso_Mask   : Bitboard;
+         Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
       begin
          Files_Byte := Own_Pawns or (Own_Pawns / 256);
          Files_Byte := Files_Byte or (Files_Byte / 65536);
@@ -841,7 +855,7 @@ package body BBChess.Eval is
             Doubled : constant Natural := Popcount (Own_Pawns) - Num_Files;
          begin
             if Doubled /= 0 then
-               Result := Result +
+               Acc := Acc +
                  (Opening => (-Doubled_Pawn_Opening) * Score_Type (Doubled),
                   End_Game => (-Doubled_Pawn_Endgame) * Score_Type (Doubled));
             end if;
@@ -861,7 +875,7 @@ package body BBChess.Eval is
                  Popcount (Own_Pawns and Iso_Mask);
             begin
                if Isolated /= 0 then
-                  Result := Result +
+                  Acc := Acc +
                     (Opening => (-Isolated_Pawn_Opening)
                        * Score_Type (Isolated),
                      End_Game => (-Isolated_Pawn_Endgame)
@@ -876,40 +890,42 @@ package body BBChess.Eval is
             declare
                Sq      : constant Square_Type := Lowest_Bit (PB);
                F       : constant Natural := File_Of (Sq);
-                Row     : constant Natural := Own_Row (Color, Sq);
-                Defended_Pawn : constant Boolean :=
-                  Defended_By_Pawn (Position, Color, Sq);
-                Outside_Pawn  : constant Boolean :=
+               Row     : constant Natural := Own_Row (Color, Sq);
+               Defended_Pawn : constant Boolean :=
+                 Defended_By_Pawn (Position, Color, Sq);
+               Outside_Pawn  : constant Boolean :=
                  abs (Integer (F) - Integer (File_Of (Enemy_King)))
                  >= Outside_Passed_Distance;
             begin
-               Result := Result +
+               Acc := Acc +
                  (Opening => Passed_Pawn_Opening (Row),
                   End_Game => Passed_Pawn_Endgame (Row));
                if Defended_Pawn then
-                  Result := Result +
+                  Acc := Acc +
                     (Opening => Passed_Pawn_Opening (Row)
                        * Protected_Passed_Opening / 100,
                      End_Game => Passed_Pawn_Endgame (Row)
                        * Protected_Passed_Endgame / 100);
                end if;
                if Outside_Pawn then
-                  Result := Result +
+                  Acc := Acc +
                     (Opening => Outside_Passed_Opening,
                      End_Game => Outside_Passed_Endgame);
                end if;
             end;
             PB := PB and (PB - 1);
          end loop;
-      end;
+         return Acc;
+      end Pawn_Structure_Term;
 
-      -- Threats: pawns attacking enemy pieces, and minor pieces attacking
-      -- enemy rooks/queens. Computed per color and mirrored, so symmetric.
-      -- The pawn attack set is the union of the attack squares of all the
-      -- side's pawns: one bulk pair of shifts instead of a per-pawn loop.
-      declare
+      --  Threats: pawns attacking enemy pieces, and minor pieces attacking
+      --  enemy rooks/queens. Computed per color and mirrored, so symmetric.
+      --  The pawn attack set is the union of the attack squares of all the
+      --  side's pawns: one bulk pair of shifts instead of a per-pawn loop.
+      function Pawn_Threats_Term return Tapered_Score_Type is
          P_Att : constant Bitboard := Pawn_Attack_Set (Own_Pawns, Color);
          Hit : Bitboard := P_Att and Enemy_Non_Pawn;
+         Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
       begin
          while Hit /= 0 loop
             declare
@@ -917,28 +933,35 @@ package body BBChess.Eval is
                Pc : Piece_Type;
             begin
                if Piece_At (Position, Sq, Pc) then
-                  Result := Result +
+                  Acc := Acc +
                     Both (Threat_Pawn * Piece_Value (Kind (Pc)) / 100);
                end if;
             end;
             Hit := Hit and (Hit - 1);
          end loop;
-      end;
+         return Acc;
+      end Pawn_Threats_Term;
 
-      -- King: endgame activity replaces the home-oriented PST.
-      declare
+      --  King: endgame activity replaces the home-oriented PST.
+      function King_Activity_Term return Tapered_Score_Type is
          King_Sq : constant Square_Type :=
            Lowest_Bit (Position.Pieces (Make (Color, King)));
          K_Row   : constant Natural := Own_Row (Color, King_Sq);
          K_File  : constant Natural := File_Of (King_Sq);
       begin
-         Result := Result +
-           (Opening => 0,
-            End_Game => King_End_PST (K_Row, K_File) - PST (King, Color, King_Sq));
-      end;
-
-      -- King safety (middlegame only) is applied by Static, which has the
-      -- enemy-king danger produced by this color's mobility scan above.
+         return (Opening => 0,
+                 End_Game => King_End_PST (K_Row, K_File)
+                             - PST (King, Color, King_Sq));
+      end King_Activity_Term;
+   begin
+      --  Sum the named terms. Mobility also produces the enemy-king danger
+      --  (out parameters) consumed by the opponent's King_Safety in Static.
+      Result := Result + Bishop_Pair_Term;
+      Result := Result + Mobility_Term (Near_Danger, Far_Danger, Attackers);
+      Result := Result + Connected_Rooks_Term;
+      Result := Result + Pawn_Structure_Term;
+      Result := Result + Pawn_Threats_Term;
+      Result := Result + King_Activity_Term;
 
       return Result;
    end Positional_Score;

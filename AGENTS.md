@@ -11,11 +11,12 @@ bitboard engine. BabaChess is now the **sole development target**.
 | Binary | `bin/babachess` |
 | Role | **Active development target** |
 
-`DEVELOPMENT.md` is the authoritative engineering log (in French, ~2000 lines),
-inherited from AdaChess and still referring to the pre-fork names
-(`adachess_bb.gpr`, `bin_bb/adachess_bb`); the fork renamed them to
-`babachess.gpr` / `bin/babachess`. `CHANGELOG.md` and
-`CHANGELOG_TECHNIQUE.md` cover the engine. `README.md` describes BabaChess;
+`DEVELOPMENT.md` is the authoritative engineering log (in French). It covers the
+current era (§48 onward: the solidity/cleanliness/performance work, P0-P7 and
+after) and uses the BabaChess names (`babachess.gpr` / `bin/babachess`); the
+pre-fork history (§1-§47, which still refers to the old `adachess_bb.gpr` /
+`bin_bb/adachess_bb`) is archived in `DEVELOPMENT_HISTORY.md`. `CHANGELOG.md`
+and `CHANGELOG_TECHNIQUE.md` cover the engine. `README.md` describes BabaChess;
 `NOTICE.md` records provenance and licensing.
 
 ## Build
@@ -107,7 +108,7 @@ The XBoard search path is synchronous.
   `adachess`, `*.o`, `*.ali`, `*.pgn`, `*.txt`.
 - `scripts/tune.py` (Texel tuner) requires `python-chess`; `scripts/gen_dataset.py`
   builds `FEN;result` datasets from PGN. Eval tuning was a **negative result** —
-  default parameters were kept on purpose (see `DEVELOPMENT.md` §21).
+  default parameters were kept on purpose (see `DEVELOPMENT_HISTORY.md` §21).
 - Opening book: Polyglot `.bin` (`BBChess.Polyglot`), probed before the search
   (16-ply limit, legal-move checked). Fetch a CC0 book with
   `scripts/fetch_book.sh` → `books/book.bin` (gitignored). Override with
