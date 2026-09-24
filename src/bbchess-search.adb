@@ -123,7 +123,13 @@ package body BBChess.Search is
       S_Check_Ext_Min_Depth  => 4,
       S_Check_Ext_Ply_Guard  => 64,
       S_Counter_Score        => 799_999,
-      S_Cont_History_Weight  => 1_024,
+      --  Bounded to keep the quiet-move ordering term sane: at the default
+      --  History_Max (16_384) the largest term is 16_384 * (1 + 40) = 671_744,
+      --  below the counter (800_000) and killer (900_000) scores. The default
+      --  (6) and the SPSA range (<= 18) are unaffected. NOTE: raising
+      --  History_Max towards its 1_000_000 maximum can still put a quiet move
+      --  above those scores (deliberate allowance: History_Max is not tuned).
+      S_Cont_History_Weight  => 40,
       -- S_History_Max may exceed Cont_Value'Last (16_384): the continuation
       -- history is then saturated at 16_384 by the second clamp in
       -- Bump_Cont_History. Both values stay far inside a 32-bit Integer. The
@@ -189,7 +195,9 @@ package body BBChess.Search is
    TT_Size   : constant := 1_048_576;
    TT_Mask   : constant := TT_Size - 1;
    type TT_Table is array (0 .. TT_Size - 1) of TT_Entry;
-   Transposition_Table : TT_Table;
+   --  Cache-line aligned so a 16-byte bucket (two entries) never straddles a
+   --  64-byte line; the default link-time alignment is only a coincidence.
+   Transposition_Table : TT_Table with Alignment => 64;
 
    -- Current search generation, used to age entries: an entry left over from
    -- a previous search is replaced before a fresh one.
@@ -562,6 +570,7 @@ package body BBChess.Search is
          Ctx.Game_Keys (I) := Init_Game_Keys (I);
       end loop;
       Ctx.Nodes_Count := 0;
+      Ctx.Flushed := 0;
       --  The node cap must be checked at the cap itself, not only at the
       --  next Check_Interval multiple, or "go nodes N" would overshoot N by
       --  up to Check_Interval - 1 nodes (per worker).
