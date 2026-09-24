@@ -95,6 +95,26 @@ package body BBChess.Text is
       return "";
    end Token;
 
+   function Token_Rest (Source : in String; N : in Positive) return String is
+      I      : Natural := Source'First;
+      Tokens : Natural := 0;
+   begin
+      while I <= Source'Last loop
+         while I <= Source'Last and then Source (I) in ' ' | ASCII.HT loop
+            I := I + 1;
+         end loop;
+         exit when I > Source'Last;
+         Tokens := Tokens + 1;
+         if Tokens = N then
+            return Source (I .. Source'Last);
+         end if;
+         while I <= Source'Last and then Source (I) not in ' ' | ASCII.HT loop
+            I := I + 1;
+         end loop;
+      end loop;
+      return "";
+   end Token_Rest;
+
    function Trim_Both (S : in String) return String is
       Lo : Natural := S'First;
       Hi : Natural := S'Last;

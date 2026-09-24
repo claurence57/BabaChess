@@ -18,6 +18,7 @@
 
 with Ada.Text_IO;
 with Ada.Command_Line;
+with Ada.Characters.Handling;
 with Ada.Environment_Variables;
 with Ada.IO_Exceptions;
 with Ada.Real_Time;
@@ -920,58 +921,56 @@ begin
              null;
 
           elsif Cmd = "setoption" and then UCI_Mode then
-             --  Options that reallocate or free engine state (the table, the
-             --  book, the tablebases) must not run while the search task is
-             --  using it: UCI forbids it, and tb_init during a probe is a
-             --  use-after-free in the C library. Ignore them while busy.
-             if UCI_Busy.Busy then
-                Locked_Put_Line
-                  ("info string setoption ignored while searching");
-             elsif Token (Par, 1) = "name" then
-                if Token (Par, 2) = "Clear" and then Token (Par, 3) = "Hash" then
-                   Reset_Search;
-                elsif Token (Par, 2) = "Hash"
-                  and then Token (Par, 3) = "value"
+             --  Option names and values are case-insensitive in UCI, and a
+             --  path value may contain spaces, so compare on the lower-cased
+             --  name and take the whole remainder as the value.
+             declare
+                use Ada.Characters.Handling;
+                Name  : constant String := To_Lower (Token (Par, 2));
+                IsVal : constant Boolean :=
+                  To_Lower (Token (Par, 3)) = "value";
+                Value : constant String := Token_Rest (Par, 4);
+             begin
+                --  Options that reallocate or free engine state (the table,
+                --  the book, the tablebases) must not run while the search
+                --  task is using it: UCI forbids it, and tb_init during a
+                --  probe is a use-after-free in the C library.
+                if UCI_Busy.Busy then
+                   Locked_Put_Line
+                     ("info string setoption ignored while searching");
+                elsif Name = "clear" and then To_Lower (Token (Par, 3)) = "hash"
                 then
+                   Reset_Search;
+                elsif Name = "hash" and then IsVal then
                    -- The table size is fixed at compile time. A different
                    -- request is accepted as "Clear Hash" (a fresh, empty table
                    -- of the real size) and the mismatch is reported, so the
                    -- option is no longer silently misleading.
-                   if Parse_Natural (Token (Par, 4), 0)
-                     /= Transposition_Size_MB
-                   then
+                   if Parse_Natural (Value, 0) /= Transposition_Size_MB then
                       Locked_Put_Line
                         ("info string Hash size is fixed at "
                          & Trim_Both (Natural'Image (Transposition_Size_MB))
                          & " MB (compile-time); clearing table");
                    end if;
                    Reset_Search;
-                elsif Token (Par, 2) = "Threads"
-                  and then Token (Par, 3) = "value"
-                then
-                   Set_Threads (Parse_Natural (Token (Par, 4), 1));
-                elsif Token (Par, 2) = "OwnBook"
-                  and then Token (Par, 3) = "value"
-                then
-                   Own_Book := Token (Par, 4) = "true";
-                elsif Token (Par, 2) = "BookFile"
-                  and then Token (Par, 3) = "value"
-                then
+                elsif Name = "threads" and then IsVal then
+                   Set_Threads (Parse_Natural (Value, 1));
+                elsif Name = "ownbook" and then IsVal then
+                   Own_Book := To_Lower (Value) = "true";
+                elsif Name = "bookfile" and then IsVal then
                    declare
                       Ok : Boolean;
                    begin
-                      BBChess.Polyglot.Open_Book (Token (Par, 4), Ok);
+                      BBChess.Polyglot.Open_Book (Value, Ok);
                    end;
-                elsif Token (Par, 2) = "SyzygyPath"
-                  and then Token (Par, 3) = "value"
-                then
+                elsif Name = "syzygypath" and then IsVal then
                    declare
                       Ok : Boolean;
                    begin
-                      BBChess.Syzygy.Init (Token (Par, 4), Ok);
+                      BBChess.Syzygy.Init (Value, Ok);
                    end;
                 end if;
-             end if;
+             end;
 
           elsif Cmd = "protover" then
              Ada.Text_IO.Put_Line ("feature myname=""BabaChess 1.0""");

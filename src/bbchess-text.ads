@@ -42,6 +42,11 @@ package BBChess.Text is
    function Token (Source : in String; N : in Positive) return String;
    -- N-th space separated token of Source ("" when there is none).
 
+   function Token_Rest (Source : in String; N : in Positive) return String;
+   -- Everything from the N-th token to the end of Source, leading blanks
+   -- trimmed ("" when there is no N-th token). Used for option values that
+   -- may contain spaces (a book or tablebase path).
+
    function Trim_Both (S : in String) return String;
    -- Trim spaces/tabs at both ends.
 
