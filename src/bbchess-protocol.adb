@@ -28,6 +28,7 @@ use BBChess.Search;
 with BBChess.Clocks;
 use BBChess.Clocks;
 with BBChess.Polyglot;
+use BBChess.Polyglot;
 with BBChess.Syzygy;
 with BBChess.Text;
 use BBChess.Text;
@@ -158,9 +159,15 @@ package body BBChess.Protocol is
    end Try_Book;
 
    procedure Configure_Book (Path : in String) is
-      Ok : Boolean;
+      Status : constant BBChess.Polyglot.Load_Status :=
+        BBChess.Polyglot.Open_Book (Path);
    begin
-      BBChess.Polyglot.Open_Book (Path, Ok);
+      --  An explicit request (--book / setoption BookFile) that fails is
+      --  reported. Before Initialize the writer is null, so the CLI form is
+      --  silently accepted (nothing to print to yet).
+      if Status /= BBChess.Polyglot.Loaded then
+         Emit ("info string " & BBChess.Polyglot.Status_Message (Status, Path));
+      end if;
    end Configure_Book;
 
    procedure Configure_Syzygy (Path : in String) is
@@ -197,14 +204,17 @@ package body BBChess.Protocol is
          4 => To_Unbounded_String (Home & "/.babachess/book.bin"),
          5 => To_Unbounded_String ("book.bin"),
          6 => To_Unbounded_String (D & "/book.bin"));
-      Ok : Boolean;
    begin
       if BBChess.Polyglot.Book_Loaded then
          return;
       end if;
+      --  Probing the conventional locations is best-effort: a missing
+      --  candidate is the normal case, so nothing is reported here (unlike an
+      --  explicit --book / setoption BookFile request, which does report).
       for C in Candidates'Range loop
-         BBChess.Polyglot.Open_Book (To_String (Candidates (C)), Ok);
-         if Ok then
+         if BBChess.Polyglot.Open_Book (To_String (Candidates (C)))
+              = BBChess.Polyglot.Loaded
+         then
             return;
          end if;
       end loop;

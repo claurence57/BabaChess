@@ -10,6 +10,9 @@
 with Ada.Text_IO;
 with Ada.Real_Time;
 with Ada.Command_Line;
+with Ada.Streams;
+with Ada.Streams.Stream_IO;
+with Ada.Directories;
 
 use Ada.Real_Time;
 
@@ -807,6 +810,96 @@ package body BBChess.Self_Tests is
             = 16#FA541663E45EC608#,
             "polyglot key middlegame");
          Ada.Text_IO.Put_Line ("polyglot key OK");
+      end;
+
+      -- Book-file hardening: a malformed book must be rejected with a precise
+      -- status and never leave a usable book behind. Files are written to a
+      -- scratch directory under /tmp (the repo carries no .bin book).
+      declare
+         use Ada.Streams;
+         use Ada.Streams.Stream_IO;
+         Dir  : constant String := "/tmp/babachess_book_test";
+         Path : constant String := Dir & "/t.bin";
+
+         procedure Write_Bytes (N : in Natural; Fill : in Stream_Element) is
+            F : File_Type;
+         begin
+            Create (F, Out_File, Path);
+            for I in 1 .. N loop
+               Write (F, (1 => Fill));
+            end loop;
+            Close (F);
+         end Write_Bytes;
+      begin
+         -- Best-effort scratch directory.
+         begin
+            Ada.Directories.Create_Path (Dir);
+         exception
+            when others => null;
+         end;
+
+         -- Nonexistent file.
+         Assert (BBChess.Polyglot.Open_Book (Dir & "/absent.bin")
+                 = BBChess.Polyglot.File_Not_Found,
+                 "book: missing file -> File_Not_Found");
+         Assert (not BBChess.Polyglot.Book_Loaded,
+                 "book: missing file leaves no book");
+
+         -- Empty file.
+         Write_Bytes (0, 0);
+         Assert (BBChess.Polyglot.Open_Book (Path)
+                 = BBChess.Polyglot.Empty_File,
+                 "book: empty file -> Empty_File");
+
+         -- Shorter than one 16-byte entry.
+         Write_Bytes (10, 16#AA#);
+         Assert (BBChess.Polyglot.Open_Book (Path)
+                 = BBChess.Polyglot.Truncated,
+                 "book: 10 bytes -> Truncated");
+
+         -- Size not a multiple of 16.
+         Write_Bytes (40, 16#AA#);
+         Assert (BBChess.Polyglot.Open_Book (Path)
+                 = BBChess.Polyglot.Bad_Size,
+                 "book: 40 bytes -> Bad_Size");
+         Assert (not BBChess.Polyglot.Book_Loaded,
+                 "book: rejected file leaves no book");
+
+         -- A well-formed single-entry book is accepted, and a probe of an
+         -- unrelated position finds nothing (no crash, no illegal move).
+         declare
+            F : File_Type;
+         begin
+            Create (F, Out_File, Path);
+            for I in 1 .. 16 loop
+               Write (F, (1 => 0));
+            end loop;
+            Close (F);
+         end;
+         Assert (BBChess.Polyglot.Open_Book (Path) = BBChess.Polyglot.Loaded,
+                 "book: a valid 16-byte entry loads");
+         Assert (BBChess.Polyglot.Book_Loaded, "book: loaded flag set");
+         declare
+            P : Position_Type;
+            M : Move_Type;
+            Found : Boolean;
+         begin
+            Load (P, "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+            Found := BBChess.Polyglot.Probe (P, M);
+            Assert (not Found and then M = Empty_Move,
+                    "book: probe of an absent key returns no move");
+         end;
+         BBChess.Polyglot.Close_Book;
+         Assert (not BBChess.Polyglot.Book_Loaded, "book: close releases it");
+
+         -- Best-effort scratch cleanup.
+         begin
+            Ada.Directories.Delete_File (Path);
+            Ada.Directories.Delete_Directory (Dir);
+         exception
+            when others => null;
+         end;
+         Ada.Text_IO.Put_Line ("polyglot book hardening OK");
       end;
    end Test_Polyglot;
 

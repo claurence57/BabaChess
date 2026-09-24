@@ -147,15 +147,6 @@ begin
       end if;
    end loop;
 
-   -- Optional opening book file (applies to the playing modes).
-   for I in 1 .. Ada.Command_Line.Argument_Count loop
-      if Ada.Command_Line.Argument (I) = "--book"
-        and then I < Ada.Command_Line.Argument_Count
-      then
-         BBChess.Protocol.Configure_Book (Ada.Command_Line.Argument (I + 1));
-      end if;
-   end loop;
-
    -- Optional Syzygy tablebase directory (playing modes).
    for I in 1 .. Ada.Command_Line.Argument_Count loop
       if Ada.Command_Line.Argument (I) = "--syzygy"
@@ -238,7 +229,25 @@ begin
    -- the two streams from interleaving. The book is loaded unless --book
    -- already did (the special modes returned before this point).
    BBChess.Protocol.Initialize (Locked_Put_Line'Access);
-   BBChess.Protocol.Load_Default_Book;
+
+   -- --book is applied here, after the writer is installed, so an unreadable
+   -- or malformed book is reported; without --book the conventional locations
+   -- are probed silently.
+   declare
+      Book_Given : Boolean := False;
+   begin
+      for I in 1 .. Ada.Command_Line.Argument_Count loop
+         if Ada.Command_Line.Argument (I) = "--book"
+           and then I < Ada.Command_Line.Argument_Count
+         then
+            BBChess.Protocol.Configure_Book (Ada.Command_Line.Argument (I + 1));
+            Book_Given := True;
+         end if;
+      end loop;
+      if not Book_Given then
+         BBChess.Protocol.Load_Default_Book;
+      end if;
+   end;
 
    Main_Loop : loop
       Ada.Text_IO.Get_Line (Input_Line, Last);

@@ -262,48 +262,72 @@ package body BBChess.Polyglot is
       end if;
    end Close_Book;
 
-   procedure Open_Book (File_Name : in String; Ok : out Boolean) is
+   Entry_Size : constant := 16;
+
+   function Open_Book (File_Name : in String) return Load_Status is
       use Ada.Streams;
       use Ada.Streams.Stream_IO;
-      F    : File_Type;
-      Size : Count;
-      N    : Natural;
+      F      : File_Type;
+      Size   : Count;
+      N      : Natural;
+      Status : Load_Status := Loaded;
    begin
-      Ok := False;
       Close_Book;
       begin
          Open (F, In_File, File_Name);
       exception
-         when others => return;
+         when others => return File_Not_Found;
       end;
 
       Size := Stream_IO.Size (F);
-      if Size < 16 then
+
+      --  A valid Polyglot book is a whole number of 16-byte entries: at
+      --  least one, and never a trailing partial entry (a truncated or
+      --  corrupt file). Reject such a file instead of parsing garbage.
+      if Size = 0 then
          Close (F);
-         return;
+         return Empty_File;
+      elsif Size < Entry_Size then
+         Close (F);
+         return Truncated;
+      elsif Size mod Entry_Size /= 0 then
+         Close (F);
+         return Bad_Size;
       end if;
-      N := Natural (Size / 16);
+      N := Natural (Size / Entry_Size);
 
       Book := new Book_Array (0 .. N - 1);
       for I in 0 .. N - 1 loop
          declare
-            Buf  : Stream_Element_Array (1 .. 16);
+            Buf  : Stream_Element_Array (1 .. Entry_Size);
             Off  : Stream_Element_Offset := 1;
             Last : Stream_Element_Offset;
          begin
-            while Off <= 16 loop
-               Read (F, Buf (Off .. 16), Last);
+            while Off <= Entry_Size loop
+               Read (F, Buf (Off .. Entry_Size), Last);
                --  Read returns fewer elements only at end of file; without
                --  this guard Off would stop advancing and the loop would spin.
-               exit when Last < Off;
+               --  A short read here contradicts the size we validated above:
+               --  treat it as an I/O error rather than parse stale bytes.
+               if Last < Off then
+                  Status := Read_Error;
+                  exit;
+               end if;
                Off := Last + 1;
             end loop;
+            exit when Status /= Loaded;
+
             Book (I).Key := 0;
             for J in 0 .. 7 loop
                Book (I).Key :=
                  Book (I).Key * 256
                  + Bitboard (Buf (Stream_Element_Offset (J + 1)));
             end loop;
+            --  Polyglot move encoding: exactly 16 bits (two bytes), of which
+            --  the low 3 are the promotion and the next two the "from"/"to"
+            --  halves; the value cannot exceed 65535 by construction. Decode
+            --  re-checks the move against the position, so a stale entry is
+            --  rejected rather than played.
             Book (I).Move :=
               Natural (Buf (9)) * 256 + Natural (Buf (10));
             Book (I).Weight :=
@@ -312,9 +336,28 @@ package body BBChess.Polyglot is
       end loop;
 
       Close (F);
+      if Status /= Loaded then
+         --  Do not keep a half-read book.
+         Close_Book;
+         return Status;
+      end if;
       Random_Weight.Reset (Gen);
-      Ok := True;
+      return Loaded;
    end Open_Book;
+
+   function Status_Message (Status : in Load_Status; File_Name : in String)
+     return String is
+   begin
+      case Status is
+         when Loaded         => return "book loaded";
+         when File_Not_Found => return "book not found: " & File_Name;
+         when Empty_File     => return "book is empty: " & File_Name;
+         when Truncated      => return "book is truncated: " & File_Name;
+         when Bad_Size       => return "book size is not a multiple of 16: "
+                                        & File_Name;
+         when Read_Error     => return "book read error: " & File_Name;
+      end case;
+   end Status_Message;
 
    ------------
    -- Decode --

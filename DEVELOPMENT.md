@@ -2739,3 +2739,42 @@ différentes qui vérifie quand même. Un portage sur une telle cible exigerait
 des sémantiques release/acquire ou une barrière explicite. L'hypothèse est
 documentée en commentaire au-dessus de `TT_Entry` (et ci-dessus), sans
 modification du code de la TT.
+
+## 62. Durcissement du parseur Polyglot (P2.5)
+
+`Open_Book` (`bbchess-polyglot.adb`) lisait un `.bin` sans validation : taille
+non multiple de 16, fichier tronqué, fichier vide ou lecture courte pouvaient
+produire un livre corrompu sans message.
+
+### 62.1 Validation et statuts
+
+`Open_Book` renvoie désormais un **`Load_Status`** explicite au lieu d'un
+booléen : `Loaded`, `File_Not_Found`, `Empty_File`, `Truncated`, `Bad_Size`,
+`Read_Error`.
+
+- La taille doit être un **multiple de 16** (taille d'une entrée Polyglot), au
+  moins une entrée : un fichier vide, tronqué ou de taille invalide est
+  **rejeté**, jamais parsé.
+- Une **lecture courte** contredisant la taille validée est traitée comme
+  `Read_Error`, et le livre à moitié lu est **libéré** (jamais conservé).
+- `Status_Message` produit un message d'une ligne ; le paquet reste **sans
+  I/O** et l'appelant décide de le rapporter.
+
+### 62.2 Rejet propre et message clair
+
+- Un `--book <f>` explicite ou un `setoption name BookFile` qui échoue affiche
+  `info string book not found: ...` (ou `empty`/`truncated`/…). Pour que le
+  message du `--book` ne soit pas perdu, l'application du livre a été déplacée
+  **après** l'installation du writer dans `babachess.adb`.
+- Le **sondage des emplacements conventionnels** (`Load_Default_Book`) reste
+  **silencieux** : un candidat manquant est le cas normal.
+- `Probe` revalide de toute façon chaque coup (`Decode` contre la position) :
+  une entrée périmée est rejetée, jamais jouée.
+
+### 62.3 Tests
+
+Six cas ajoutés au `--selftest` (fichiers écrits dans un répertoire de travail
+temporaire) : fichier absent, vide, 10 octets (tronqué), 40 octets (taille
+invalide), entrée valide de 16 octets chargée, sonde d'une clé absente. Aucun
+ne plante, aucun ne renvoie de coup illégal. `--selftest` passe de 126 à
+**136 vérifications**, toutes vertes.

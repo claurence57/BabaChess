@@ -8,6 +8,22 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Durcissement du parseur Polyglot (P2.5)
+
+`Open_Book` valide désormais le livre et renvoie un statut explicite
+(`File_Not_Found`, `Empty_File`, `Truncated`, `Bad_Size`, `Read_Error`,
+`Loaded`) : taille multiple de 16 obligatoire, aucune lecture partielle
+tolérée, livre à moitié lu libéré. Un `--book`/`setoption BookFile` invalide
+est **rejeté proprement** avec `info string book not found: ...` (le sondage
+silencieux des emplacements par défaut reste muet). Détail :
+`DEVELOPMENT.md` §62.
+
+- 6 cas de test ajoutés (absent / vide / tronqué / taille invalide / chargé /
+  sonde absente), sans crash ni coup illégal : `--selftest` passe de 126 à
+  **136 vérifications**, toutes vertes.
+- `--bench 9/11/12` = 518 612 / 1 286 807 / 2 358 722 nœuds, inchangés ;
+  `debug` sans avertissement.
+
 ### Style et hypothèse mémoire x86-64 (P2.3, P2.4)
 
 - Le mode `debug` compile avec `-gnatyy` (contrôles de style) : zéro violation,
