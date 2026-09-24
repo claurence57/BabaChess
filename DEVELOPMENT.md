@@ -805,6 +805,96 @@ Vérifié :
 La décomposition ne change pas la force ; elle rend chaque terme mesurable et
 prépare tout tuning ultérieur terme par terme.
 
+## 65. Bilan de la phase P3 (P3.2, P3.3, P3.4) — mesures contre hypothèses
+
+La spécification de P3 supposait certains postes « rentables ». Le profil réel du
+moteur (`perf record -F 6000` sur `--bench 12`, release) contredit plusieurs de
+ces hypothèses. Ce qui suit est **mesuré**, pas supposé.
+
+### 65.1 Coût réel de l'évaluation (profil `perf`)
+
+| Symbole | % du temps total |
+|---|---|
+| `Negamax` | 37,9 % |
+| `Positional_Score` (dont les termes ci-dessous) | 18,9 % |
+| └ `Mobility_Term` | **11,35 %** |
+| └ `Positional_Score` propre (paire de fous, tours connectées, activité du roi) | 4,09 % |
+| └ `Pawn_Structure_Term` | **1,00 %** |
+| └ `Pawn_Threats_Term` | 0,62 % |
+| `Generate_Legal_Common` (movegen) | 16,3 % |
+| `Static_Exchange_Value` | 4,1 % |
+| `King_Safety` | 2,2 % |
+
+### 65.2 P3.2 — table de hachage des pions : **non implémentée, sur mesure**
+
+La spécification la présentait comme « le gain le moins cher ». **C'est faux pour
+ce moteur** : `Pawn_Structure_Term` ne pèse que **1,00 %** du temps total. Une
+table de hachage parfaite économiserait donc **au plus 1 %** de temps, et la
+sonde + le calcul d'une clé de pions (qui devrait être maintenue séparément, la
+clé Zobrist existante mêlant trait/roques/ep) coûterait une fraction comparable :
+le gain net réaliste est **de l'ordre de 0 à +0,5 % de nps, voire négatif**.
+
+- Le terme est déjà entièrement bitboard (propagation de portée, effondrement des
+  fichiers par multiplication, ensembles d'attaques de pions en bloc) : il n'y a
+  presque rien à mettre en cache.
+- Une vérification indépendante par nps le confirme : en **court-circuitant
+  entièrement le terme** (expérience jetable, non livrable car elle change
+  l'arbre), les **knps restent identiques** (2 848 vs 2 831) — signature d'un
+  travail par nœud négligeable.
+- Un gain de nps < 1 % vaut ~0,3–0,5 Elo : **indétectable** par un SPRT de 300
+  parties, et sous le seuil de résolution même à 1 000 parties. Ce n'est pas un
+  levier de force.
+
+Décision : **non implémentée**, documentée (le terme a déjà été optimisé là où
+la spécification supposait qu'il ne l'était pas). Détail de conception écarté :
+une table partagée lock-free façon TT (`Data`/`Key_Xor` atomiques, validation par
+xor) est faisable, mais inutile vu le plafond.
+
+### 65.3 P3.3 — tuning Texel : **déjà tenté et négatif (ne pas refaire)**
+
+Le journal historique est sans ambiguïté :
+
+- §21 : tuning Texel à **grande échelle** (100 000 positions humaines Lichess,
+  `gen_dataset.py` + `tune.py`) — la MSE baisse mais le jeu de paramètres obtenu
+  **perd ≈ 38 Elo** en SPRT 300 parties → **rejeté**. Conclusion consignée : « la
+  MSE reste déconnectée de la force ; le tuning Texel n'est pas le bon levier ».
+- §20 : SPSA (qui, lui, optimise le **résultat réel des parties**) sur l'éval —
+  meilleur signal jamais vu (+20 ± 30 Elo, LOS 90 %) puis **SPRT étendu à 600
+  parties : +0,6 Elo → bruit**. « Le tuning automatique d'éval est clos comme non
+  concluant ».
+- §44 : SPSA sur les constantes de recherche — **+2,1 ± 20,8 Elo → neutre**.
+- AGENTS.md : « Eval tuning was a negative result — default parameters were kept
+  on purpose ».
+
+Deux méthodes indépendantes (Texel MSE, SPSA sur résultats) aboutissent au même
+verdict : les valeurs par défaut sont un **optimum local** de cette évaluation.
+Refaire un Texel large serait donc « refaire ce qui a déjà été tenté », ce que la
+consigne interdit explicitement. Aucune tentative relancée.
+
+### 65.4 P3.4 — sécurité du roi : close ; mobilité pondérée par phase : expérimentée
+
+- **Sécurité du roi : close.** Trois tentatives, toutes **négatives** (§17.1,
+  §17.2, puis re-vérification §17.4 avec le harnais corrigé : **−124 / −126 Elo**,
+  LOS 0 %, mesure reproductible). Ne pas refaire.
+- **Mobilité pondérée par phase : seule expérience légitime restante.** La
+  mobilité était **plate** (`Both (Weight × N)`), donc identique en ouverture et
+  en finale ; un tuner (SPSA/Texel) ne peut pas *inventer* une pente de phase, il
+  ne peut que déplacer le poids unique. Rendre les poids **distincts par phase**
+  est donc un changement **structurel** jamais tenté, et c'est le poste le plus
+  chaud (11,35 %).
+
+  Infrastructure ajoutée : paramètres `P_Mobility_{N,B,R,Q}_Eg` ; **défauts égaux
+  aux poids d'ouverture**, donc **bit-identique** tant qu'aucun fichier de
+  paramètres ne les change (même patron que D4 §43 : infrastructure durable,
+  défauts bit-identiques). Vérifié iso-comportement : nœuds
+  `--bench 9/11/12` identiques, évaluations `--eval-fens` identiques, A/B
+  entrelacée à **0,0 %** médian, `--selftest` 136/136, `debug` sans
+  avertissement.
+
+  Le candidat testé (majeurs pondérés plus fort en finale : `P_MOBILITY_R_EG 3`,
+  `P_MOBILITY_Q_EG 2`) est un vrai changement d'arbre (eval modifiée). Son SPRT
+  est consigné ci-dessous.
+
 ## 64. Incident CI : `-gnatyy` et suivi interrompu (corrigé)
 
 ### 64.1 Les faits

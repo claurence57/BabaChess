@@ -261,6 +261,7 @@ package body BBChess.Eval is
      (P_Pawn, P_Knight, P_Bishop, P_Rook, P_Queen,
       P_Bishop_Pair_Op, P_Bishop_Pair_Eg,
       P_Mobility_N, P_Mobility_B, P_Mobility_R, P_Mobility_Q,
+      P_Mobility_N_Eg, P_Mobility_B_Eg, P_Mobility_R_Eg, P_Mobility_Q_Eg,
       P_Rook7_Op, P_Rook7_Eg, P_Rook7_King,
       P_RookOpen_Op, P_RookOpen_Eg, P_RookSemi_Op, P_RookSemi_Eg,
       P_RookConn_Op, P_RookConn_Eg,
@@ -283,6 +284,13 @@ package body BBChess.Eval is
       P_Mobility_B      => 4,
       P_Mobility_R      => 2,
       P_Mobility_Q      => 1,
+      --  Endgame mobility weights. Defaulted to the opening ones so that an
+      --  unmodified run is bit-identical (the phase taper is a no-op until a
+      --  parameter file changes an endgame weight).
+      P_Mobility_N_Eg   => 4,
+      P_Mobility_B_Eg   => 4,
+      P_Mobility_R_Eg   => 2,
+      P_Mobility_Q_Eg   => 1,
       P_Rook7_Op        => 15,
       P_Rook7_Eg        => 35,
       P_Rook7_King      => 25,
@@ -455,6 +463,14 @@ package body BBChess.Eval is
      ((Value, Value));
    pragma Inline (Both);
 
+   --  Both phase components scaled by the same popcount, with a distinct
+   --  weight per phase. With Weight_Op = Weight_Eg this is exactly
+   --  Both (Weight * N), so the default table keeps the flat behaviour.
+   function Mobility_Bonus (Count, Weight_Op, Weight_Eg : in Score_Type)
+     return Tapered_Score_Type is
+     ((Weight_Op * Count, Weight_Eg * Count));
+   pragma Inline (Mobility_Bonus);
+
    function "+" (L, R : in Tapered_Score_Type) return Tapered_Score_Type is
      ((L.Opening + R.Opening, L.End_Game + R.End_Game));
    pragma Inline ("+");
@@ -499,10 +515,17 @@ package body BBChess.Eval is
    Bishop_Pair_Endgame : Score_Type renames Params (P_Bishop_Pair_Eg);
 
    -- Mobility: centipawns per attacked (reachable) square, per piece kind.
-   Mobility_N : Score_Type renames Params (P_Mobility_N);
-   Mobility_B : Score_Type renames Params (P_Mobility_B);
-   Mobility_R : Score_Type renames Params (P_Mobility_R);
-   Mobility_Q : Score_Type renames Params (P_Mobility_Q);
+   -- The opening and endgame weights are separate (phase-tapered mobility);
+   -- with the default parameter table the two are equal, so the taper is a
+   -- no-op and the evaluation is bit-identical to the flat version.
+   Mobility_N    : Score_Type renames Params (P_Mobility_N);
+   Mobility_B    : Score_Type renames Params (P_Mobility_B);
+   Mobility_R    : Score_Type renames Params (P_Mobility_R);
+   Mobility_Q    : Score_Type renames Params (P_Mobility_Q);
+   Mobility_N_Eg : Score_Type renames Params (P_Mobility_N_Eg);
+   Mobility_B_Eg : Score_Type renames Params (P_Mobility_B_Eg);
+   Mobility_R_Eg : Score_Type renames Params (P_Mobility_R_Eg);
+   Mobility_Q_Eg : Score_Type renames Params (P_Mobility_Q_Eg);
 
    Rook_On_7th_Opening : Score_Type renames Params (P_Rook7_Op);
    Rook_On_7th_Endgame : Score_Type renames Params (P_Rook7_Eg);
@@ -720,7 +743,8 @@ package body BBChess.Eval is
          Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
 
          procedure Mobility_Of (Kind          : in Kind_Type;
-                                Weight        : in Score_Type;
+                                Weight_Op     : in Score_Type;
+                                Weight_Eg     : in Score_Type;
                                 Attack_Weight : in Score_Type) is
             Pieces_Here : Bitboard := Position.Pieces (Make (Color, Kind));
          begin
@@ -729,7 +753,11 @@ package body BBChess.Eval is
                   Sq  : constant Square_Type := Lowest_Bit (Pieces_Here);
                   A   : constant Bitboard := Piece_Attacks (Kind, Sq, Occ);
                begin
-                  Acc := Acc + Both (Weight * Score_Type (Popcount (A and Free)));
+                  --  Phase-tapered mobility: opening and endgame weights may
+                  --  differ (default: equal, so this equals Both (Weight * N)).
+                  Acc := Acc +
+                    Mobility_Bonus (Score_Type (Popcount (A and Free)),
+                                    Weight_Op, Weight_Eg);
 
                   -- Weighted attacker of the enemy king (mirrors the old
                   -- King_Safety scan, now sharing this attack set).
@@ -800,10 +828,10 @@ package body BBChess.Eval is
          Near_Danger := 0;
          Far_Danger  := 0;
          Attackers   := 0;
-         Mobility_Of (Knight, Mobility_N, King_Attack_Knight);
-         Mobility_Of (Bishop, Mobility_B, King_Attack_Bishop);
-         Mobility_Of (Rook,   Mobility_R, King_Attack_Rook);
-         Mobility_Of (Queen,  Mobility_Q, King_Attack_Queen);
+         Mobility_Of (Knight, Mobility_N, Mobility_N_Eg, King_Attack_Knight);
+         Mobility_Of (Bishop, Mobility_B, Mobility_B_Eg, King_Attack_Bishop);
+         Mobility_Of (Rook,   Mobility_R, Mobility_R_Eg, King_Attack_Rook);
+         Mobility_Of (Queen,  Mobility_Q, Mobility_Q_Eg, King_Attack_Queen);
          return Acc;
       end Mobility_Term;
 

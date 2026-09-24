@@ -8,6 +8,25 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Phase P3 : mesures contre hypothèses (P3.2, P3.3, P3.4)
+
+Détail : `DEVELOPMENT.md` §65.
+
+- **P3.2 (table de pions) : non implémentée, sur mesure.** Le profil `perf`
+  montre que `Pawn_Structure_Term` ne pèse que **1 %** du temps total (la
+  mobilité en pèse 11,35 %) : la spécification la supposait « le gain le moins
+  cher », c'est faux pour ce moteur (déjà entièrement bitboard). Gain nps
+  plafonné à ~0–0,5 %, indétectable en Elo.
+- **P3.3 (tuning Texel) : déjà tenté et négatif**, à grande échelle (§21 :
+  100 000 positions, **−38 Elo**), confirmé par SPSA sur résultats réels (§20 :
+  +0,6 Elo sur 600 parties). Ne pas refaire (consigne explicite).
+- **P3.4 : sécurité du roi close** (trois tentatives négatives, §17). **Mobilité
+  pondérée par phase** implémentée comme *infrastructure* : nouveaux paramètres
+  `P_Mobility_*_Eg` de défaut **égal** aux poids d'ouverture, donc évaluation
+  **bit-identique** (nœuds, `--eval-fens`, A/B 0,0 %) tant qu'aucun fichier ne
+  les change — patron D4 §43. Un candidat (majeurs plus mobiles en finale) a été
+  testé par SPRT.
+
 ### Élagage de la documentation (P2.6)
 
 `DEVELOPMENT.md` (2 780 lignes) est scindé : la partie courante (§48-§62,
