@@ -130,6 +130,9 @@ procedure BabaChess is
    Clock_Left     : Duration := 0.0;   -- own remaining time ("time", seconds)
    Time_Increment : Duration := 0.0;   -- per-move increment ("level", seconds)
    Moves_To_Go    : Natural := 0;      -- 0 = unknown ("movestogo"/"level")
+   --  Moves per session from "level MPS": when Moves_To_Go reaches 0 the
+   --  session restarts with a fresh clock, so it is re-armed to this value.
+   Moves_Per_Session : Natural := 0;
    Max_Depth      : Natural := 64;
 
    Current_Command : String (1 .. 64);
@@ -230,6 +233,12 @@ procedure BabaChess is
    begin
       if Moves_To_Go > 0 then
          Moves_To_Go := Moves_To_Go - 1;
+         --  End of the session: the GUI resets the clock and the move count,
+         --  so re-arm from the "level MPS" value instead of falling back to
+         --  the unknown-move-count default.
+         if Moves_To_Go = 0 then
+            Moves_To_Go := Moves_Per_Session;
+         end if;
       end if;
    end Consume_Move_Count;
 
@@ -977,6 +986,9 @@ begin
             Ada.Text_IO.Put_Line ("feature setboard=1");
             Ada.Text_IO.Put_Line ("feature ping=1");
             Ada.Text_IO.Put_Line ("feature sigint=0 sigterm=0");
+            --  No color pre-selection (the engine follows "go" and the move
+            --  sent by the GUI) and no analyze mode.
+            Ada.Text_IO.Put_Line ("feature colors=0 analyze=0");
             Ada.Text_IO.Put_Line ("feature done=1");
             Ada.Text_IO.Flush;
 
@@ -1007,10 +1019,12 @@ begin
             Force := True;
 
          elsif Cmd = "white" then
-            Engine_Side := White;
+            --  XBoard v2: "white" means White is on move and the ENGINE plays
+            --  Black (mirrored for "black").
+            Engine_Side := Black;
 
          elsif Cmd = "black" then
-            Engine_Side := Black;
+            Engine_Side := White;
 
          elsif Cmd = "go" then
             Force := False;
@@ -1035,13 +1049,15 @@ begin
                end;
 
                -- Moves per session: 0 means "no session limit" and is kept as
-               -- the unknown case. The engine decrements it after each move.
+               -- the unknown case. The engine decrements it after each move
+               -- and re-arms it from Moves_Per_Session at the session end.
                begin
-                  Moves_To_Go := Natural'Value (Mps_Token);
+                  Moves_Per_Session := Natural'Value (Mps_Token);
                exception
                   when Constraint_Error =>
-                     Moves_To_Go := 0;
+                     Moves_Per_Session := 0;
                end;
+               Moves_To_Go := Moves_Per_Session;
 
                -- A plain "level M base" uses whole minutes as the base.
                -- An "MM:SS" base (used by cutechess) means the real clock
