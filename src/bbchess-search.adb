@@ -464,6 +464,9 @@ package body BBChess.Search is
          Game_Keys        : Game_Key_Array := (others => 0);
          Game_Key_Count   : Natural := 0;
          Nodes_Count      : Node_Count_Type := 0;
+         --  Nodes already added to the shared SMP counter by this context, so
+         --  only the new ones are added at each poll (exact, no double count).
+         Flushed          : Node_Count_Type := 0;
          Next_Checkpoint  : Node_Count_Type := Check_Interval;
          Time_Limit_Armed : Boolean := False;
          Node_Limit       : Node_Count_Type := 0;
@@ -579,7 +582,8 @@ package body BBChess.Search is
    -- same exceptions as before, only the layout changed.
    procedure Poll_Time_Slow (Ctx : in Context_Access) is
    begin
-      SMP_Counter.Add (Check_Interval);
+      SMP_Counter.Add (Ctx.Nodes_Count - Ctx.Flushed);
+      Ctx.Flushed := Ctx.Nodes_Count;
       --  Next deadline: the regular interval, but not past the node cap, so
       --  "go nodes N" stops exactly at N instead of the next interval.
       Ctx.Next_Checkpoint := Ctx.Nodes_Count + Check_Interval;
@@ -1970,13 +1974,14 @@ package body BBChess.Search is
             Prev_Iter := To_Duration (Clock - Ctx.Start_Time) - Elapsed;
 
             if Report then
-               --  Single-thread: report the exact counter. Lazy SMP: the
-               --  per-context counter only covers this worker, so report the
-               --  shared total (rounded to the poll interval).
+               --  Single-thread: report the exact counter. Lazy SMP: report
+               --  the shared total, never below this worker's own count (it
+               --  may already be ahead of the last poll flush).
                Report_Iteration (Work, D, Best_Score,
                                  To_Duration (Clock - T0),
                                  (if Ctx.Shared_Report
-                                  then SMP_Counter.Value
+                                  then Node_Count_Type'Max (SMP_Counter.Value,
+                                                            Ctx.Nodes_Count)
                                   else Ctx.Nodes_Count),
                                  Best);
             end if;

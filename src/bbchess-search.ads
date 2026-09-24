@@ -88,10 +88,10 @@ package BBChess.Search is
    -- Used by the UCI "stop" and "quit" commands.
 
    procedure Clear_Stop;
+   -- Cancel a pending stop request before starting a new search.
 
    function Stop_Requested return Boolean;
    -- True once Request_Stop has been called (and not yet cleared).
-   -- Cancel a pending stop request before starting a new search.
 
    procedure Locked_Put_Line (S : in String);
    -- Print one line to standard output under the package-wide console lock.
