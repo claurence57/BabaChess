@@ -247,7 +247,7 @@ begin
    end loop Main_Loop;
 
    BBChess.Protocol.Shutdown;
-   Ada.Text_IO.Put_Line ("Thanks for playing with AdaChess-BB!");
+   Ada.Text_IO.Put_Line ("Thanks for playing with BabaChess!");
 exception
    -- A clean close of the input (e.g. the GUI quitting) must not abort.
    -- If a UCI search is still running, stop it so the process can exit.
