@@ -8,6 +8,22 @@
 
 ## Non publié (développement post bb-1.0)
 
+### Découpage des self-tests et harnais pass/fail (P1.2)
+
+`Self_Tests.Run` (823 lignes, 116 vérifications) est scindé en dix-neuf
+procédures par domaine ; un nouveau harnais (`BBChess.Test_Harness`) compte les
+succès/échecs au lieu de s'arrêter au premier, affiche le bilan et sort en code
+non-zéro si un test échoue. Détail : `DEVELOPMENT.md` §56.
+
+- Couverture **identique** (aucune vérification perdue : 116 → 116).
+- `--selftest` : `126 checks passed, 0 failed` (le compteur inclut les tests
+  protocole de P1.1), exit 0.
+- Le harnais a révélé et permis de corriger un défaut du test protocole de P1.1
+  (état global UCI/threads non restauré rendant un test de recherche
+  non déterministe).
+- `--bench 9` = 518 612 nœuds, inchangé ; `debug` sans avertissement ;
+  `--selftest` vert dans les quatre modes.
+
 ### Extraction de la couche protocole (P1.1)
 
 `babachess.adb` (1 180 lignes) ne contient plus le protocole : celui-ci vit dans

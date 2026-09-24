@@ -2555,3 +2555,41 @@ purs (`go` avec valeurs valides/malformées/absentes, `setoption`, `level`,
 `time`) et le dispatch capturé (`uci`, `isready`, `position startpos|fen` avec
 coups valides et invalides, FEN rejetée, `setoption`, `protover`, `ping`, ligne
 vide, `quit`, coup nu). Aucun de ces tests ne démarre de recherche.
+
+## 56. Découpage des self-tests et harnais pass/fail (P1.2)
+
+`Self_Tests.Run` était une procédure de **823 lignes** enchaînant 116
+vérifications : le premier échec (`raise Program_Error`) masquait tous les
+suivants, et le programme sortait en erreur sans dire combien de tests passaient.
+
+### 56.1 Découpage
+
+`Run` ne fait plus qu'appeler dix-neuf procédures par domaine :
+`Test_Board_Primitives`, `Test_Make_Unmake`, `Test_Perft`, `Test_Zobrist`,
+`Test_Packed_Moves`, `Test_Fen_Validation`, `Test_Ep_Fen`, `Test_Ep_Arithmetic`,
+`Test_Eval`, `Test_Search`, `Test_Time_Management`, `Test_Soft_Hard_Search`,
+`Test_Repetition`, `Test_See`, `Test_Polyglot`, `Test_TT_Data`, `Test_Smp`,
+`Test_Text_Handling`, `Test_Thread_Arguments`.
+
+### 56.2 Harnais pass/fail
+
+Nouveau paquet `BBChess.Test_Harness` : `Check` enregistre un succès ou un
+échec, imprime `FAILED: <message>` pour un échec, et **ne s'arrête pas** — donc
+le premier échec ne masque plus les suivants. `Run` affiche le bilan
+(`126 checks passed, 0 failed`) et, si au moins un test échoue, positionne le
+code de sortie à `Failure` : la CI échoue réellement au lieu de passer en
+silence. La couverture est **exactement** conservée (les 116 vérifications,
+dont les 2 `Program_Error` convertis en `Check`, comptent à l'identique).
+
+### 56.3 Un bug de test révélé par le nouveau harnais
+
+Le harnais a immédiatement mis au jour un défaut du **test** de protocole ajouté
+en P1.1 : son dispatch `uci` activait la sortie UCI et son
+`setoption Threads 3` changeait le nombre de threads **globaux**. Ces états
+n'étant pas restaurés, les tests de recherche suivants s'exécutaient en
+multi-thread et imprimaient des lignes `info`, rendant
+`zero soft/hard search must match the fixed-depth node count` **non
+déterministe** (1 ou 2 échecs selon le run). Correctif : le test restaure
+`Set_UCI_Mode (False)`, `Set_Post (False)`, `Set_Threads (1)` et `Reset_Search`
+avant de rendre la main. Résultat : 126/126, stable sur 6 exécutions
+consécutives.

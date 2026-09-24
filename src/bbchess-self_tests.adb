@@ -1,9 +1,15 @@
 --
---  AdaChess-BB : self tests (body)
+--  BabaChess : self tests (body)
+--
+--  Split by domain (perft, Zobrist, FEN, SEE, Polyglot, search, ...) so a
+--  failure in one area no longer masks every later check. Each check is
+--  recorded by BBChess.Test_Harness; Run reports the final tally and sets a
+--  non-zero exit status when at least one check failed.
 --
 
 with Ada.Text_IO;
 with Ada.Real_Time;
+with Ada.Command_Line;
 
 use Ada.Real_Time;
 
@@ -49,24 +55,24 @@ use BBChess.Polyglot;
 with BBChess.Text;
 use BBChess.Text;
 
+with BBChess.Test_Harness;
+
 with BBChess.Protocol.Self_Tests;
 
 package body BBChess.Self_Tests is
 
-   procedure Assert (Condition : in Boolean; Message : in String) is
-   begin
-      if not Condition then
-         Ada.Text_IO.Put_Line ("FAILED: " & Message);
-         raise Program_Error with Message;
-      end if;
-   end Assert;
+   --  Every check goes through the shared harness: a failure is recorded and
+   --  printed, but the run continues (no more "first failure masks the rest").
+   procedure Assert (Condition : in Boolean; Message : in String)
+     renames BBChess.Test_Harness.Check;
 
-   procedure Run is
+   ----------------------------
+   --  Board primitives      --
+   ----------------------------
+
+   procedure Test_Board_Primitives is
       Position : Position_Type;
    begin
-      Ada.Text_IO.Put_Line ("AdaChess-BB self tests");
-      Ada.Text_IO.New_Line;
-
       -- Bitboard / square mapping primitives.
       Assert (Bit (0) = 1, "bit 0 must be a1 (lsb)");
       Assert (Bit (63) = Bitboard (2 ** 63), "bit 63 must be h8 (msb)");
@@ -136,6 +142,15 @@ package body BBChess.Self_Tests is
          Assert (Count = 20, "start position has 20 legal moves");
       end;
 
+      Ada.Text_IO.Put_Line ("board primitives OK");
+   end Test_Board_Primitives;
+
+   -----------------------
+   --  Make / unmake     --
+   -----------------------
+
+   procedure Test_Make_Unmake is
+   begin
       -- Make/unmake round trip: 1. e4 then undo.
       declare
          P         : Position_Type := Start_Position;
@@ -163,6 +178,15 @@ package body BBChess.Self_Tests is
          Assert (P.En_Passant = -1, "ep square restored after unmake");
       end;
 
+      Ada.Text_IO.Put_Line ("make/unmake OK");
+   end Test_Make_Unmake;
+
+   -------------
+   --  Perft  --
+   -------------
+
+   procedure Test_Perft is
+   begin
       -- Perft validation (known CPW values).
       declare
          P        : Position_Type;
@@ -242,7 +266,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("perft tests OK");
+   end Test_Perft;
 
+   ---------------
+   --  Zobrist  --
+   ---------------
+
+   procedure Test_Zobrist is
+   begin
       -- Incremental Zobrist: after every real move (with keys enabled), the
       -- incrementally maintained Position.Key must equal the full recompute.
       -- This exercises castling, captures, en passant and promotions.
@@ -273,7 +304,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("incremental Zobrist OK");
+   end Test_Zobrist;
 
+   ---------------------
+   --  Packed moves   --
+   ---------------------
+
+   procedure Test_Packed_Moves is
+   begin
       -- Packed move round-trip (transposition table encoding).
       declare
          P     : Position_Type;
@@ -293,7 +331,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("packed move round-trip OK");
+   end Test_Packed_Moves;
 
+   ---------------------
+   --  FEN validation --
+   ---------------------
+
+   procedure Test_Fen_Validation is
+   begin
       -- Illegal FENs must be rejected at load time, in particular a position
       -- that leaves the side not to move in check (a capturable king would
       -- otherwise crash the search when it looks for a missing king).
@@ -318,7 +363,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("FEN validation OK");
+   end Test_Fen_Validation;
 
+   ------------------------------
+   --  En-passant FEN field    --
+   ------------------------------
+
+   procedure Test_Ep_Fen is
+   begin
       -- En-passant FEN field validation: a real target is only accepted when
       -- it matches the side to move and an enemy pawn actually sits behind it;
       -- every other (malformed) field must be normalised to "no en-passant"
@@ -348,7 +400,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("en-passant FEN validation OK");
+   end Test_Ep_Fen;
 
+   ------------------------------
+   --  En-passant arithmetic   --
+   ------------------------------
+
+   procedure Test_Ep_Arithmetic is
+   begin
       -- En-passant capture arithmetic: the captured pawn is read from the
       -- square directly behind the target. Exercise a legal capture and its
       -- undo (the computed square is a valid index and the board is restored).
@@ -377,7 +436,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("en-passant arithmetic OK");
+   end Test_Ep_Arithmetic;
 
+   --------------------
+   --  Evaluation    --
+   --------------------
+
+   procedure Test_Eval is
+   begin
       -- Evaluation + search sanity. Static is the tempo-free, fully
       -- symmetric core (0 on the initial position); Evaluate adds Tempo for
       -- the side to move (White on the initial position).
@@ -427,6 +493,15 @@ package body BBChess.Self_Tests is
          Check_Symmetry ("4k3/6R1/8/8/8/8/6r1/4K3 w - - 0 1");
       end;
 
+      Ada.Text_IO.Put_Line ("evaluation OK");
+   end Test_Eval;
+
+   ------------------
+   --  Search      --
+   ------------------
+
+   procedure Test_Search is
+   begin
       declare
          Pos   : constant Position_Type := Start_Position;
          Best  : Move_Type;
@@ -442,11 +517,20 @@ package body BBChess.Self_Tests is
                Found := True;
                exit;
             end if;
-          end loop;
-          Ada.Text_IO.Put_Line ("best move found, legal=" & Boolean'Image (Found));
-          Assert (Found, "Best_Move returned an illegal move");
-       end;
+         end loop;
+         Ada.Text_IO.Put_Line ("best move found, legal=" & Boolean'Image (Found));
+         Assert (Found, "Best_Move returned an illegal move");
+      end;
 
+      Ada.Text_IO.Put_Line ("search OK");
+   end Test_Search;
+
+   -------------------------
+   --  Time management    --
+   -------------------------
+
+   procedure Test_Time_Management is
+   begin
       -- Time management regression test: the timed Best_Move must return a
       -- legal move promptly, whatever the budget (the interruptible search
       -- is what keeps the engine from losing on time under a GUI).
@@ -518,7 +602,14 @@ package body BBChess.Self_Tests is
                  "allocation must never exceed the remaining clock");
       end;
       Ada.Text_IO.Put_Line ("time allocation OK");
+   end Test_Time_Management;
 
+   ---------------------------
+   --  Soft/hard search     --
+   ---------------------------
+
+   procedure Test_Soft_Hard_Search is
+   begin
       -- Soft/hard search: the hard limit is the interruptible deadline, the
       -- soft one only stops the launching of a new iteration. A wide
       -- soft/hard pair must still return a legal move within the hard bound.
@@ -573,7 +664,14 @@ package body BBChess.Self_Tests is
          Reset_Search;
       end;
       Ada.Text_IO.Put_Line ("soft/hard search OK");
+   end Test_Soft_Hard_Search;
 
+   -----------------
+   --  Repetition --
+   -----------------
+
+   procedure Test_Repetition is
+   begin
       -- Repetition handling: with a game history where the current position
       -- already occurred twice, the search must still return a legal move
       -- (draws are detected inside the tree, not at the root) and Reset_Search
@@ -602,7 +700,14 @@ package body BBChess.Self_Tests is
          Reset_Search;
          Ada.Text_IO.Put_Line ("repetition handling OK");
       end;
+   end Test_Repetition;
 
+   -----------
+   --  SEE  --
+   -----------
+
+   procedure Test_See is
+   begin
       -- Static exchange evaluation: undefended pieces, recaptures, losing
       -- lines and pinned defenders must be scored consistently.
       declare
@@ -663,7 +768,14 @@ package body BBChess.Self_Tests is
 
          Ada.Text_IO.Put_Line ("SEE tests OK");
       end;
+   end Test_See;
 
+   ---------------
+   --  Polyglot --
+   ---------------
+
+   procedure Test_Polyglot is
+   begin
       -- Polyglot key: must match the reference implementation exactly
       -- (piece placement, castling, conditional en passant, side to move).
       declare
@@ -696,14 +808,27 @@ package body BBChess.Self_Tests is
             "polyglot key middlegame");
          Ada.Text_IO.Put_Line ("polyglot key OK");
       end;
+   end Test_Polyglot;
 
+   --------------------------
+   --  Transposition table  --
+   --------------------------
+
+   procedure Test_TT_Data is
+      Ok : constant Boolean := TT_Data_Self_Test;
+   begin
       -- Transposition-table packed payload: score / depth / bound / age /
       -- move round-trip and the self-verifying key.
-      if not TT_Data_Self_Test then
-         raise Program_Error with "TT data self-test failed";
-      end if;
+      Assert (Ok, "TT data self-test failed");
       Ada.Text_IO.Put_Line ("TT data round-trip OK");
+   end Test_TT_Data;
 
+   -------------
+   --  SMP     --
+   -------------
+
+   procedure Test_Smp is
+   begin
       -- B2 regression: after a multi-threaded search, Stop_Search stays set
       -- (the Lazy SMP primary thread raises it to stop the helpers). A later
       -- single-threaded search must clear it, otherwise it aborts at the
@@ -766,7 +891,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("MT-then-ST search OK");
+   end Test_Smp;
 
+   --------------------------
+   --  Text handling        --
+   --------------------------
+
+   procedure Test_Text_Handling is
+   begin
       -- B4 regression: a very long protocol token must be truncated safely
       -- instead of overwriting adjacent state. Split_Command is the exact
       -- helper the command loop uses; it must bound the copy to the buffer.
@@ -808,7 +940,14 @@ package body BBChess.Self_Tests is
       end;
 
       Ada.Text_IO.Put_Line ("long-token handling OK");
+   end Test_Text_Handling;
 
+   --------------------------
+   --  Thread arguments     --
+   --------------------------
+
+   procedure Test_Thread_Arguments is
+   begin
       -- Thread arguments: -T#, --thread=#, and the malformed fallbacks.
       Assert (Thread_Count ("-T4", 0) = 4, "-T4");
       Assert (Thread_Count ("-T1", 0) = 1, "-T1");
@@ -819,10 +958,53 @@ package body BBChess.Self_Tests is
       Assert (Thread_Count ("--threads", 0) = 0, "--threads needs a value");
       Assert (Thread_Count ("-T12", 0) = 12, "two-digit -T12");
       Ada.Text_IO.Put_Line ("thread argument parsing OK");
+   end Test_Thread_Arguments;
+
+   ---------
+   -- Run --
+   ---------
+
+   procedure Run is
+   begin
+      BBChess.Test_Harness.Reset;
+      Ada.Text_IO.Put_Line ("AdaChess-BB self tests");
+      Ada.Text_IO.New_Line;
 
       -- Protocol layer: pure parsers and captured dispatch.
       BBChess.Protocol.Self_Tests.Run;
 
-      Ada.Text_IO.Put_Line ("all self tests OK");
+      Test_Board_Primitives;
+      Test_Make_Unmake;
+      Test_Perft;
+      Test_Zobrist;
+      Test_Packed_Moves;
+      Test_Fen_Validation;
+      Test_Ep_Fen;
+      Test_Ep_Arithmetic;
+      Test_Eval;
+      Test_Search;
+      Test_Time_Management;
+      Test_Soft_Hard_Search;
+      Test_Repetition;
+      Test_See;
+      Test_Polyglot;
+      Test_TT_Data;
+      Test_Smp;
+      Test_Text_Handling;
+      Test_Thread_Arguments;
+
+      -- Final tally. A non-zero failure count turns into a non-zero exit
+      -- status so the CI job fails instead of silently passing.
+      Ada.Text_IO.New_Line;
+      Ada.Text_IO.Put_Line
+        (Natural'Image (BBChess.Test_Harness.Passed) & " checks passed, "
+         & Natural'Image (BBChess.Test_Harness.Failed) & " failed");
+      if BBChess.Test_Harness.Failed > 0 then
+         Ada.Text_IO.Put_Line ("SELF TESTS FAILED");
+         Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
+      else
+         Ada.Text_IO.Put_Line ("all self tests OK");
+      end if;
    end Run;
+
 end BBChess.Self_Tests;

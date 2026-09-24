@@ -251,6 +251,15 @@ package body BBChess.Protocol.Self_Tests is
                  "bare move: e2e4 applied");
       end;
 
+      -- Restore the engine-wide search globals this dispatch test touched:
+      -- "uci" turned the UCI output on, and "setoption Threads 3" changed the
+      -- thread count. Left set, they would make the later search tests print
+      -- "info" lines and run multi-threaded (non-deterministic node counts).
+      Set_UCI_Mode (False);
+      Set_Post (False);
+      Set_Threads (1);
+      Reset_Search;
+
       -- Leave the console writer installed and the session clean so the rest
       -- of the self test is unaffected.
       Reset_Capture;
