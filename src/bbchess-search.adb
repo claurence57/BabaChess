@@ -485,6 +485,10 @@ package body BBChess.Search is
          Start_Time       : Time := Clock;
          Time_Budget      : Duration := 0.0;
       end record;
+   --  Every field is written by Init_Context before any read (each allocation
+   --  is followed by Init_Context), so the implicit default initialization of
+   --  the ~1.2 MB record -- mostly Cont_History -- would be pure overhead.
+   pragma Suppress_Initialization (Search_Context);
    type Context_Access is access all Search_Context;
 
    -- The context is allocated once per search (stack size would be a problem
