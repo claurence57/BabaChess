@@ -8,7 +8,8 @@ Après de nombreuses optimisations, il est devenu un projet à part entière. Il
 `babachess.gpr` vers l'exécutable `bin/babachess`. Le moteur **mailbox**
 d'AdaChess (dit **MB**) a été **retiré** du dépôt au moment du fork : ses
 valeurs de perft servent toujours de référence de validation. La journalisation
-d'ingénierie fait foi dans `DEVELOPMENT.md` (racine, en français, historique) ;
+d'ingénierie fait foi dans `DEVELOPMENT.md` (racine, en français ; la partie
+pré-fork §1-§47 est archivée dans `DEVELOPMENT_HISTORY.md`) ;
 `CHANGELOG.md` couvre les versions du moteur.
 
 > **Développement assisté par IA.** Toutes les modifications apportées au projet
@@ -79,13 +80,26 @@ flowchart TD
         Fathom["Fathom (C)<br/>fathom/tbprobe.c"]
         Bits["bbchess-bits.c<br/>POPCNT / CTZ / PEXT"]
     end
+    subgraph Protocole["Protocole (UCI / XBoard)"]
+        Proto["BBChess.Protocol<br/>bbchess-protocol.ads"]
+        ProtoUCI["Protocol.UCI<br/>parsers go/setoption"]
+        ProtoXB["Protocol.XBoard<br/>parsers level/time"]
+    end
     Tests["BBChess.Self_Tests<br/>bbchess-self_tests.ads"]
+    ProtoTests["Protocol.Self_Tests<br/>tests protocole"]
+    Harness["BBChess.Test_Harness<br/>compteur pass/fail"]
     Perft["BBChess.Perft<br/>bbchess-perft.ads"]
 
+    Main --> Proto
     Main --> Search
     Main --> Polyglot
     Main --> Syzygy
     Main --> Tests
+    Proto --> ProtoUCI
+    Proto --> ProtoXB
+    Proto --> Search
+    Proto --> Polyglot
+    Proto --> Syzygy
     Search --> Movegen
     Search --> Eval
     Search --> See
@@ -103,10 +117,22 @@ flowchart TD
     Tests --> Perft
     Tests --> Search
     Tests --> Eval
+    Tests --> ProtoTests
+    ProtoTests --> Proto
+    Tests --> Harness
+    ProtoTests --> Harness
     Syzygy --> Fathom
     Attacks --> Bits
     Board --> Bits
 ```
+
+Le paquet **`BBChess.Protocol`** porte la session de jeu (position, historique
+de répétition, horloge, livre) et le dispatch des commandes ; il ne touche
+**jamais** `Ada.Text_IO` — chaque ligne sortie passe par un callback
+(`Line_Writer`) fourni par `babachess.adb`, qui le branche sur le verrou console
+de `BBChess.Search` (le même que la tâche de recherche UCI asynchrone). Ses
+sous-paquets `.UCI` et `.XBoard` ne contiennent que des **parsers purs**, testés
+sans entrée standard.
 
 ### Flux de données
 
@@ -151,6 +177,13 @@ bien le fichier demandé ; en revanche `--selftest`, `--bench` et `--eval-fens`
 retournent avant le chargement automatique du livre par défaut et ne sondent
 jamais livre ni tablebases.
 
+**Ordre des arguments** : les modes spéciaux (`--selftest`, `--bench`,
+`--eval-fens`, `--dump-params`) sont reconnus en **premier argument**
+(`Argument (1)`). `--params`, `--book`, `--syzygy` et `--threads` doivent donc
+être placés **après** le mode, p. ex. `--bench 9 --params p.txt` et non
+`--params p.txt --bench 9` (sinon le mode n'est pas reconnu et le moteur entre
+dans la boucle interactive).
+
 En mode UCI, les mêmes fonctions sont exposées par `setoption` (`Hash`, `Threads`,
 `OwnBook`, `BookFile`, `SyzygyPath`) et par `go` (`wtime`, `btime`, `winc`,
 `binc`, `movetime`, `depth`, `nodes`, `infinite`). La recherche UCI est
@@ -164,6 +197,7 @@ s'arrête au plafond de nœuds et `go infinite` ne s'arrête que sur `stop` (ou
 
 ```bash
 gprbuild -P babachess.gpr -XMode=release    # -> bin/babachess (POPCNT/BMI2)
+gprbuild -P babachess.gpr -XMode=checked    # -> bin/babachess (release + contrôles)
 gprbuild -P babachess.gpr -XMode=portable   # -> bin/babachess (repli logiciel)
 gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess (assertions)
 ```
@@ -192,8 +226,8 @@ binaire `release` sans `rm -rf obj`.
 - [outils-et-tests.md](outils-et-tests.md) : `--selftest`, perft, `--bench`,
   `--eval-fens`, `--params`, scripts de mesure et SPRT.
 - [build-and-cpu.md](build-and-cpu.md) : modes de construction (`release`,
-  `portable`, `debug`), commutateurs GNAT/C exacts, alias `-T#`/`--thread=#` et
-  historique des optimisations CPU.
+  `checked`, `portable`, `debug`), commutateurs GNAT/C exacts, alias
+  `-T#`/`--thread=#` et historique des optimisations CPU.
 - `CHANGELOG_TECHNIQUE.md` (racine) : chantier solidité / propreté / performance
   (P0-P7) — nettoyage C, invariant `Squares`, avertissements, `Piece_Values`,
   SEE itérative, factorisation, `Cont_History` 16 bits.
@@ -206,5 +240,6 @@ binaire `release` sans `rm -rf obj`.
 - Lazy SMP : <https://www.chessprogramming.org/Lazy_SMP>
 - Forum TalkChess : <https://talkchess.com>
 
-Le journal de développement détaillé (choix, mesures, résultats négatifs)
-reste `DEVELOPMENT.md` à la racine du dépôt.
+Le journal de développement détaillé (choix, mesures, résultats négatifs,
+phase courante §48 et après) reste `DEVELOPMENT.md` à la racine du dépôt ; le
+parcours pré-fork (§1-§47) est dans `DEVELOPMENT_HISTORY.md`.

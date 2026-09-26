@@ -31,12 +31,15 @@ gprbuild -P babachess.gpr -XMode=portable     # -> ./bin/babachess
 gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
 ```
 
-- Toolchain: GNAT Ada 2012 + `gprbuild`. Modes: `release` (default), `debug`,
-  `portable`.
+- Toolchain: GNAT Ada 2012 + `gprbuild`. Modes: `release` (default), `checked`,
+  `debug`, `portable`.
 - `release` compiles with `-mpopcnt -mbmi -mbmi2` and inlines `_pext_u64` (PEXT)
   for sliding attacks — it requires a CPU with BMI2/POPCNT. `portable` drops
   those switches and uses the software PEXT fallback (`bbchess-bits.c`), so it
   runs on any x86-64 CPU at ~25% lower speed; both modes are otherwise identical.
+- `checked` is `release` speed with the run-time checks kept on (`-gnata`, no
+  `-gnatp`); it is the mode for long SPRT campaigns (`release` is the mode to
+  distribute).
 - `debug` turns on the Ada assertions and all warnings (`-gnatwa -gnatVa`); it is
   the only mode that carries warnings.
 - `release` and `portable` share `obj/`: after switching, `rm -rf obj`
@@ -46,14 +49,18 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
   external; it does not use `-march=native` by default (measured slower). See
   `src/doc/build-and-cpu.md`.
 
-## Test & verify (no test framework, no CI)
+## Test & verify (no test framework; CI runs in GitHub Actions)
 
 ```bash
-./bin/babachess --selftest    # perft 1-5, Zobrist, packed moves, FEN
-                                 # validation, search, repetition, SEE,
-                                 # Polyglot key. Exit 0.
+./bin/babachess --selftest    # 136 checks: perft 1-5, Zobrist, packed moves,
+                                 # FEN validation, search, repetition, SEE,
+                                 # Polyglot key, book hardening, protocol.
+                                 # Pass/fail counter; exit non-zero on failure.
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
+
+- CI (`.github/workflows/ci.yml`): builds `debug` with warnings as errors
+  (`-cargs:ada -gnatwe`), then `release`/`portable`/`checked` and `--selftest`.
 
 - **Golden rule**: any movegen/search/eval change must keep `--selftest` green
   (perft counts must not change) and keep evaluation symmetric.

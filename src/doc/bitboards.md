@@ -89,12 +89,16 @@ flowchart LR
 
 Cavalier, roi et pions sont des **sauteurs** : leurs attaques ne dépendent
 pas de l'occupation. Les ensembles sont précalculés une fois pour toutes à
-l'élaboration, dans `bbchess-attacks.ads` :
+l'élaboration, dans `bbchess-attacks.ads`. Les tables sont **privées** ; elles
+sont lues par des accesseurs `Inline` portant le même nom (`Knight_Attacks (S)`,
+etc.), ce qui empêche tout module extérieur de les corrompre après `Init` tout
+en gardant un coût nul à `-O3` (les accesseurs sont entièrement inlinés) :
 
 ```ada
-Knight_Attacks : array (Square_Type) of Bitboard;
-King_Attacks   : array (Square_Type) of Bitboard;
-Pawn_Attacks   : array (Color_Type, Square_Type) of Bitboard;
+function Knight_Attacks (Square : in Square_Type) return Bitboard with Inline;
+function King_Attacks   (Square : in Square_Type) return Bitboard with Inline;
+function Pawn_Attacks   (Color : in Color_Type; Square : in Square_Type)
+  return Bitboard with Inline;
 ```
 
 Le corps de `BBChess.Attacks` part de tableaux de deltas `(DF, DR)` :

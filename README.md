@@ -36,8 +36,9 @@ representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** an
 - **Polyglot** opening book and **Syzygy** endgame tablebases (via a vendored
   Fathom probe).
 - Soft/hard time management with `movestogo` support.
-- Integral self-test suite: perft 1-5, Zobrist, packed moves, FEN validation,
-  search, repetition, SEE, Polyglot keys.
+- Integral self-test suite (136 checks, pass/fail counter with a non-zero exit
+  on failure): perft 1-5, Zobrist, packed moves, FEN validation, search,
+  repetition, SEE, Polyglot keys, book-file hardening and protocol parsing.
 
 ## Building
 
@@ -69,7 +70,8 @@ optimization history.
 ## Testing
 
 ```bash
-./bin/babachess --selftest    # perft 1-5, Zobrist, FEN, search, SEE, Polyglot
+./bin/babachess --selftest    # 136 checks: perft 1-5, Zobrist, FEN, search,
+                              # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
 

@@ -11,6 +11,7 @@ injecte via l'externe `BABA_ARCH_FLAGS` du projet (aucun flag codé en dur).
 
 ```bash
 make                 # release, ISA auto-détecté
+make checked         # vitesse release, contrôles runtime actifs (mode SPRT)
 make portable        # x86-64 générique (repli PEXT logiciel)
 make debug           # assertions + avertissements
 make ARCH=native     # forcer -march=native

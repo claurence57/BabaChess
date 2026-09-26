@@ -87,10 +87,15 @@ champs (cas de la mobilité).
 
 ## 4. Termes positionnels, calculés par couleur
 
-Tout le positionnel tient dans `Positional_Score (Position, Color, Phase, Occ)`.
-La fonction est **générique en couleur** : l'appeler avec White puis Black et
-soustraire le résultat reste symétrique. `Phase` coupe `King_Safety` en finale,
-`Occ` évite de recalculer l'occupation.
+Le positionnel tient dans `Positional_Score`, **générique en couleur** : l'appeler
+avec White puis Black et soustraire le résultat reste symétrique. Elle reçoit
+`Occ` (l'occupation, calculée une fois) et renvoie deux paramètres de sortie de
+danger du roi (`Near_Danger`, `Far_Danger`, `Attackers`) consommés par
+`King_Safety`. Depuis P3.1, ses termes sont **six fonctions locales nommées** —
+`Bishop_Pair_Term`, `Mobility_Term`, `Connected_Rooks_Term`,
+`Pawn_Structure_Term`, `Pawn_Threats_Term`, `King_Activity_Term` — de sorte que
+chacun soit mesurable et tunable individuellement ; leur somme reproduit
+l'arithmétique d'origine (iso-comportement vérifié).
 
 ### 4.1 Paire de fous et mobilité
 
@@ -99,10 +104,13 @@ Si `Popcount (Pieces (Color, Bishop)) = 2`, un bonus tapered est ajouté
 
 Pour chaque cavalier, fou, tour et dame, `Piece_Attacks` produit les cases
 atteignables selon l'occupation et on compte
-`Popcount (Piece_Attacks and Free)` où `Free = not Own`. Les poids par case
-valent `Mobility_N` (4), `Mobility_B` (4), `Mobility_R` (2), `Mobility_Q` (1) :
-cavalier et fou sont les plus sensibles à leur liberté, la dame est peu pondérée
-pour ne pas « compenser » seule une position passive.
+`Popcount (Piece_Attacks and Free)` où `Free = not Own`. La mobilité est
+**pondérée par phase** : les poids d'ouverture valent `Mobility_N` (4),
+`Mobility_B` (4), `Mobility_R` (2), `Mobility_Q` (1), et les poids de finale
+`Mobility_N_Eg`, `Mobility_B_Eg`, `Mobility_R_Eg`, `Mobility_Q_Eg` (défaut
+**égal** aux poids d'ouverture, donc taper neutre par défaut). Cavalier et fou
+sont les plus sensibles à leur liberté, la dame est peu pondérée pour ne pas
+« compenser » seule une position passive.
 
 ### 4.2 Tours (7ᵉ, colonnes ouvertes, semi-ouvertes, connectées)
 
@@ -252,12 +260,12 @@ Côté ligne de commande : `--dump-params` imprime la table, `--params <fichier>
 charge un jeu avant tout mode sans rebuild, et `--eval-fens <fichier>` sort
 l'évaluation statique blanche de chaque FEN pour alimenter un tuner.
 
-Les 40 identifiants de `Param_Id` couvrent le matériel, la paire de fous, la
-mobilité, les tours (7ᵉ, colonnes, connectées), la structure de pions, la
-sécurité du roi et les menaces. Les bonus passés protégés ont leurs propres
-identifiants (`P_Protected_Op` / `P_Protected_Eg`, alias
-`Protected_Passed_Opening` / `Endgame`) qui pondèrent le bonus passé dans
-`Positional_Score`.
+Les 44 identifiants de `Param_Id` couvrent le matériel, la paire de fous, la
+mobilité (poids d'ouverture et de finale, `P_Mobility_*` / `P_Mobility_*_Eg`),
+les tours (7ᵉ, colonnes, connectées), la structure de pions, la sécurité du roi
+et les menaces. Les bonus passés protégés ont leurs propres identifiants
+(`P_Protected_Op` / `P_Protected_Eg`, alias `Protected_Passed_Opening` /
+`Endgame`) qui pondèrent le bonus passé dans `Positional_Score`.
 
 ## 8. Choix de conception et résultats négatifs assumés
 

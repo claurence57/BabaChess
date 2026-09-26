@@ -66,10 +66,20 @@ l'ordre :
   (−220), défenseur épinglé ignoré (+900), prise en passant (+100).
 - **Clé Polyglot** : cinq FEN comparés aux valeurs de référence (départ, roque,
   en passant capturable ou non, milieu de jeu).
+- **Durcissement du livre Polyglot** : fichier absent, vide, tronqué, de taille
+  invalide (rejetés avec un statut précis) et une entrée valide (chargée) ;
+  aucun ne plante ni ne rend de coup illégal.
+- **Couche protocole** (`BBChess.Protocol.Self_Tests`) : parsers purs `go`,
+  `setoption`, `level`, `time` (valeurs valides, malformées et absentes) et
+  dispatch capturé (`uci`, `isready`, `position startpos|fen`, FEN rejetée,
+  `protover`, `ping`, ligne vide, `quit`, coup nu). Aucun ne démarre de
+  recherche.
 
-Chaque `Assert` faux lève `Program_Error` : le processus sort en erreur et le
-message `FAILED: ...` nomme le test. Sinon la sortie se termine par
-`all self tests OK`, code de sortie 0.
+Le succès/échec est compté par **`BBChess.Test_Harness`** : chaque vérification
+fausse est signalée (`FAILED: ...`) sans interrompre la suite, le bilan final
+affiche `N checks passed, M failed`, et **un seul échec positionne le code de
+sortie** à non-zéro (la CI échoue donc réellement). Sinon la sortie se termine
+par `all self tests OK`, code de sortie 0. Le total est de **136 vérifications**.
 
 ## Perft : l'oracle de correction
 
@@ -155,7 +165,7 @@ dans `bin/` trouverait le livre, un binaire dans `/tmp` non.
 **Pour valider un patch, passez le binaire d'avant en OLD** :
 
 ```bash
-scripts/sprt.sh 1+0.1 0 5 300 7 /tmp/opencode/adachess_bb_p1 bin/babachess
+scripts/sprt.sh 1+0.1 0 5 300 7 /tmp/opencode/previous_build bin/babachess
 ```
 
 Comparer directement à la référence `bb-1.0` donne un PASS immédiat, l'écart
