@@ -1,5 +1,11 @@
 # NOTES_TUNING — recherche, quiescence, évaluation (audit et deltas)
 
+> **Note de provenance.** Ce document est une **archive** d'un audit pré-fork
+> (prompt « chantiers 1‑3 »). Il conserve les noms d'alors (`adachess_bb.gpr`) ;
+> dans BabaChess le projet est `babachess.gpr` (binaire `bin/babachess`). La
+> partie courante de la journalisation est `DEVELOPMENT.md` ; le parcours
+> pré-fork est dans `DEVELOPMENT_HISTORY.md`.
+
 Ce document répond au prompt « amélioration AdaChess, chantiers 1‑3 ». Il recense,
 pour chaque chantier, **ce qui existait déjà**, **ce qui a été ajouté**, et **ce
 qui a déjà été testé** (avec résultats). Règle appliquée : ne rien réimplémenter
@@ -72,8 +78,8 @@ de recherche ci‑dessus sont modestes mais réels et validés par SPRT.
 
 ## Validation (ordre demandé)
 
-1. **Compilation propre** : `gprbuild -P adachess_bb.gpr -XMode=release` sans
-   nouvel avertissement ; `portable` également.
+1. **Compilation propre** : `gprbuild -P babachess.gpr -XMode=release` (à
+   l'époque `adachess_bb.gpr`) sans nouvel avertissement ; `portable` également.
 2. **Self‑tests** : `--selftest` = `all self tests OK`.
 3. **Perft** : profondeurs 1→5 (20/400/8902/197281/4865609) **identiques** avant
    et après (la recherche ne touche pas au movegen).
@@ -85,7 +91,7 @@ de recherche ci‑dessus sont modestes mais réels et validés par SPRT.
 
 - Graine SPRT : `7` ; cadence `1+0.1` ; ouvertures `openings/openings.epd`
   (les deux couleurs).
-- Binaires hors dépôt : `/tmp/opencode/adachess_bb_nmp_r`,
+- Binaires hors dépôt (noms d'époque) : `/tmp/opencode/adachess_bb_nmp_r`,
   `/tmp/opencode/adachess_bb_qbound` ; patches `nmp_r.patch`, `qbound.patch`.
 
 ## Chantier solidité / propreté / performance (P0-P7)
