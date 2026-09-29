@@ -518,7 +518,7 @@ package body BBChess.Protocol is
       Size : constant String :=
         Trim_Both (Natural'Image (Transposition_Size_MB));
    begin
-      Emit ("id name BabaChess 1.0");
+      Emit ("id name BabaChess " & BabaChess_Version);
       Emit ("id author BabaChess");
       Emit ("option name Hash type spin default " & Size
             & " min " & Size & " max " & Size);
@@ -568,7 +568,7 @@ package body BBChess.Protocol is
 
    procedure XBoard_Protover is
    begin
-      Emit ("feature myname=""BabaChess 1.0""");
+      Emit ("feature myname=""BabaChess " & BabaChess_Version & """");
       Emit ("feature setboard=1");
       Emit ("feature ping=1");
       Emit ("feature sigint=0 sigterm=0");

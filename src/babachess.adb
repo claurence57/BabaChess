@@ -34,6 +34,8 @@ use BBChess.Moves;
 
 with BBChess.Self_Tests;
 
+with BBChess.Perft;
+
 with BBChess.Protocol;
 
 with BBChess.Text;
@@ -176,6 +178,40 @@ begin
             Set_Threads (1);
       end;
    end loop;
+
+   -- Version banner: the single version constant (BBChess.Text) also feeds
+   -- the UCI "id name" and the XBoard "myname" feature.
+   if Ada.Command_Line.Argument_Count >= 1
+     and then Ada.Command_Line.Argument (1) = "--version"
+   then
+      Ada.Text_IO.Put_Line ("BabaChess " & BabaChess_Version);
+      return;
+   end if;
+
+   -- Perft mode: "--perft FEN DEPTH" counts the legal move sequences of the
+   -- given depth from the given FEN. A correctness oracle for the move
+   -- generator / make-unmake pair (see scripts/perft_suite.sh).
+   if Ada.Command_Line.Argument_Count >= 3
+     and then Ada.Command_Line.Argument (1) = "--perft"
+   then
+      declare
+         Pos   : Position_Type;
+         Depth : Natural := 0;
+      begin
+         Load (Pos, Ada.Command_Line.Argument (2));
+         begin
+            Depth := Natural'Value (Ada.Command_Line.Argument (3));
+         exception
+            when Constraint_Error =>
+               Ada.Text_IO.Put_Line ("perft: bad depth");
+               return;
+         end;
+         Ada.Text_IO.Put_Line
+           ("perft(" & Natural'Image (Depth) & ") = "
+            & Natural'Image (BBChess.Perft.Nodes (Pos, Depth)));
+      end;
+      return;
+   end if;
 
    -- Dump the current evaluation and search parameters.
    if Ada.Command_Line.Argument_Count >= 1

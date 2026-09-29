@@ -9,6 +9,9 @@ use Ada.Strings.Unbounded;
 with BBChess.Protocol.UCI;
 with BBChess.Protocol.XBoard;
 
+with BBChess.Text;
+use BBChess.Text;
+
 with BBChess.Search;
 use BBChess.Search;
 
@@ -166,7 +169,8 @@ package body BBChess.Protocol.Self_Tests is
       BBChess.Protocol.Initialize (Capture'Access);
       BBChess.Protocol.Process ("uci");
       Assert (N_Lines = 8, "uci handshake emits 8 lines");
-      Assert (Captured (1) = "id name BabaChess 1.0", "uci: id name");
+      Assert (Captured (1) = "id name BabaChess " & BabaChess_Version,
+              "uci: id name");
       Assert (Captured (8) = "uciok", "uci: final uciok");
       Assert (BBChess.Protocol.Is_UCI, "uci: mode flag set");
 
@@ -216,7 +220,8 @@ package body BBChess.Protocol.Self_Tests is
       BBChess.Protocol.Process ("xboard");
       BBChess.Protocol.Process ("protover 2");
       Assert (N_Lines = 6, "protover emits 6 lines");
-      Assert (Captured (1) = "feature myname=""BabaChess 1.0""", "protover: myname");
+      Assert (Captured (1) = "feature myname=""BabaChess " & BabaChess_Version
+              & """", "protover: myname");
       Assert (Captured (6) = "feature done=1", "protover: done");
 
       -- ping echoes its argument.

@@ -928,6 +928,69 @@ table de pions **refusée sur mesure** (P3.2), un tuning **déjà tenté et nég
 sans gain démontré** (P3.4). Aucune puissance n'a été ajoutée ni perdue :
 `--bench 9/11/12` restent 518 612 / 1 286 807 / 2 358 722 nœuds.
 
+## 66. Préparation de la release 1.0.0 — phase 1 : version unique et modes CLI (R1)
+
+Chantier de **préparation de release** (`release/1.0`), sans aucune modification
+de la force : la recherche et l'évaluation sont intouchées. Les seules
+modifications de code Ada autorisées sont la chaîne de version (option
+`--version`) et une option perft minimale ; elles sont ci-dessous.
+
+**Note de numérotation.** Les tags `bb-1.0` et `bb-2.0` (et `v4.0`) sont des
+artefacts **pré-fork** d'AdaChess-BB, antérieurs au fork : BabaChess repart à
+`1.0.0`.
+
+### 66.1 Version unique
+
+Le moteur annonçait `BabaChess 1.0` en **deux littéraux dupliqués**
+(`bbc-protocol.adb` lignes 521 et 571). Une **constante unique** est introduite :
+
+```ada
+--  bbchess-text.ads
+BabaChess_Version : constant String := "1.0.0";
+```
+
+Elle alimente désormais `id name` (UCI), `myname` (XBoard), l'option
+`--version` et la bannière de sortie. Les deux assertions de self-test
+(`bbchess-protocol-self_tests.adb`) composent la chaîne attendue **depuis la
+constante** au lieu de la figer, ce qui évite qu'une future montée de version
+casse silencieusement la suite.
+
+### 66.2 Option `--version`
+
+`./bin/babachess --version` → `BabaChess 1.0.0`, puis sortie (code 0).
+
+### 66.3 Option perft minimale
+
+`./bin/babachess --perft "<FEN>" <DEPTH>` appelle la bibliothèque
+`BBChess.Perft` (déjà présente, utilisée par `--selftest`) et affiche
+`perft( N ) = <nœuds>`. Exemple vérifié :
+
+```
+$ ./bin/babachess --perft "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 5
+perft( 5) =  4865609
+```
+
+Elle sert d'oracle dans `scripts/perft_suite.sh` (§67). Aucun changement de
+movegen, de recherche ni d'évaluation : l'exposition CLI seule est nouvelle.
+
+### 66.4 Iso-comportement vérifié
+
+Sur `release/1.0` après R1 :
+
+| Vérification | Résultat |
+|---|---|
+| `--bench 9` | **518 612** nœuds |
+| `--bench 11` | **1 286 807** nœuds |
+| `--bench 12` | **2 358 722** nœuds |
+| `--selftest` (release / checked / portable / debug) | **136/136**, exit 0 |
+| `debug` avec `-cargs:ada -gnatwe` (build CI) | code 0, sans avertissement |
+| `--version` / `uci` / `protover 2` | `BabaChess 1.0.0` |
+
+Les nœuds sont identiques dans les quatre modes (checked et portable
+recomptés : 518 612 / 1 286 807 / 2 358 722). La bannière de self-test affiche
+encore « AdaChess-BB self tests » (texte historique interne, sans effet sur le
+protocole) ; elle n'a pas été touchée pour ne rien perturber d'autre.
+
 ## 64. Incident CI : `-gnatyy` et suivi interrompu (corrigé)
 
 ### 64.1 Les faits

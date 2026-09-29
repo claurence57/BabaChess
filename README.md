@@ -78,12 +78,83 @@ optimization history.
 The **golden rule** for any change: `--selftest` must stay green (perft counts
 must not move) and evaluation must stay symmetric.
 
+## Downloads
+
+Release archives are named `babachess-<version>-<os>-x86_64-<build>`, with
+`os` = `linux` or `windows` and `build` = `bmi2` (requires BMI2+POPCNT, i.e.
+Intel Haswell 2013 / AMD Zen 2017 or newer) or `portable` (any x86-64 CPU,
+software PEXT, ~25% slower). Pick **one**:
+
+| Your CPU | Choose |
+|---|---|
+| Modern Intel/AMD (BMI2 + POPCNT) | `…-bmi2` |
+| Older x86-64, or you see an illegal-instruction crash | `…-portable` |
+| AMD Zen 1 / Zen 2 (microcoded PEXT) | try both; `portable` is often faster |
+
+Verify integrity against the published `SHA256SUMS`. Each archive contains the
+binary, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README.md`,
+`RELEASE_NOTES_<version>.md` and the bundled book at `books/book.bin`.
+
+> **Note.** The historical `bb-1.0` / `bb-2.0` tags belong to AdaChess-BB
+> **before** the fork and are not part of BabaChess's numbering; BabaChess
+> starts at `1.0.0`.
+
+## Quick start with a GUI
+
+BabaChess is a command-line UCI/XBoard engine; configure it as an external
+engine in a GUI.
+
+- **Arena (Windows):** `Engines → Install New Engine…`, pick `babachess.exe`,
+  choose **UCI**.
+- **Cute Chess / cutechess-cli:** GUI: add an engine (protocol UCI). CLI:
+  `cutechess-cli -engine cmd=./babachess -engine cmd=<opponent> -each proto=uci tc=60+0.6 -games 2`
+- **Lucas Chess (Windows):** `Competition → Engines… → New engine`, protocol
+  **UCI**.
+- **WinBoard / XBoard:** add an engine and select protocol **UCI** (or let it
+  negotiate XBoard), e.g.
+  `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1`.
+
+The engine **locates `books/book.bin` by itself** (next to the executable, one
+directory up, `./books/`, `~/ .babachess/book.bin`); override with `--book
+<file>` or the UCI option `BookFile`.
+
+Sanity check:
+
+```bash
+printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
+./bin/babachess --version             # -> BabaChess <version>
+./bin/babachess --selftest            # -> 136 checks passed, 0 failed
+```
+
 ## Using the engine
 
 Set it up in any GUI that supports the XBoard or UCI protocol. Command-line
 options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
 `--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
-`--bench [depth]` and `--selftest`.
+`--bench [depth]`, `--perft <FEN> <depth>`, `--selftest` and `--version`.
+
+UCI options: `Hash` (inert — the size is compile-time; the option advertises
+the real size and warns on a different request), `Threads`, `OwnBook`,
+`BookFile`, `SyzygyPath`.
+
+## Known limitations
+
+- **No DTZ at the root.** Syzygy probing is WDL-only, so the engine knows a
+  position is won but not the distance-to-zero; in the 50-move zone it may take
+  a longer route and miss wins a DTZ-aware engine would convert.
+- **Transposition table assumes the x86-64 memory model.** The lock-free shared
+  TT relies on x86-64 total-store-order semantics (three `pragma Atomic`, no
+  explicit barriers) and is **not portable** to ARM or POWER. Releases are
+  x86-64 only.
+- **The `release` build requires BMI2/POPCNT**; use `portable` otherwise. PEXT
+  is microcoded and slow on **AMD Zen 1/Zen 2**, where `portable` is often
+  faster.
+- **Lazy SMP scaling flattens around 8 threads**; extra helpers beyond that
+  bring little strength.
+- **Handcrafted evaluation, no NNUE.** King safety is a **known weak point**
+  (improvement attempts measured negative, `DEVELOPMENT.md` §17).
+- **No engine-strength limiter** (`UCI_LimitStrength`/`UCI_Elo`); use a time
+  handicap or fewer `Threads` to weaken it.
 
 ## Licence
 

@@ -6,7 +6,51 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Non publié (développement post bb-1.0)
+## 1.0.0 (2026-09-29)
+
+**Première release publique de BabaChess.** Moteur d'échecs bitboard en Ada 2012
+(UCI + XBoard), Lazy SMP, livre Polyglot, tablebases Syzygy via Fathom. Cette
+release ne modifie **pas** la force du moteur : elle fige une version
+fonctionnellement stable, unifie la chaîne de version, ajoute un livre
+d'ouvertures distribuable, durcit et étalonne, puis outille l'empaquetage.
+
+> **Note de numérotation.** Les versions historiques `bb-1.0` et `bb-2.0` sont
+> des tags pré-fork d'*AdaChess-BB* (hérités du développement AdaChess) et sont
+> **antérieurs** au fork BabaChess : ils n'entrent pas dans sa numérotation. Le
+> tag `v4.0` présent dans le dépôt est également un artefact pré-fork.
+> **BabaChess repart à `1.0.0`.**
+
+### Résumé de haut niveau (1.0.0)
+
+- **Version unique** : une seule constante (`BBChess.Text.BabaChess_Version`)
+  alimente `id name` (UCI), `myname` (XBoard), l'option `--version` et la
+  bannière ; le moteur annonce désormais `BabaChess 1.0.0`.
+- **Livre Polyglot** générique sous licence libre (dérivé CC0 de la base
+  Lichess), livré dans les archives et régénérable par `scripts/make_book.py`.
+- **Robustesse mesurée** : suite perft multi-positions, stress UCI/XBoard en 1
+  et 4 threads, tablebases Syzygy 3-5 pièces.
+- **Étalonnage de force honnête** : gauntlet, Elo relatif avec intervalle, ou
+  mention explicite de ce qui n'a pas pu être vérifié (jamais de chiffre
+  inventé).
+- **Empaquetage** : workflow de release (brouillon), archives `release`
+  (BMI2/POPCNT) et `portable`, `SHA256SUMS`, binaires sans dépendance
+  d'exécution GNAT.
+
+### Release R1 : version unique et modes CLI (R1.1-R1.3)
+
+- **R1.1 — version unique.** `BBChess.Text.BabaChess_Version = "1.0.0"` est la
+  seule source ; `id name`, `myname`, `--version` et la bannière la lisent.
+  Les deux assertions de self-test (`uci: id name`, `protover: myname`) sont
+  mises à jour pour composer la chaîne depuis la constante.
+- **R1.2 — option `--version`** : affiche `BabaChess 1.0.0` et rend la main.
+- **R1.3 — option `--perft FEN DEPTH`** : oracle de correction minimal
+  (comptage des séquences légales), utilisé par `scripts/perft_suite.sh`. La
+  bibliothèque `BBChess.Perft` existait déjà ; seule l'exposition CLI est
+  ajoutée. Aucun changement de recherche ni d'évaluation.
+- Iso-comportement vérifié : `--bench 9/11/12` = 518 612 / 1 286 807 /
+  2 358 722 nœuds **exacts** dans les quatre modes ; `--selftest` 136/136 vert
+  (release, checked, portable, debug) ; `debug` sans avertissement, y compris
+  le build CI `-cargs:ada -gnatwe`. Détail : `DEVELOPMENT.md` §66.
 
 ### Phase P3 : mesures contre hypothèses (P3.2, P3.3, P3.4)
 

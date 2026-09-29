@@ -9,6 +9,11 @@
 
 package BBChess.Text is
 
+   --  Single source of truth for the engine version. It feeds the UCI
+   --  "id name", the XBoard "myname" feature, the "--version" command-line
+   --  option and the startup banner, so a release only changes this line.
+   BabaChess_Version : constant String := "1.0.0";
+
    procedure Copy_Bounded (Source    : in String;
                            Dest      : out String;
                            Dest_Last : out Natural);
