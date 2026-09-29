@@ -16,6 +16,7 @@ gnatinspect.*
 .omo/
 *.zip
 books/*
+!books/README.md
 debug/*
 opt/*
 *.txt
