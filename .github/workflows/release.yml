@@ -48,6 +48,7 @@ jobs:
 
   linux:
     name: Linux x86-64 (${{ matrix.mode }})
+    needs: [ book ]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -88,6 +89,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
           scripts/package_release.sh --binary bin/babachess --os linux \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -101,6 +103,7 @@ jobs:
 
   windows:
     name: Windows x86-64 (${{ matrix.mode }})
+    needs: [ book ]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -113,11 +116,12 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # Alire ships the GNAT toolchain (gnat + gprbuild) on Windows and Linux.
-      - name: Install GNAT toolchain (Alire)
-        uses: alire-project/setup-alire@v3
-        with:
-          toolchain: gnat_native gprbuild
+      # alire-project/setup-alire only exposes `alr` itself; the GNAT compiler
+      # it installs is not on the PATH, and this project is not an Alire crate
+      # (no alire.toml), so `alr exec` is unavailable. The local action installs
+      # the toolchain into a prefix and puts gnat/gprbuild on the PATH.
+      - name: Install GNAT toolchain
+        uses: ./.github/actions/setup-gnat
 
       - name: Build (${{ matrix.mode }})
         shell: bash
@@ -152,6 +156,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
           scripts/package_release.sh --binary bin/babachess.exe --os windows \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -192,6 +197,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
           gh release create "$TAG" \
             --draft \
             --title "BabaChess $V" \

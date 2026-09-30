@@ -1,0 +1,54 @@
+name: 'Setup GNAT (Alire)'
+description: >
+  Install the GNAT toolchain (gnat + gprbuild) through Alire and put it on PATH.
+  Unlike alire-project/setup-alire, which only exposes the `alr` launcher, this
+  action also makes `gnat`, `gprbuild` and the underlying `gcc` directly
+  callable from later steps. Use it when you build a project that is NOT an
+  Alire crate (no alire.toml), so `alr exec` is not available.
+author: 'BabaChess'
+
+# Why this exists: alire-project/setup-alire puts only `alr` on the PATH. The
+# GNAT compiler it installs is resolved internally by `alr`, so without an
+# alire.toml `alr exec -- gprbuild` fails ("Cannot continue without a
+# workspace") and a plain `gprbuild` call fails ("command not found").
+# `alr install <crates> --prefix <dir>` copies the tools into a self-contained
+# <dir>/bin, which we append to $GITHUB_PATH.
+
+inputs:
+  crates:
+    description: 'Crates to install, e.g. "gnat_native gprbuild".'
+    required: false
+    default: 'gnat_native gprbuild'
+  prefix:
+    description: 'Directory that will receive bin/, include/, ... .'
+    required: false
+    default: 'gnat_prefix'
+
+runs:
+  using: composite
+  steps:
+    # Bootstraps `alr` itself (and configures the default toolchain), which is
+    # what we reuse to perform the prefix install.
+    - name: Install Alire
+      uses: alire-project/setup-alire@v3
+
+    # `alr install` is the documented way to obtain a flat, PATH-ready
+    # installation of the toolchain, independent of any crate workspace.
+    - name: Install the GNAT toolchain into a prefix
+      shell: bash
+      run: |
+        alr -n install ${{ inputs.crates }} --prefix "${{ inputs.prefix }}"
+
+    # Appending the prefix to $GITHUB_PATH makes `gnat`/`gprbuild` visible to
+    # every following step. `pwd -W` yields a Windows path under git-bash and
+    # falls back to a plain POSIX path elsewhere.
+    - name: Add the toolchain to PATH
+      shell: bash
+      run: |
+        prefix="$(pwd -W 2>/dev/null || pwd)/${{ inputs.prefix }}"
+        echo "$prefix/bin" >> "$GITHUB_PATH"
+
+    - name: Show the toolchain
+      shell: bash
+      run: |
+        gprbuild --version
