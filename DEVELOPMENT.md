@@ -928,6 +928,69 @@ table de pions **refusée sur mesure** (P3.2), un tuning **déjà tenté et nég
 sans gain démontré** (P3.4). Aucune puissance n'a été ajoutée ni perdue :
 `--bench 9/11/12` restent 518 612 / 1 286 807 / 2 358 722 nœuds.
 
+## 66. Préparation de la release 1.0.0 — phase 1 : version unique et modes CLI (R1)
+
+Chantier de **préparation de release** (`release/1.0`), sans aucune modification
+de la force : la recherche et l'évaluation sont intouchées. Les seules
+modifications de code Ada autorisées sont la chaîne de version (option
+`--version`) et une option perft minimale ; elles sont ci-dessous.
+
+**Note de numérotation.** Les tags `bb-1.0` et `bb-2.0` (et `v4.0`) sont des
+artefacts **pré-fork** d'AdaChess-BB, antérieurs au fork : BabaChess repart à
+`1.0.0`.
+
+### 66.1 Version unique
+
+Le moteur annonçait `BabaChess 1.0` en **deux littéraux dupliqués**
+(`bbc-protocol.adb` lignes 521 et 571). Une **constante unique** est introduite :
+
+```ada
+--  bbchess-text.ads
+BabaChess_Version : constant String := "1.0.0";
+```
+
+Elle alimente désormais `id name` (UCI), `myname` (XBoard), l'option
+`--version` et la bannière de sortie. Les deux assertions de self-test
+(`bbchess-protocol-self_tests.adb`) composent la chaîne attendue **depuis la
+constante** au lieu de la figer, ce qui évite qu'une future montée de version
+casse silencieusement la suite.
+
+### 66.2 Option `--version`
+
+`./bin/babachess --version` → `BabaChess 1.0.0`, puis sortie (code 0).
+
+### 66.3 Option perft minimale
+
+`./bin/babachess --perft "<FEN>" <DEPTH>` appelle la bibliothèque
+`BBChess.Perft` (déjà présente, utilisée par `--selftest`) et affiche
+`perft( N ) = <nœuds>`. Exemple vérifié :
+
+```
+$ ./bin/babachess --perft "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 5
+perft( 5) =  4865609
+```
+
+Elle sert d'oracle dans `scripts/perft_suite.sh` (§67). Aucun changement de
+movegen, de recherche ni d'évaluation : l'exposition CLI seule est nouvelle.
+
+### 66.4 Iso-comportement vérifié
+
+Sur `release/1.0` après R1 :
+
+| Vérification | Résultat |
+|---|---|
+| `--bench 9` | **518 612** nœuds |
+| `--bench 11` | **1 286 807** nœuds |
+| `--bench 12` | **2 358 722** nœuds |
+| `--selftest` (release / checked / portable / debug) | **136/136**, exit 0 |
+| `debug` avec `-cargs:ada -gnatwe` (build CI) | code 0, sans avertissement |
+| `--version` / `uci` / `protover 2` | `BabaChess 1.0.0` |
+
+Les nœuds sont identiques dans les quatre modes (checked et portable
+recomptés : 518 612 / 1 286 807 / 2 358 722). La bannière de self-test affiche
+encore « AdaChess-BB self tests » (texte historique interne, sans effet sur le
+protocole) ; elle n'a pas été touchée pour ne rien perturber d'autre.
+
 ## 64. Incident CI : `-gnatyy` et suivi interrompu (corrigé)
 
 ### 64.1 Les faits
@@ -963,3 +1026,263 @@ critère doit se faire sur le motif propre à ce critère (ici `(style)`), pas s
 un filtre supposé. Et un build « propre » localement ne vaut rien tant que la
 **CI** n'a pas confirmé (le `-gnatwe` de la CI promeut des messages que le
 build local, sans `-gnatwe`, laisse passer).
+
+## 67. Release 1.0.0 — phase 2 : livre Polyglot (R2)
+
+Objectif : un livre générique, modeste (quelques dizaines de milliers
+d'entrées, < 1 Mo), équilibré, sous licence libre, livré avec les binaires.
+Aucune modification de recherche ni d'évaluation.
+
+### 67.1 La source et son empreinte
+
+- Source : **base Lichess standard rated**, mois **2016-01** (CC0).
+  URL : `https://database.lichess.org/standard/lichess_db_standard_rated_2016-01.pgn.zst`
+- **SHA256 du fichier source** (871 536 010 octets) :
+  `faad7775d5da5c579eb7e5243bedd9a2c8c377362a7465988cd036238a3258d1`.
+- Le `.bin` n'est **pas** commité (`.gitignore`) : il est régénérable par
+  `scripts/make_book.py`.
+
+### 67.2 Performance de lecture
+
+Un mois décompressé représente des dizaines de Go (le PGN de 2016-01 fait
+~40 Go). Parser chaque partie avec `python-chess` (qui tokenise annotations,
+commentaires et variantes) était le goulot : mesuré à ~18 min pour 27 % du
+fichier. `make_book.py` filtre donc **sur les en-têtes avant** de parser le
+movetext (`_iter_games_fast`), ce qui porte le débit à ~100 Mo/s ; le build
+complet tourne en ~2 min.
+
+### 67.3 Le problème de calibrage (mesuré)
+
+Les seuils « suggérés » (`min_pos 40`, `min_move 12`, part ≥ 3 %, ≤ 6 coups)
+donnent, sur un mois à Elo ≥ 2200, seulement **29 438 parties qualifiantes**
+et produisent **~1 417 entrées** (22 672 octets) — très loin de la cible et
+**échouant** le test de couverture exigé. La mesure des fréquences réelles
+explique pourquoi :
+
+| Ligne exigée | n (parties) | part | score |
+|---|---|---|---|
+| `e2e4 g8f6` | 2 645 | 3,06 % | 0,502 |
+| `d2d4 e7e5` | 523 | 1,00 % | 0,517 |
+| `d2d4 c7c6` | 1 273 | 2,43 % | 0,468 |
+| `d2d4 e7e6` | 3 929 | 7,52 % | **0,4497** |
+
+- `e2e4 g8f6` est le **7ᵉ** coup après 1.e4 → coupé par « ≤ 6 coups ».
+- `d2d4 e7e5` (1,00 %) et `d2d4 c7c6` (2,43 %) passent sous la part de 3 %.
+- `d2d4 e7e6` a un score de **0,4497 < 0,45**.
+
+**Ces seuils suggérés sont donc incompatibles avec le test de couverture
+exigé**, sur cette source. Le plancher Elo 2200 n'est par ailleurs pas tenable
+sur un seul mois (29 438 parties) : le repli documenté sur **2000**
+(**168 262** parties) est appliqué, comme la spécification l'autorise.
+
+### 67.4 Seuils retenus et résultat
+
+```
+--min-elo 2000 --min-pos 5 --min-move 4 --min-move-share 1.0 \
+--min-score 0.44 --max-moves 10
+```
+
+| Métrique | Valeur |
+|---|---|
+| Parties scannées | 4 770 357 |
+| Parties qualifiantes (Elo ≥ 2000) | 168 262 |
+| Positions vues ≥ 1 fois | 599 956 |
+| **Entrées** | **38 191** |
+| **Taille** | **611 056 octets** (0,58 Mio) |
+| SHA256 du livre | `f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d` |
+
+Poids `parties × score²` normalisés par position dans [1, 65535] (jamais 0) ;
+format Polyglot strict (16 octets big-endian, clé u64, coup u16, poids u16,
+learn u32 = 0, tri croissant non signé). L'étape optionnelle Stockfish n'a
+**pas été exécutée** (aucun binaire fourni) ; le script la propose.
+
+### 67.5 Validations
+
+- **(a)** Taille multiple de 16 et clés triées : OK.
+- **(b)** Parcours en profondeur depuis la position initiale (lecteur
+  `python-chess`) : **14 547** positions atteignables, facteur de branchement
+  moyen 33,1 coups légaux/nœud.
+- **(c)** Couverture minimale : 1.e4/1.d4/1.Nf3/1.c4 présents, et une réponse à
+  e5/c5/e6/c6/d5/Nf6 après 1.e4 **et** 1.d4 : **OK**.
+- **(d)** Moteur : `--book books/book.bin` charge sans erreur ; 100 parties
+  (cutechess-cli, UCI, `Threads=1`, livre activé) : **0 coup illégal, 0 forfait
+  au temps, 0 plantage**.
+- **(e)** Non-régression livre on/off (contrôle de cohérence, pas une décision
+  de force) : 300 parties, `BookOn` vs `BookOff`, cadence 10+0.1, `Threads=1`,
+  ouvertures du dépôt. Résultat : **98-88-114 (51,7 %)**, **+11,6 ± 31,0 Elo**
+  (IC 95 % −19,4 … +42,6). L'intervalle contient 0 : cohérent avec « le livre
+  ne dégrade pas », sans conclure à un gain.
+
+## 68. Release 1.0.0 — phase 3 : robustesse et mesure de force (R3)
+
+### 68.1 Perft (R3.1)
+
+`scripts/perft_suite.sh` compare le moteur aux valeurs de référence connues
+(CPW) : position initiale, Kiwipete, positions 3 à 6, profondeur jusqu'à 6.
+Résultat : **32/32 exactes**, **écart nul** (aucun bug de movegen/make-unmake).
+Profondeurs testées : d1-d5 pour les six positions, d6 pour les cinq positions
+dont la référence d6 est connue (initiale 119 060 324, pos3 11 030 083, etc.).
+
+### 68.2 Stress (R3.2)
+
+250 parties par (protocole × threads) = **500 par protocole** (UCI et XBoard),
+1 et 4 threads, cadences 10+0.1 et 20+0.2, **livre désactivé**, self-play,
+suite d'ouvertures du dépôt. Critères : 0 crash, 0 coup illégal, 0 forfait au
+temps.
+
+| Protocole | Threads | Cadence | Parties | illégal | temps | crash | erreurs |
+|---|---|---|---|---|---|---|---|
+| UCI | 1 | 10+0.1 | 250 | 0 | 0 | 0 | 0 |
+| UCI | 4 | 10+0.1 | 250 | 0 | 0 | 0 | 0 |
+| XBoard | 1 | 10+0.1 | 250 | 0 | 0 | 0 | 0 |
+| XBoard | 4 | 20+0.2 | 250 | 0 | 0 | 0 | 0 |
+
+Commandes exactes : `scripts/stress_match.sh --games 250 --tc <tc> --threads
+<N> --proto <uci|xboard> --book off` (la ligne complète est conservée dans
+`/tmp/opencode/phase3/summary.txt`). Note de méthode : une cadence 30+0.3 en
+4 threads a été **abandonnée** après 21 parties (durée de campagne
+démesurée : ~10 h pour la seule cellule) et remplacée par 20+0.2 en 4 threads,
+qui remplit le même objectif (cadence variée + multi-thread).
+
+### 68.3 Syzygy 3-5 pièces (R3.3)
+
+Tables **WDL 3-4-5 pièces** téléchargées (`tablebase.lichess.ovh`,
+`/home/christophe/syzygy/3-4-5`, 145 fichiers, 379 Mo). Test
+`scripts/syzygy_test.sh` (parties gagnantes, 50 coups max, `movetime`
+100 ms) :
+
+| Finale | Résultat (mesure) |
+|---|---|
+| KQvK | mat atteint (29-41 coups selon la graine) |
+| KQvK (variante) | mat atteint (13-15 coups) |
+| KRvK | mat atteint (31-37 coups) |
+| KBBvK | mat atteint (39-89 coups) |
+| KBNvK | **variable** : tantôt mat, tantôt nulle automatique (auto-draw 5x à 122 coups) |
+| KQvKR | **variable** : tantôt mat (121 coups), tantôt insuffisant |
+| KRPvKR | **variable** : tantôt converti, tantôt insuffisant/nulle |
+
+Conclusion **honnête** : sans DTZ à la racine (le moteur ne sonde que le WDL),
+la conversion n'est **pas fiable** sur les finales où le chemin compte. C'est la
+limite « pas de DTZ à la racine » déjà connue ; elle est documentée en « Known
+limitations » (`README.md`, `RELEASE_NOTES_1.0.0.md`) **sans être corrigée**,
+conformément à la consigne.
+
+### 68.4 Étalonnage de force (R3.4)
+
+**1 000 parties** au total contre 4 adversaires **Stockfish bridés**
+(`UCI_LimitStrength`, `UCI_Elo`), cadence 10+0.1, `Threads=1` des deux côtés,
+livre **désactivé**, ouvertures du dépôt :
+
+| Adversaire | Parties | W-D-L | Score | Elo relatif (95 %) |
+|---|---|---|---|---|
+| SF UCI_Elo 1900 | 250 | 214-2-34 | 86,0 % | **+315,3** (+253,7 … +377,0) |
+| SF UCI_Elo 2000 | 250 | 180-12-58 | 74,4 % | **+185,3** (+137,5 … +233,2) |
+| SF UCI_Elo 2100 | 250 | 179-13-58 | 74,2 % | **+183,5** (+135,9 … +231,1) |
+| SF UCI_Elo 2300 | 250 | 168-9-73 | 69,0 % | **+139,0** (+93,3 … +184,7) |
+
+**Aucun Elo absolu n'est publié.** Les libellés `UCI_Elo` de Stockfish sont une
+échelle interne approximative ; ils ne sont **pas** vérifiés sur la liste CCRL
+à cette cadence ici, et le rapport le dit. Ce qui est mesuré est la **différence
+Elo relative** ci-dessus, avec son intervalle.
+
+Rapporté aux ancres `UCI_Elo`, chaque mesure impliquerait pour BabaChess une
+note **~2 185-2 440** (moyenne ~2 280), mais c'est une **projection indicative**,
+pas une note CCRL : les quatre ancres ne sont pas parfaitement cohérentes entre
+elles (l'écart SF 1900↔2000 est plus grand que 100 Elo), ce qui reflète les
+limites du mode bridé de Stockfish et est signalé comme tel.
+
+**Adversaire GNU Chess : écarté.** Un gauntlet de 250 parties contre GNU Chess
+6.2.7 (`~/bin/gnuchess_uci.sh`) a été **interrompu** : GNU Chess a déconnecté
+5 fois de son propre côté (« No result »/« disconnects »), rendant la mesure non
+exploitable. Il aurait aussi été **négatif** (−279 ± 117 Elo sur les 15 parties
+terminées). Résultat **rapporté tel quel, pas caché**, mais écarté du total des
+1 000 parties propres (toutes Stockfish).
+
+### 68.5 Note de méthode sur l'Elo
+
+`ordo` et `bayeselo` sont **indisponibles** sur cette machine (pas de droits
+root ; `bayeselo` non installable via pip sans casser le système). L'Elo est
+calculé par `scripts/elo_report.py` : relation logistique score ↔ différence,
+intervalle 95 % par méthode delta (écart-type de la moyenne des résultats par
+partie, nuls comptés 0,5). C'est une **approximation** qui ne joint pas un
+modèle comme `ordo` ; c'est écrit dans le rapport. La formule a été vérifiée
+(score 0,75 → 190,8 Elo).
+
+## 69. Release 1.0.0 — phase 4 : paquetage et CI (R4)
+
+### 69.1 Workflow de release
+
+`.github/workflows/release.yml`, déclenché sur tag `v*` ou manuellement
+(`workflow_dispatch`) : un job « book » régénère le livre depuis le mois Lichess
+épinglé (SHA256 vérifié) ; deux jobs « linux » et « windows » construisent
+`release` et `portable`, lancent `--selftest` sur chaque binaire, et
+empaquettent ; un job « draft-release » assemble `SHA256SUMS` et crée la
+release en **BROUILLON** (`gh release create --draft`). Le workflow **ne publie
+jamais** : l'humain publie.
+
+### 69.2 Binaires sans dépendance GNAT
+
+Un lien `gprbuild` ordinaire produit un binaire qui exige `libgnat-<ver>.so` et
+`libgnarl-<ver>.so` (vérifié par `ldd`). `scripts/build_release_binary.sh`
+crée des liens symboliques `libgnat-<maj>.a`/`libgnarl-<maj>.a` vers les
+archives statiques, puis lie avec `-static`. Résultat : `ldd` ne montre plus
+**aucune** bibliothèque GNAT (seules `libc`/`ld-linux` restent). Sur Windows, le
+runtime GNAT est lié statiquement par défaut.
+
+### 69.3 Contenu et nommage des archives
+
+`babachess-1.0.0-<os>-x86_64-<bmi2|portable>.(tar.gz|zip)` contenant : binaire
+(`babachess`/`babachess.exe`), `LICENSE`, `NOTICE.md`, `README.md`,
+`RELEASE_NOTES_1.0.0.md`, `src/fathom/LICENSE` (MIT), `books/book.bin` (à
+l'emplacement que le moteur sonde par défaut). `SHA256SUMS` joint à la release.
+L'archivage est fait par un fragment Python embarqué dans
+`scripts/package_release.sh` (identique sous Linux et git-bash/Windows, sans
+dépendre des bizarreries de `zip`/`tar`).
+
+### 69.4 Test de l'archive décompressée
+
+Archive Linux `bmi2` (binaire statique) extraite dans un répertoire **vide** :
+`ldd` propre, `--version` = `BabaChess 1.0.0`, `uci` répond (`id name` +
+`uciok`), `go movetime 1000` renvoie `bestmove d2d4` (le livre est trouvé à
+côté de l'exécutable), `--selftest` vert.
+
+### 69.5 Première exécution de test réelle et correctifs
+
+Le workflow ne pouvant pas être testé par `workflow_dispatch` tant qu'il
+n'existe pas sur la branche par défaut, l'exécution a été provoquée par un
+**déclencheur de branche temporaire** (`release/1.0-ci`), retiré ensuite. Ce
+premier passage réel a **révélé deux blocages**, tous deux corrigés et
+**revérifiés par une seconde exécution complète, verte** :
+
+1. **Windows : `gprbuild: command not found`.** `alire-project/setup-alire`
+   ne met que `alr` sur le `PATH` ; le compilateur GNAT est résolu en interne
+   par `alr`. Le projet n'étant pas une crate Alire (pas d'`alire.toml`),
+   `alr exec` est indisponible (`Cannot continue without a workspace`).
+   → action composite locale `.github/actions/setup-gnat` :
+   `alr install gnat_native gprbuild --prefix`, préfixe ajouté à
+   `$GITHUB_PATH` (`pwd -W` sous git-bash Windows).
+2. **Empaquetage : `RELEASE_NOTES_release/1.0-ci.md` introuvable.** Hors tag,
+   `github.ref_name` vaut le nom de **branche** (avec `/`). → version forcée à
+   `1.0.0` tant qu'elle n'a pas la forme d'un tag/entrée.
+3. Au passage, `linux` et `windows` consommaient l'artefact `book` sans
+   `needs: [book]`, donc ils le **dépassaient en course** ;
+   `needs` ajouté.
+
+**Résultat de la seconde exécution** (`release/1.0-ci`, run
+`36672758647`) : job `book` **vert** (9 min 26 s, livre régénéré
+**bit-identique** au SHA256 documenté `f917c95b…`), et les **quatre cellules**
+Linux/Windows × `release`/`portable` **vertes** (`--selftest` **136/136**,
+`ldd` → *not a dynamic executable* sous Linux, DLL limitées à
+`ADVAPI32/KERNEL32/msvcrt` sous Windows). Archives produites et **correctement
+nommées** `babachess-1.0.0-{linux,windows}-x86_64-{bmi2,portable}.(tar.gz|zip)`.
+Le job `draft-release` est **correctement ignoré** sur une branche (gaté sur
+tag `v*`) : aucun brouillon, aucun tag, aucune publication.
+
+### 69.6 Reproductibilité du livre
+
+L'artefact `book` régénéré en CI depuis le mois Lichess épinglé (SHA256
+vérifié) est **octet pour octet** identique au livre construit localement :
+**611 056 octets**, SHA256
+`f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d`. La
+régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
+le workflow y contribue).

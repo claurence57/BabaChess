@@ -1,0 +1,205 @@
+name: Release
+
+# Triggered by version tags (v*) or manually. It builds the Linux and Windows
+# x86-64 binaries in both "release" (BMI2/POPCNT) and "portable" variants,
+# runs --selftest on each, assembles the archives, and creates a DRAFT release.
+# It never publishes: a human reviews the draft and publishes it.
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for the archive names (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  book:
+    name: Opening book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      # python-chess is pinned so the regeneration matches the local build.
+      - run: pip install chess==1.11.2
+      # Regenerate the book from the pinned Lichess month (CC0). The source
+      # SHA256 is verified, so the artifact is reproducible (the .bin is not
+      # committed; it is rebuilt here and shipped inside the archives).
+      - name: Regenerate the bundled book
+        run: |
+          python3 scripts/make_book.py --month 2016-01 \
+            --sha256 faad7775d5da5c579eb7e5243bedd9a2c8c377362a7465988cd036238a3258d1 \
+            --out books/book.bin
+          python3 scripts/make_book.py --validate books/book.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: book
+          path: books/book.bin
+
+  linux:
+    name: Linux x86-64 (${{ matrix.mode }})
+    needs: [ book ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: release
+            label: bmi2
+          - mode: portable
+            label: portable
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install GNAT toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gnat gprbuild
+
+      - name: Build (${{ matrix.mode }}, static GNAT runtime)
+        run: scripts/build_release_binary.sh ${{ matrix.mode }}
+
+      - name: Self-test
+        run: ./bin/babachess --selftest
+
+      - name: Confirm no GNAT runtime dependency
+        run: |
+          ldd bin/babachess | tee /tmp/ldd.txt
+          if grep -qE 'libgnat|libgnarl' /tmp/ldd.txt; then
+            echo "::error::binary still depends on the GNAT runtime"; exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: book
+          path: books
+
+      - name: Package
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          scripts/package_release.sh --binary bin/babachess --os linux \
+            --build ${{ matrix.label }} --version "$V" --book books/book.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.mode }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  windows:
+    name: Windows x86-64 (${{ matrix.mode }})
+    needs: [ book ]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: release
+            label: bmi2
+          - mode: portable
+            label: portable
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # alire-project/setup-alire only exposes `alr` itself; the GNAT compiler
+      # it installs is not on the PATH, and this project is not an Alire crate
+      # (no alire.toml), so `alr exec` is unavailable. The local action installs
+      # the toolchain into a prefix and puts gnat/gprbuild on the PATH.
+      - name: Install GNAT toolchain
+        uses: ./.github/actions/setup-gnat
+
+      - name: Build (${{ matrix.mode }})
+        shell: bash
+        run: |
+          rm -rf obj
+          gprbuild -P babachess.gpr -XMode=${{ matrix.mode }}
+
+      - name: Self-test
+        shell: bash
+        run: ./bin/babachess.exe --selftest
+
+      - name: Confirm no GNAT runtime DLL dependency
+        shell: bash
+        run: |
+          if command -v objdump >/dev/null; then
+            objdump -p bin/babachess.exe | grep -i "DLL Name" | tee /tmp/dll.txt
+            if grep -qi 'libgnat\|libgnarl' /tmp/dll.txt; then
+              echo "::error::binary still depends on the GNAT runtime"; exit 1
+            fi
+          else
+            echo "objdump unavailable; skipping the DLL check"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: book
+          path: books
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          scripts/package_release.sh --binary bin/babachess.exe --os windows \
+            --build ${{ matrix.label }} --version "$V" --book books/book.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.mode }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  draft-release:
+    name: Draft release
+    # A workflow_dispatch run only builds and packages (safe test run); the
+    # draft release itself is created only for a v* tag push.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ book, linux, windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download all packages and checksums
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Assemble SHA256SUMS
+        run: |
+          cd artifacts
+          cat *.sha256 | sort -k2 | tee SHA256SUMS
+          rm -f *.sha256
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          gh release create "$TAG" \
+            --draft \
+            --title "BabaChess $V" \
+            --notes-file "RELEASE_NOTES_${V}.md" \
+            artifacts/*.tar.gz artifacts/*.zip artifacts/SHA256SUMS

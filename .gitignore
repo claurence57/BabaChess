@@ -16,6 +16,7 @@ gnatinspect.*
 .omo/
 *.zip
 books/*
+!books/README.md
 debug/*
 opt/*
 *.txt
@@ -27,3 +28,6 @@ bin/
 
 gmon.out
 perf.data*
+scripts/__pycache__/
+build/
+dist/
