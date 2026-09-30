@@ -109,6 +109,18 @@ d'ouvertures distribuable, durcit et étalonne, puis outille l'empaquetage.
   **BROUILLON**. Binaires **sans dépendance d'exécution GNAT** (liaison
   statique de `libgnat`/`libgnarl`, vérifiée par `ldd`). Détail :
   `DEVELOPMENT.md` §69.
+- **R4.5 — workflow validé par une exécution réelle** : un déclencheur de
+  branche temporaire (`release/1.0-ci`) a exercé le workflow sans tag ni
+  publication. Deux blocages corrigés : (1) **Windows** —
+  `alire-project/setup-alire` ne met que `alr` sur le `PATH`, pas
+  `gnat`/`gprbuild` → action locale `.github/actions/setup-gnat`
+  (`alr install … --prefix` + `$GITHUB_PATH`) ; (2) **version** — hors tag,
+  `github.ref_name` vaut le nom de branche → version forcée à `1.0.0` sauf
+  forme de tag. `needs: [book]` ajouté (les jobs Linux/Windows dépassaient
+  l'artefact en course). **Exécution finale verte** : `book` + 4 cellules,
+  `--selftest` 136/136, `ldd`/DLL propres, archives nommées `1.0.0`, livre
+  régénéré **bit-identique** au SHA256 documenté. Le job `draft-release` reste
+  gaté sur tag `v*` (aucune publication). Détail : `DEVELOPMENT.md` §69.5-69.6.
 
 ### Phase P3 : mesures contre hypothèses (P3.2, P3.3, P3.4)
 

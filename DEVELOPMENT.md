@@ -1245,3 +1245,44 @@ Archive Linux `bmi2` (binaire statique) extraite dans un répertoire **vide** :
 `ldd` propre, `--version` = `BabaChess 1.0.0`, `uci` répond (`id name` +
 `uciok`), `go movetime 1000` renvoie `bestmove d2d4` (le livre est trouvé à
 côté de l'exécutable), `--selftest` vert.
+
+### 69.5 Première exécution de test réelle et correctifs
+
+Le workflow ne pouvant pas être testé par `workflow_dispatch` tant qu'il
+n'existe pas sur la branche par défaut, l'exécution a été provoquée par un
+**déclencheur de branche temporaire** (`release/1.0-ci`), retiré ensuite. Ce
+premier passage réel a **révélé deux blocages**, tous deux corrigés et
+**revérifiés par une seconde exécution complète, verte** :
+
+1. **Windows : `gprbuild: command not found`.** `alire-project/setup-alire`
+   ne met que `alr` sur le `PATH` ; le compilateur GNAT est résolu en interne
+   par `alr`. Le projet n'étant pas une crate Alire (pas d'`alire.toml`),
+   `alr exec` est indisponible (`Cannot continue without a workspace`).
+   → action composite locale `.github/actions/setup-gnat` :
+   `alr install gnat_native gprbuild --prefix`, préfixe ajouté à
+   `$GITHUB_PATH` (`pwd -W` sous git-bash Windows).
+2. **Empaquetage : `RELEASE_NOTES_release/1.0-ci.md` introuvable.** Hors tag,
+   `github.ref_name` vaut le nom de **branche** (avec `/`). → version forcée à
+   `1.0.0` tant qu'elle n'a pas la forme d'un tag/entrée.
+3. Au passage, `linux` et `windows` consommaient l'artefact `book` sans
+   `needs: [book]`, donc ils le **dépassaient en course** ;
+   `needs` ajouté.
+
+**Résultat de la seconde exécution** (`release/1.0-ci`, run
+`36672758647`) : job `book` **vert** (9 min 26 s, livre régénéré
+**bit-identique** au SHA256 documenté `f917c95b…`), et les **quatre cellules**
+Linux/Windows × `release`/`portable` **vertes** (`--selftest` **136/136**,
+`ldd` → *not a dynamic executable* sous Linux, DLL limitées à
+`ADVAPI32/KERNEL32/msvcrt` sous Windows). Archives produites et **correctement
+nommées** `babachess-1.0.0-{linux,windows}-x86_64-{bmi2,portable}.(tar.gz|zip)`.
+Le job `draft-release` est **correctement ignoré** sur une branche (gaté sur
+tag `v*`) : aucun brouillon, aucun tag, aucune publication.
+
+### 69.6 Reproductibilité du livre
+
+L'artefact `book` régénéré en CI depuis le mois Lichess épinglé (SHA256
+vérifié) est **octet pour octet** identique au livre construit localement :
+**611 056 octets**, SHA256
+`f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d`. La
+régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
+le workflow y contribue).
