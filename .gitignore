@@ -29,3 +29,5 @@ bin/
 gmon.out
 perf.data*
 scripts/__pycache__/
+build/
+dist/

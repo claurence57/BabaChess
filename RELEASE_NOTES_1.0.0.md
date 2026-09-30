@@ -137,10 +137,12 @@ Command-line options: `--threads N` (also `-TN`, `--thread=N`), `--book <file>`,
 
 ## Known limitations
 
-- **No DTZ at the root.** Syzygy probing is **WDL-only**: the engine knows a
-  position is won/drawn/lost but without distance-to-zero at the root, so it may
-  take a longer route in a won endgame. In the 50-move-rule zone this can mean
-  missing a win that a DTZ-aware engine would find.
+- **No DTZ at the root; won-endgame conversion is unreliable.** Syzygy probing
+  is **WDL-only**: the engine knows a position is won/drawn/lost but not the
+  distance-to-zero. Measured on real 3-5 piece tables: KQvK, KRvK and KBBvK are
+  generally converted, but KBNvK, KQvKR and KRPvKR **sometimes fail** (drawn
+  instead of won), varying with the position. In the 50-move-rule zone this
+  means the engine can miss a win a DTZ-aware engine would convert.
 - **Transposition table assumes the x86-64 memory model.** The lock-free shared
   TT relies on total-store-order behaviour (three `pragma Atomic`, no explicit
   barriers). It is **not portable** to weakly-ordered architectures such as
@@ -160,19 +162,38 @@ Command-line options: `--threads N` (also `-TN`, `--thread=N`), `--book <file>`,
 
 ## Playing strength (estimate)
 
-**Status: an honest relative Elo with an interval is reported here once the
-release gauntlet has been run.** No absolute rating is invented here.
+No **absolute** rating is claimed. What was measured is a **relative Elo** over
+**1 000 games** against four Stockfish opponents limited with
+`UCI_LimitStrength` / `UCI_Elo`, at **10+0.1**, one thread each, book **off** on
+both sides, using the repository opening suite:
 
-- A gauntlet of **≥ 1000 games** was played with the repository opening suite,
-  book **neutralised**, against opponents of known level (see the release
-  report / `DEVELOPMENT.md`).
-- Any Elo figure published with this release is **relative to the tested
-  opponents under the stated time control**, with its error bar; it is **not** a
-  CCRL or FIDE rating.
-- Absolute reference ratings of the opponents are quoted only if verified on
-  the CCRL list at the matching time control; otherwise the report says so.
+| Opponent | Games | W-D-L | Score | Elo versus opponent (95% CI) |
+|---|---|---|---|---|
+| Stockfish `UCI_Elo` 1900 | 250 | 214-2-34 | 86.0 % | **+315** (+254 … +377) |
+| Stockfish `UCI_Elo` 2000 | 250 | 180-12-58 | 74.4 % | **+185** (+138 … +233) |
+| Stockfish `UCI_Elo` 2100 | 250 | 179-13-58 | 74.2 % | **+184** (+136 … +231) |
+| Stockfish `UCI_Elo` 2300 | 250 | 168-9-73 | 69.0 % | **+139** (+93 … +185) |
 
-See the release report for the raw numbers (games, scores, intervals).
+Caveats, stated honestly:
+
+- These are **differences versus the opponent's `UCI_Elo` setting**, not a CCRL
+  or FIDE rating. Stockfish's `UCI_Elo` is an approximate internal scale; it was
+  **not** cross-checked against the CCRL list at this time control here.
+- Projecting the four anchors would put BabaChess ~**2 185–2 440** (mean ~2 280),
+  but this is **indicative only**: the anchors are not perfectly consistent
+  (the 1900→2000 gap measures more than 100 Elo), which is a known limitation
+  of the limiter mode.
+- A GNU Chess 6.2.7 leg was started and **discarded**: GNU Chess disconnected
+  five times on its own side ("No result"), so the leg was not exploitable; the
+  partial result (negative) is reported as-is in `DEVELOPMENT.md` §68.4 rather
+  than hidden.
+
+Method: the Elo difference is computed from the game results with the logistic
+score relation and a delta-method 95% interval (`scripts/elo_report.py`); this
+is approximate and does not fit a joint model such as `ordo` (unavailable here).
+
+**To weaken BabaChess** for play against humans, use your GUI's time handicap or
+reduce `Threads`; there is no `UCI_LimitStrength`/`UCI_Elo` in this engine.
 
 ---
 

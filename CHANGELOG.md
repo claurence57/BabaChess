@@ -52,6 +52,64 @@ d'ouvertures distribuable, durcit et étalonne, puis outille l'empaquetage.
   (release, checked, portable, debug) ; `debug` sans avertissement, y compris
   le build CI `-cargs:ada -gnatwe`. Détail : `DEVELOPMENT.md` §66.
 
+### Release R2 : livre Polyglot distribué (R2.1-R2.3)
+
+- **R2.1 — `scripts/make_book.py`.** Génère un livre Polyglot depuis **un mois**
+  de la base Lichess standard rated (**CC0**, 2016-01 ; SHA256 du fichier source
+  consigné). Lecture en streaming du `.pgn.zst` ; filtrage **sur les en-têtes
+  avant** de parser le movetext (un mois décompressé fait des dizaines de Go) ;
+  statistiques par (position, coup) ; sélection par seuils ; poids
+  `parties × score²` normalisés dans [1, 65535] ; écriture stricte 16 octets
+  big-endian triée par clé non signée. Étape optionnelle Stockfish disponible
+  (**non exécutée** : aucun binaire fourni).
+- **R2.2 — calibrage des seuils.** Les valeurs par défaut « suggérées »
+  (`min_pos 40`, `min_move 12`, part 3 %, 6 coups max) ne produisent que
+  ~1 417 entrées et **échouent au test de couverture obligatoire** : `e2e4 g8f6`
+  n'est que le **7ᵉ** coup après 1.e4, et `d2d4 e7e5` (1,0 %), `d2d4 c7c6`
+  (2,4 %), `d2d4 e7e6` (score 0,4497) passent sous les seuils. Seuils retenus :
+  `--min-elo 2000 --min-pos 5 --min-move 4 --min-move-share 1 --min-score 0.44
+  --max-moves 10` → **38 191 entrées** (611 056 octets). Le plancher 2200 n'est
+  pas tenable sur un mois (**29 438** parties qualifiantes contre **168 262** à
+  2000) : repli documenté sur 2000.
+- **R2.3 — provenance.** `books/README.md` (mois, URL, SHA256 source et livre,
+  filtres, paramètres, régénération) ; mention CC0 (données dérivées) dans
+  `NOTICE.md` ; le `.bin` **n'est pas** commité (`.gitignore`), seul le
+  `README.md` l'est.
+- Validations : (a) taille multiple de 16 et clés triées OK ; (b) parcours
+  d'arbre : 14 547 positions atteignables ; (c) couverture minimale OK ;
+  (d) 100 parties livre activé, UCI, 1 thread : 0 coup illégal, 0 perte au
+  temps, 0 plantage ; (e) 300 parties livre on/off (voir §67). Détail :
+  `DEVELOPMENT.md` §67.
+
+### Release R3-R4 : robustesse, mesure, paquetage (R3.x, R4.x)
+
+- **R3.1 — suite perft** `scripts/perft_suite.sh` : positions 1-6 (CPW) jusqu'à
+  la profondeur 6 quand la référence existe → **32/32 exactes**, écart nul.
+- **R3.2 — stress** : 250 parties par (protocole × threads) = **500 par
+  protocole**, 1 et 4 threads, cadences 10+0.1 et 20+0.2, livre désactivé :
+  **1 000 parties, 0 crash, 0 coup illégal, 0 perte au temps**. Commandes
+  exactes consignées.
+- **R3.3 — Syzygy 3-5 pièces** : téléchargées (WDL). Conversion **instable**
+  (KQvK/KRvK/KBBvK convertissent ; KBNvK/KQvKR/KRPvKR échouent selon la
+  graine) — limite **WDL sans DTZ à la racine**, documentée en « Known
+  limitations » (pas corrigée).
+- **R3.4 — étalonnage** : 1 000 parties contre 4 Stockfish bridés
+  (`UCI_LimitStrength/UCI_Elo` 1900/2000/2100/2300) → Elo **relatif** mesuré
+  **+315/+185/+184/+139** (IC 95 % ci-dessus), notes CCRL non vérifiables ici →
+  **aucun Elo absolu publié**. GNU Chess écarté (déconnexions propres, résultat
+  négatif rapporté). Détail : `DEVELOPMENT.md` §68 et
+  `RELEASE_NOTES_1.0.0.md`.
+- **R2.3(e) — livre on/off** (contrôle de cohérence) : 300 parties,
+  **98-88-114 (51,7 %)**, **+11,6 ± 31,0 Elo** (IC contient 0).
+- **R4 — paquetage** : `release.yml` (tags `v*` / dispatch) construit
+  Linux+Windows en `release`/`portable`, `--selftest` par binaire, archives
+  nommées `babachess-1.0.0-<os>-x86_64-<build>.(tar.gz|zip)` avec binaire,
+  `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README.md`,
+  `RELEASE_NOTES_1.0.0.md`, `books/book.bin` ; `SHA256SUMS` ; release en
+  **BROUILLON**. Binaires **sans dépendance d'exécution GNAT** (liaison
+  statique de `libgnat`/`libgnarl`, vérifiée par `ldd`). Détail :
+  `DEVELOPMENT.md` §69.
+
 ### Phase P3 : mesures contre hypothèses (P3.2, P3.3, P3.4)
 
 Détail : `DEVELOPMENT.md` §65.

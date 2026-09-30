@@ -21,7 +21,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 MAJOR="$(gcc -dumpversion | cut -d. -f1)"
-ADALIB="$(gcc -print-search-dirs | sed -n 's/^libraries: =//p' | tr ':' '\n' | grep -m1 '/adalib$' || true)"
+ADALIB="$(gnatls -v 2>/dev/null | sed -n 's#.*: *\(/.*adalib\)$#\1#p' | head -1)"
+if [ -z "$ADALIB" ] || [ ! -f "$ADALIB/libgnat.a" ]; then
+  CAND="$(dirname "$(gcc -print-file-name=libgnat.a 2>/dev/null)")"
+  [ -f "$CAND/libgnat.a" ] && ADALIB="$CAND"
+fi
+if [ -z "$ADALIB" ] || [ ! -f "$ADALIB/libgnat.a" ]; then
+  ADALIB="$(find /usr/lib/gcc -type d -name adalib -print -quit 2>/dev/null || true)"
+fi
 [ -n "$ADALIB" ] && [ -f "$ADALIB/libgnat.a" ] \
   || { echo "cannot locate adalib/libgnat.a (is GNAT installed?)" >&2; exit 1; }
 
