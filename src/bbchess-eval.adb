@@ -820,6 +820,11 @@ package body BBChess.Eval is
       Near     : constant Bitboard := Near_Zone (Enemy_King);
       Far      : constant Bitboard := Far_Zone (Enemy_King);
       Result   : Tapered_Score_Type := (Opening => 0, End_Game => 0);
+      --  Squares a piece can reach "safely": not own-occupied and not
+      --  attacked by an enemy pawn (a square a pawn covers is not a real
+      --  outpost for a piece, so it should not count as mobility).
+      Safe     : constant Bitboard :=
+        Free and not Pawn_Attack_Set (Enemy_Pawns, Enemy);
 
       --  ------------------------------------------------------------------
       --  Positional terms. Each one is a named, self-contained function so
@@ -863,7 +868,7 @@ package body BBChess.Eval is
                   --  Phase-tapered mobility: opening and endgame weights may
                   --  differ (default: equal, so this equals Both (Weight * N)).
                   Acc := Acc +
-                    Mobility_Bonus (Score_Type (Popcount (A and Free)),
+                    Mobility_Bonus (Score_Type (Popcount (A and Safe)),
                                     Weight_Op, Weight_Eg);
 
                   -- Weighted attacker of the enemy king (mirrors the old
