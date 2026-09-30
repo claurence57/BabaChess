@@ -270,7 +270,8 @@ package body BBChess.Eval is
       P_Shield1, P_Shield2, P_Shield3, P_OpenFile, P_Storm,
       P_Atk_N, P_Atk_B, P_Atk_R, P_Atk_Q, P_Exposed,
       P_Threat_Pawn, P_Threat_Minor,
-      P_Pass_Enemy_King, P_Pass_Own_King, P_Pass_Free, P_Unstoppable);
+      P_Pass_Enemy_King, P_Pass_Own_King, P_Pass_Free, P_Unstoppable,
+      P_Backward_Op, P_Backward_Eg, P_Backward_Open);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -328,7 +329,13 @@ package body BBChess.Eval is
      P_Pass_Free       => 6,
      --  A passed pawn the enemy king can no longer catch, when the enemy
      --  has no piece left (pawn ending): worth most of a queen.
-     P_Unstoppable     => 600);
+     P_Unstoppable     => 600,
+     --  Backward pawn: cannot be supported by a friendly pawn and its stop
+     --  square is controlled by an enemy pawn. Extra opening penalty when
+     --  the enemy can pile up on it along a half-open file.
+     P_Backward_Op     => 8,
+     P_Backward_Eg     => 8,
+     P_Backward_Open   => 6);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -580,6 +587,10 @@ package body BBChess.Eval is
    Threat_Pawn           : Score_Type renames Params (P_Threat_Pawn);
    Threat_Minor          : Score_Type renames Params (P_Threat_Minor);
    King_Safety_Min_Phase : constant Natural := 20;
+
+   Backward_Opening   : Score_Type renames Params (P_Backward_Op);
+   Backward_Endgame   : Score_Type renames Params (P_Backward_Eg);
+   Backward_Open_File : Score_Type renames Params (P_Backward_Open);
 
    Pass_Enemy_King : Score_Type renames Params (P_Pass_Enemy_King);
    Pass_Own_King   : Score_Type renames Params (P_Pass_Own_King);
@@ -1037,6 +1048,50 @@ package body BBChess.Eval is
          return Acc;
       end Pawn_Structure_Term;
 
+      --  Backward pawns. A pawn is backward when no friendly pawn stands on
+      --  an adjacent file level with it or behind it (so it can never be
+      --  supported by a pawn advance) and the square in front of it is
+      --  attacked by an enemy pawn (so it cannot advance safely either).
+      --  Isolated pawns are excluded: they are already penalised.
+      function Backward_Pawns_Term return Tapered_Score_Type is
+         Enemy_Att : constant Bitboard :=
+           Pawn_Attack_Set (Enemy_Pawns, Enemy);
+         PB  : Bitboard := Own_Pawns;
+         Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
+      begin
+         while PB /= 0 loop
+            declare
+               Sq   : constant Square_Type := Lowest_Bit (PB);
+               F    : constant Natural := File_Of (Sq);
+               R    : constant Natural := Rank_Of (Sq);
+               Adj  : constant Bitboard :=
+                 (if F > 0 then File_Mask (F - 1) else 0)
+                 or (if F < 7 then File_Mask (F + 1) else 0);
+               --  Ranks level with or behind the pawn, from its own side.
+               Level_Or_Behind : constant Bitboard :=
+                 (if Color = White
+                  then (if R >= 7 then not 0 else 2 ** ((R + 1) * 8) - 1)
+                  else not (2 ** (R * 8) - 1));
+               Stop : constant Bitboard :=
+                 (if Color = White then North_1 (Bit (Sq))
+                  else South_1 (Bit (Sq)));
+            begin
+               if (Own_Pawns and Adj) /= 0
+                 and then (Own_Pawns and Adj and Level_Or_Behind) = 0
+                 and then (Stop and Enemy_Att) /= 0
+               then
+                  Acc := Acc + (Opening => -Backward_Opening,
+                                End_Game => -Backward_Endgame);
+                  if (Enemy_Pawns and File_Mask (F)) = 0 then
+                     Acc.Opening := Acc.Opening - Backward_Open_File;
+                  end if;
+               end if;
+            end;
+            PB := PB and (PB - 1);
+         end loop;
+         return Acc;
+      end Backward_Pawns_Term;
+
       --  Endgame dynamics of the passed pawns (endgame component only):
       --    * the enemy king far from the promotion square is good, our own
       --      king far from it is bad (king support of the passer);
@@ -1146,6 +1201,7 @@ package body BBChess.Eval is
       Result := Result + Connected_Rooks_Term;
       Result := Result + Pawn_Structure_Term;
       Result := Result + Passer_Race_Term (Race);
+      Result := Result + Backward_Pawns_Term;
       Result := Result + Pawn_Threats_Term;
       Result := Result + King_Activity_Term;
 
