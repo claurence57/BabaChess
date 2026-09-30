@@ -597,6 +597,68 @@ package body BBChess.Eval is
    Square_Distance : array (Square_Type, Square_Type) of Natural :=
      (others => (others => 0));
 
+   --  Drawishness scale (out of 16) of the final score, from the material
+   --  configuration only. Depends on the side that is ahead (sign of
+   --  Score) and on colour-blind material counts, so it is the same for a
+   --  position and its colour mirror: the evaluation stays antisymmetric.
+   --    * opposite-coloured bishops, no other piece: 8/16;
+   --    * the side ahead has no pawn and at most a minor piece of extra
+   --      piece material (KR v KB, KB v K + pawns...): 2/16;
+   --    * the side ahead has no pawn and only two knights: 0 (KNN v K).
+   function Draw_Scale (Position : in Position_Type;
+                        Score    : in Score_Type) return Natural
+   is
+      function N (C : Color_Type; K : Kind_Type) return Natural is
+        (Popcount (Position.Pieces (Make (C, K))));
+      function Piece_Mat (C : Color_Type) return Integer is
+        (N (C, Knight) * Params (P_Knight)
+         + N (C, Bishop) * Params (P_Bishop)
+         + N (C, Rook) * Params (P_Rook)
+         + N (C, Queen) * Params (P_Queen));
+      Strong : Color_Type;
+      Weak   : Color_Type;
+   begin
+      if Score = 0 then
+         return 16;
+      end if;
+      Strong := (if Score > 0 then White else Black);
+      Weak   := Opposite (Strong);
+
+      --  Opposite-coloured bishops and nothing else but pawns.
+      if N (White, Bishop) = 1 and then N (Black, Bishop) = 1
+        and then N (White, Knight) + N (Black, Knight) + N (White, Rook)
+                 + N (Black, Rook) + N (White, Queen) + N (Black, Queen) = 0
+      then
+         declare
+            WB : constant Square_Type :=
+              Lowest_Bit (Position.Pieces (White_Bishop));
+            BB : constant Square_Type :=
+              Lowest_Bit (Position.Pieces (Black_Bishop));
+         begin
+            if (File_Of (WB) + Rank_Of (WB)) mod 2
+               /= (File_Of (BB) + Rank_Of (BB)) mod 2
+            then
+               return 8;
+            end if;
+         end;
+      end if;
+
+      if N (Strong, Pawn) = 0 then
+         if Piece_Mat (Strong) - Piece_Mat (Weak)
+              <= Params (P_Bishop)
+         then
+            return 2;
+         end if;
+         if N (Strong, Knight) = 2 and then Piece_Mat (Strong)
+              = 2 * Params (P_Knight)
+           and then N (Weak, Pawn) = 0
+         then
+            return 0;
+         end if;
+      end if;
+      return 16;
+   end Draw_Scale;
+
    --  "No unstoppable passer" marker for the pawn-race comparison.
    No_Race : constant Natural := 99;
 
@@ -1149,6 +1211,16 @@ package body BBChess.Eval is
             end if;
          end if;
          Result := Result + Blend (Diff, Phase);
+      end;
+
+      --  Drawish material configurations: shrink the score toward 0. The
+      --  division truncates toward zero, so the scaling stays antisymmetric.
+      declare
+         S : constant Natural := Draw_Scale (Position, Result);
+      begin
+         if S < 16 then
+            Result := Result * Score_Type (S) / 16;
+         end if;
       end;
 
       return Result;
