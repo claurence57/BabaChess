@@ -52,7 +52,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [ release, portable ]
+        include:
+          - mode: release
+            label: bmi2
+          - mode: portable
+            label: portable
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -85,7 +89,7 @@ jobs:
         run: |
           V="${VERSION#v}"
           scripts/package_release.sh --binary bin/babachess --os linux \
-            --build ${{ matrix.mode }} --version "$V" --book books/book.bin
+            --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
       - uses: actions/upload-artifact@v4
         with:
@@ -101,7 +105,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [ release, portable ]
+        include:
+          - mode: release
+            label: bmi2
+          - mode: portable
+            label: portable
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -121,6 +129,18 @@ jobs:
         shell: bash
         run: ./bin/babachess.exe --selftest
 
+      - name: Confirm no GNAT runtime DLL dependency
+        shell: bash
+        run: |
+          if command -v objdump >/dev/null; then
+            objdump -p bin/babachess.exe | grep -i "DLL Name" | tee /tmp/dll.txt
+            if grep -qi 'libgnat\|libgnarl' /tmp/dll.txt; then
+              echo "::error::binary still depends on the GNAT runtime"; exit 1
+            fi
+          else
+            echo "objdump unavailable; skipping the DLL check"
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           name: book
@@ -133,7 +153,7 @@ jobs:
         run: |
           V="${VERSION#v}"
           scripts/package_release.sh --binary bin/babachess.exe --os windows \
-            --build ${{ matrix.mode }} --version "$V" --book books/book.bin
+            --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
       - uses: actions/upload-artifact@v4
         with:
@@ -145,6 +165,9 @@ jobs:
 
   draft-release:
     name: Draft release
+    # A workflow_dispatch run only builds and packages (safe test run); the
+    # draft release itself is created only for a v* tag push.
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [ book, linux, windows ]
     runs-on: ubuntu-latest
     steps:
