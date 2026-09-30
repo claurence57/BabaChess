@@ -269,7 +269,8 @@ package body BBChess.Eval is
       P_Protected_Op, P_Protected_Eg, P_Outside_Op, P_Outside_Eg,
       P_Shield1, P_Shield2, P_Shield3, P_OpenFile, P_Storm,
       P_Atk_N, P_Atk_B, P_Atk_R, P_Atk_Q, P_Exposed,
-      P_Threat_Pawn, P_Threat_Minor);
+      P_Threat_Pawn, P_Threat_Minor,
+      P_Pass_Enemy_King, P_Pass_Own_King, P_Pass_Free, P_Unstoppable);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -319,7 +320,15 @@ package body BBChess.Eval is
      P_Atk_Q           => 24,
      P_Exposed         => 28,
      P_Threat_Pawn     => 15,
-     P_Threat_Minor    => 10);
+     P_Threat_Minor    => 10,
+     --  Endgame passed-pawn dynamics (see Passer_Race_Term): per square of
+     --  king distance to the promotion square, scaled by Passer_Weight (Row).
+     P_Pass_Enemy_King => 5,
+     P_Pass_Own_King   => 3,
+     P_Pass_Free       => 6,
+     --  A passed pawn the enemy king can no longer catch, when the enemy
+     --  has no piece left (pawn ending): worth most of a queen.
+     P_Unstoppable     => 600);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -572,6 +581,25 @@ package body BBChess.Eval is
    Threat_Minor          : Score_Type renames Params (P_Threat_Minor);
    King_Safety_Min_Phase : constant Natural := 20;
 
+   Pass_Enemy_King : Score_Type renames Params (P_Pass_Enemy_King);
+   Pass_Own_King   : Score_Type renames Params (P_Pass_Own_King);
+   Pass_Free       : Score_Type renames Params (P_Pass_Free);
+   Unstoppable     : Score_Type renames Params (P_Unstoppable);
+
+   --  Growth of the endgame passed-pawn terms with the pawn's own row: a
+   --  pawn on its 2nd/3rd rank is far from promoting and the king race
+   --  hardly matters, a pawn on the 7th makes it decisive.
+   Passer_Weight : constant array (Natural range 0 .. 7) of Score_Type :=
+     (0, 0, 0, 1, 2, 4, 7, 0);
+
+   --  King (Chebyshev) distance between two squares, precomputed at
+   --  elaboration; bounded by construction (0 .. 7).
+   Square_Distance : array (Square_Type, Square_Type) of Natural :=
+     (others => (others => 0));
+
+   --  "No unstoppable passer" marker for the pawn-race comparison.
+   No_Race : constant Natural := 99;
+
    --------------------
    -- King safety --
    --------------------
@@ -689,7 +717,8 @@ package body BBChess.Eval is
                                Occ      : in Bitboard;
                                Near_Danger : out Score_Type;
                                Far_Danger  : out Score_Type;
-                               Attackers   : out Natural)
+                               Attackers   : out Natural;
+                               Race        : out Natural)
      return Tapered_Score_Type
    is
       Enemy    : constant Color_Type := Opposite (Color);
@@ -946,6 +975,72 @@ package body BBChess.Eval is
          return Acc;
       end Pawn_Structure_Term;
 
+      --  Endgame dynamics of the passed pawns (endgame component only):
+      --    * the enemy king far from the promotion square is good, our own
+      --      king far from it is bad (king support of the passer);
+      --    * a passer whose whole path to promotion is empty gains a bonus;
+      --    * when the enemy has no piece left (pawn ending), a passer the
+      --      enemy king cannot catch (rule of the square) is reported through
+      --      Race as the number of pawn moves to promote; Static compares the
+      --      two sides and awards Unstoppable to the faster one.
+      --  Every term depends only on Color, the board and the side to move,
+      --  so the White - Black difference stays antisymmetric.
+      function Passer_Race_Term (Race : out Natural)
+        return Tapered_Score_Type
+      is
+         PB      : Bitboard := Passed_Pawns (Position, Color);
+         Own_K   : constant Square_Type :=
+           Lowest_Bit (Position.Pieces (Make (Color, King)));
+         Pawn_Ending : constant Boolean := Enemy_Non_Pawn = 0;
+         Acc     : Tapered_Score_Type := (Opening => 0, End_Game => 0);
+      begin
+         Race := No_Race;
+         while PB /= 0 loop
+            declare
+               Sq    : constant Square_Type := Lowest_Bit (PB);
+               F     : constant Natural := File_Of (Sq);
+               Row   : constant Natural := Own_Row (Color, Sq);
+               Promo : constant Square_Type :=
+                 (if Color = White then 56 + F else F);
+               W     : constant Score_Type := Passer_Weight (Row);
+               --  Squares strictly in front of the pawn up to promotion.
+               Path  : constant Bitboard :=
+                 (if Color = White
+                  then File_Mask (F) and not (Bit (Sq) * 2 - 1) and not Bit (Sq)
+                  else File_Mask (F) and (Bit (Sq) - 1));
+               Free_Path : constant Boolean := (Path and Occ) = 0;
+            begin
+               Acc.End_Game := Acc.End_Game
+                 + W * (Pass_Enemy_King
+                          * Score_Type (Square_Distance (Enemy_King, Promo))
+                        - Pass_Own_King
+                          * Score_Type (Square_Distance (Own_K, Promo)));
+               if Free_Path then
+                  Acc.End_Game := Acc.End_Game + W * Pass_Free;
+               end if;
+
+               if Pawn_Ending and then Free_Path then
+                  declare
+                     --  Pawn moves to promote (a double step saves one).
+                     Moves : constant Natural :=
+                       (if Row = 1 then 5 else 7 - Row);
+                     Enemy_Tempo : constant Natural :=
+                       (if Position.Side = Enemy then 1 else 0);
+                  begin
+                     if Moves + Enemy_Tempo
+                          < Square_Distance (Enemy_King, Promo)
+                       and then Moves < Race
+                     then
+                        Race := Moves;
+                     end if;
+                  end;
+               end if;
+            end;
+            PB := PB and (PB - 1);
+         end loop;
+         return Acc;
+      end Passer_Race_Term;
+
       --  Threats: pawns attacking enemy pieces, and minor pieces attacking
       --  enemy rooks/queens. Computed per color and mirrored, so symmetric.
       --  The pawn attack set is the union of the attack squares of all the
@@ -988,6 +1083,7 @@ package body BBChess.Eval is
       Result := Result + Mobility_Term (Near_Danger, Far_Danger, Attackers);
       Result := Result + Connected_Rooks_Term;
       Result := Result + Pawn_Structure_Term;
+      Result := Result + Passer_Race_Term (Race);
       Result := Result + Pawn_Threats_Term;
       Result := Result + King_Activity_Term;
 
@@ -1004,6 +1100,7 @@ package body BBChess.Eval is
       W_Att         : Natural;
       B_Near, B_Far : Score_Type;
       B_Att         : Natural;
+      W_Race, B_Race : Natural;
    begin
       -- Material + piece-square tables: maintained incrementally by
       -- Make_Move / Unmake_Move (White-positive).
@@ -1012,9 +1109,11 @@ package body BBChess.Eval is
       -- Positional terms, tapered by the game phase.
       declare
          White_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, White, Occ, W_Near, W_Far, W_Att);
+           Positional_Score (Position, White, Occ, W_Near, W_Far, W_Att,
+                             W_Race);
          Black_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, Black, Occ, B_Near, B_Far, B_Att);
+           Positional_Score (Position, Black, Occ, B_Near, B_Far, B_Att,
+                             B_Race);
          Diff : Tapered_Score_Type;
       begin
          -- King safety (middlegame only), per color. It must be folded into
@@ -1037,6 +1136,18 @@ package body BBChess.Eval is
          Diff :=
            (Opening  => White_Positional.Opening - Black_Positional.Opening,
             End_Game => White_Positional.End_Game - Black_Positional.End_Game);
+
+         --  Pawn race: the side whose unstoppable passer promotes first
+         --  (ties go to the side to move, which pushes first) gets the bonus.
+         if W_Race /= No_Race or else B_Race /= No_Race then
+            if W_Race < B_Race
+              or else (W_Race = B_Race and then Position.Side = White)
+            then
+               Diff.End_Game := Diff.End_Game + Unstoppable;
+            else
+               Diff.End_Game := Diff.End_Game - Unstoppable;
+            end if;
+         end if;
          Result := Result + Blend (Diff, Phase);
       end;
 
@@ -1080,6 +1191,15 @@ package body BBChess.Eval is
 begin
    -- Precompute the flat material+PST table.
    Rebuild_Material_PST;
+
+   -- King distance table.
+   for A in Square_Type loop
+      for B in Square_Type loop
+         Square_Distance (A, B) :=
+           Natural'Max (abs (Integer (File_Of (A)) - Integer (File_Of (B))),
+                        abs (Integer (Rank_Of (A)) - Integer (Rank_Of (B))));
+      end loop;
+   end loop;
 
    -- Precompute the king near/far attack zones.
    for S in Square_Type loop
