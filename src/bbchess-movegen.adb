@@ -96,6 +96,108 @@ package body BBChess.Movegen is
    end King_In_Check;
 
    -----------------
+   -- Gives_Check --
+   -----------------
+
+   -- Does applying Move leave the opponent's king in check? Computed without
+   -- mutating the caller's position. Direct checks use the piece attack set
+   -- from the destination with the origin vacated; discovered checks compare
+   -- the friendly sliders' attacks on the enemy king before and after the
+   -- move (only possible when a friendly slider shares the king-From line, so
+   -- that cheap Line test short-circuits the common case). Castling, en
+   -- passant and promotion are resolved by a make/unmake round-trip: their
+   -- occupancy changes (rook shift, captured pawn behind the target, new
+   -- piece) are not worth special-casing for the few calls that hit them.
+   function Gives_Check (Position : in Position_Type;
+                         Move     : in Move_Type) return Boolean
+   is
+      Us      : constant Color_Type := Color (Move.Piece);
+      Them    : constant Color_Type := Opposite (Us);
+      King_Sq : constant Square_Type := King_Square (Position, Them);
+   begin
+      if Move.Flag in King_Side_Castle | Queen_Side_Castle | En_Passant
+        or else Move.Flag = Promotion
+      then
+         declare
+            P    : Position_Type := Position;
+            Undo : Undo_Info;
+         begin
+            Make_Move (P, Move, Undo);
+            return King_In_Check (P, Them);
+         end;
+      end if;
+
+      declare
+         --  Occupancy after the move: origin vacated, destination occupied
+         --  (the captured piece, if any, is overwritten by the mover).
+         Occ : constant Bitboard :=
+           (Position.All_Occ and not Bit (Move.From)) or Bit (Move.To);
+      begin
+         -- Direct check: the moved piece attacks the enemy king from To.
+         case Kind (Move.Piece) is
+            when Pawn =>
+               if (Pawn_Attacks (Us, Move.To) and Bit (King_Sq)) /= 0 then
+                  return True;
+               end if;
+            when Knight =>
+               if (Knight_Attacks (Move.To) and Bit (King_Sq)) /= 0 then
+                  return True;
+               end if;
+            when Bishop =>
+               if (Bishop_Attacks (Move.To, Occ) and Bit (King_Sq)) /= 0 then
+                  return True;
+               end if;
+            when Rook =>
+               if (Rook_Attacks (Move.To, Occ) and Bit (King_Sq)) /= 0 then
+                  return True;
+               end if;
+            when Queen =>
+               if (Queen_Attacks (Move.To, Occ) and Bit (King_Sq)) /= 0 then
+                  return True;
+               end if;
+            when King =>
+               null;  --  king moves are only relevant through castling (above)
+         end case;
+
+         -- Discovered check: From screened a friendly slider from the enemy
+         -- king and the move opens that line. Necessary condition first.
+         declare
+            Own_Sliders : constant Bitboard :=
+              Position.Pieces (Make (Us, Bishop))
+              or Position.Pieces (Make (Us, Rook))
+              or Position.Pieces (Make (Us, Queen));
+         begin
+            if Own_Sliders /= 0
+              and then (Line (King_Sq, Move.From) and Own_Sliders) /= 0
+            then
+               declare
+                  R_After : constant Bitboard := Rook_Attacks (King_Sq, Occ);
+                  B_After : constant Bitboard := Bishop_Attacks (King_Sq, Occ);
+                  R_New   : constant Bitboard :=
+                    R_After and not Rook_Attacks (King_Sq, Position.All_Occ);
+                  B_New   : constant Bitboard :=
+                    B_After and not Bishop_Attacks (King_Sq, Position.All_Occ);
+                  Own_RQ  : constant Bitboard :=
+                    Position.Pieces (Make (Us, Rook))
+                    or Position.Pieces (Make (Us, Queen));
+                  Own_BQ  : constant Bitboard :=
+                    Position.Pieces (Make (Us, Bishop))
+                    or Position.Pieces (Make (Us, Queen));
+                  Rook_Opened : constant Boolean := (R_New and Own_RQ) /= 0;
+                  Bishop_Opened : constant Boolean := (B_New and Own_BQ) /= 0;
+               begin
+                  if Rook_Opened or else Bishop_Opened then
+                     return True;
+                  end if;
+               end;
+            end if;
+         end;
+      end;
+
+      return False;
+   end Gives_Check;
+
+   -----------------
    -- Pinned mask --
    -----------------
 

@@ -43,8 +43,10 @@ package BBChess.See is
        and then (Move.Flag = Promotion
                  or else (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0);
    -- Net centipawn outcome, from the point of view of the side to move, of
-   -- playing Move (a capture, an en-passant or a promotion). Positive means
-   -- the exchange wins material, negative that it loses some. Non-tactical
-   -- moves return 0.
+   -- playing Move: a capture, an en-passant, a promotion, or a QUIET move
+   -- (Victim = 0, so a quiet move scores negative exactly when the piece
+   -- would be lost on the destination square -- the quiescence quiet-check
+   -- filter). Positive means the exchange wins material, negative that it
+   -- loses some.
 
 end BBChess.See;

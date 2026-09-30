@@ -279,14 +279,12 @@ package body BBChess.See is
          return SEE_Value (Kind (Move.Promotion)) + 100;
       end if;
 
-      -- Quiet (non-tactical) moves have no exchange to evaluate.
-      if Move.Flag /= En_Passant then
-         Present := Piece_At (Position, Move.To, Captured);
-         if not Present then
-            return 0;
-         end if;
-         Victim := SEE_Value (Kind (Captured));
-      else
+      -- Captures (and en passant) take a victim; a quiet move takes nothing
+      -- (Victim stays 0) but is still evaluated, so the caller can drop a
+      -- quiet move whose piece would be lost on the destination square (the
+      -- quiescence quiet-check filter). The exchange machinery below is
+      -- identical: build the board after the move and run Exchange.
+      if Move.Flag = En_Passant then
          Victim := SEE_Value (Pawn);
          -- The captured pawn stands just behind the (empty) target square.
          if Side = White then
@@ -295,6 +293,11 @@ package body BBChess.See is
             Victim_Square := Move.To + 8;
          end if;
          Captured := Make (Opp, Pawn);
+      else
+         Present := Piece_At (Position, Move.To, Captured);
+         if Present then
+            Victim := SEE_Value (Kind (Captured));
+         end if;
       end if;
 
       -- Build the compact working board from the position, then play the
@@ -308,7 +311,7 @@ package body BBChess.See is
 
          if Move.Flag = En_Passant then
             See_Remove (B, Captured, Victim_Square);
-         else
+         elsif Present then
             See_Remove (B, Captured, Move.To);
          end if;
          See_Remove (B, Move.Piece, Move.From);

@@ -63,6 +63,16 @@ package BBChess.Movegen is
      return Boolean;
    -- True when the king of the given color is attacked by the opponent.
 
+   function Gives_Check (Position : in Position_Type;
+                         Move     : in Move_Type) return Boolean;
+   -- True when applying Move (a pseudo-legal move of the side to move) leaves
+   -- the OPPONENT's king in check. Computed without mutating the position
+   -- (direct check, discovered check, and the special cases through a
+   -- make/unmake round-trip), so it can be called on candidate moves in the
+   -- pruning and quiescence paths. The move need not be legal: an illegal
+   -- move simply reports whether it would give check, which is what the
+   -- callers compare against the make/unmake reference.
+
    function Is_Attacked (Position : in Position_Type;
                          Square   : in Square_Type;
                          By       : in Color_Type) return Boolean;
