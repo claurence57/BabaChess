@@ -933,3 +933,14 @@ désormais comme **référence** pour les A/B de développement.
 ## Lignes précédentes (développement, non taguées)
 
 Historique complet des chantiers dans `DEVELOPMENT.md` (§ 1 à 6).
+
+### Évaluation — étape 2 : lots 2.1-2.4 adoptés, 2.5 rejeté
+
+Les quatre premiers lots d'évaluation (pions passés en finale, facteur
+d'échelle vers la nulle, pion arriéré, fou enfermé) sont **adoptés** : juge GNU
++16,7 Elo (27,4 % contre 25,5 % au point zéro) et auto-match SPRT **PASS**
+(+35,5 Elo, LOS 100 %). Moratoire `King_Safety` respecté (aucun paramètre
+touché). `--bench 9/11/12 = 522 983 / 1 624 296 / 2 692 048`.
+
+Le lot 2.5 (mobilité « sûre ») est mesuré puis **rejeté** (−10,0 Elo contre les
+lots 2.1-2.4). Détail : `DEVELOPMENT.md` §71-72.

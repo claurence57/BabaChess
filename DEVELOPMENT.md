@@ -1343,3 +1343,21 @@ L'étape 1 (recherche) avait donné quatre lots **neutres ou négatifs** (§70) 
 l'étape 2 (évaluation) donne un gain **positif et confirmé** par les deux
 juges. Cela recoupe l'audit externe : le manque est d'abord dans les
 **connaissances d'évaluation**, pas dans les coups de recherche.
+
+## 72. Évaluation — lot 2.5 (patch 5, mobilité « sûre ») : REJETÉ
+
+Le cinquième patch d'évaluation (compter `A and Free and not Enemy_Pawn_Attacks`
+en mobilité au lieu de `A and Free`) a été appliqué **sur les lots 2.1-2.4
+adoptés**, mesuré, puis **rejeté**.
+
+- `--bench 9/11/12` = 620 677 / 1 533 459 / 3 229 781 (les lots 2.1-2.4 seuls :
+  522 983 / 1 624 296 / 2 692 048).
+- Symétrie : 0 écart / 3 000 positions. `--selftest` 136/136.
+- **M1 — gauntlet GNU** (400 parties appariées, 10+0.1, graine 7), contre le
+  binaire 2.1-2.4 adopté : Baba **75-60-265 = 26,2 %**, −179,5 Elo
+  (IC −214,2 … −144,7). Le binaire 2.1-2.4 de référence : 27,4 %, −169,5 Elo.
+  → écart apparié **−10,0 Elo** : sous la barre +15. Non adopté.
+
+Le commit du patch a été **annulé** (`git revert`) ; l'arbre revient aux lots
+2.1-2.4 (`--bench 9/11/12 = 522 983 / 1 624 296 / 2 692 048`). La mobilité
+« sûre » change tout le milieu de partie et coûte plus qu'elle ne rapporte ici.
