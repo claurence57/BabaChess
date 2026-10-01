@@ -1286,3 +1286,74 @@ vérifié) est **octet pour octet** identique au livre construit localement :
 `f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d`. La
 régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
 le workflow y contribue).
+
+## 70. Écart vs GNU Chess — étape 1 (recherche) : tous lots rejetés
+
+Campagne « réduire l'écart avec GNU Chess » (prompt `prompt-etapes-1-3.md`),
+**étape 1 (recherche)**. Instrumentation d'abord, puis quatre lots, chacun
+**mesuré** et **rejeté** faute d'un gain ≥ +15 Elo sur le juge GNU. La force du
+moteur reste donc celle de la 1.0.0 (aucun arbre modifié).
+
+### 70.1 Protocole de mesure
+
+- `scripts/gauntlet_gnu.sh` : 400 parties appariées contre GNU Chess 6.2.7
+  (Fruit 2.1), 10+0.1, graine 7, `openings/openings.epd`, livre désactivé des
+  deux côtés, `-recover` obligatoire (GNU s'interrompt seul). Les abandons de
+  GNU sont comptés à part et exclus. Elo **relatif** à la référence (jamais
+  absolu).
+- `scripts/sym_check.py` : `Static(miroir(p)) = -Static(p)` sur ≥ 3 000
+  positions (ouvertures + parties aléatoires), **0 écart** toléré.
+- **Point zéro** mesuré (main @ 3a1997e) : `--bench 9/11/12 = 518 612 /
+  1 286 807 / 2 358 722` ; gauntlet : **59-86-255 = 25,5 %**, **−186,2 Elo**
+  (IC 95 % −219,4 … −153,1), 0 crash.
+  > Le prompt citait +4=10−46 (15 %, ≈ −300 Elo). Ce nombre **n'est pas
+  > reproduit** ici : sur les mêmes ouvertures cette machine mesure 25,5 %.
+  > Le point zéro honnête est celui mesuré. Un gauntlet de 400 parties ne
+  > résout qu'environ ±34 Elo.
+
+### 70.2 Lots mesurés
+
+Chaque lot est un commit sur sa branche, avec son verdict. Tous **rejetés**.
+
+| Lot | Contenu | `--bench 9/11/12` | GNU (W-D-L, %) | Δ Elo / point zéro | Verdict |
+|---|---|---|---|---|---|
+| S1.1 | échecs calmes au 1er ply de quiescence | 665 293 / 1 828 185 / 3 057 328 | 46-77-277, 21,1 % | **−42,7** | rejeté |
+| S1.2 | LMP + futilité conscients des échecs | 607 956 / 1 890 641 / 3 096 806 | 68-68-264, 25,5 % | **+0,0** (+31 % nœuds) | rejeté |
+| S1.3 | SEE dans le tri des prises (prises perdantes sous les killers) | 527 307 / 1 571 301 / 2 900 270 | 63-72-265, 24,8 % | **−7,0** | rejeté |
+| S1.4a+c | null move : condition `Eval ≥ β` + borne de score de mat | 535 543 / 1 411 122 / 2 467 829 | 50-62-288, 20,2 % | **−51,9** | rejeté |
+| S1.4b | null move : vérification (zone de zugzwang) | 518 810 / 1 272 470 / 2 508 450 | 78-64-258, 27,5 % | **+17,8** (GNU) mais **−5,9 ± 11,0, LOS 14,7 %, INCONCLUSIVE** (M2 auto-match, 2 000 parties) | rejeté |
+
+- **S1.1** : le mécanisme fonctionne (la sonde `r4rk1/2p2p2/p5pQ/8/2R5/pP6/
+  q5PP/3R2K1` rapporte `mate 3` à la profondeur 6 — `Rh4 … Qh8#` — au lieu de
+  la manquer), mais le surcoût de quiescence (−18 % nps, +28…42 % nœuds) coûte
+  plus au milieu de partie que les mats de frontière ne rapportent.
+- **S1.2** : strictement neutre (+0,0) pour +31 % de nœuds → aucun intérêt.
+- **S1.3** : −7 Elo, sous la barre.
+- **S1.4a+c** : la condition `Eval ≥ β` est **trop restrictive** pour ce moteur
+  (elle supprime des coupures utiles) → −52 Elo.
+- **S1.4b** : le juge GNU suggérait +17,8 Elo, mais le juge **secondaire**
+  (auto-match SPRT, bornes [−5, 0], 2 000 parties) donne −5,9 Elo, LOS 14,7 %,
+  **INCONCLUSIVE** : le « gain » GNU est dans le bruit (±34 Elo). Règle de
+  décision : un lot de connaissance n'est adopté que si GNU ≥ +15 **ET** M2
+  PASS. Non adopté.
+
+### 70.3 Conservé (infrastructure, iso-comportement)
+
+- `Gives_Check` (`BBChess.Movegen`) : test « ce coup donne-t-il échec ? » sans
+  mutation (échec direct depuis l'occupation vidée de l'origine, échec à la
+  découverte par différence de rayons, cas spéciaux par make/unmake). Vérifié
+  contre la référence make/unmake sur **733 130** coups légaux (selftest).
+- `Static_Exchange_Value` étendue aux coups calmes (victime = 0) : permet de
+  filtrer un échec calme dont la pièce serait perdue.
+- Ces deux ajouts ne changent **pas** l'arbre : `--bench 9/11/12 = 518 612 /
+  1 286 807 / 2 358 722`, `--selftest` vert. Ils restent disponibles pour un
+  futur lot.
+
+### 70.4 Leçon
+
+Sur ce moteur, les quatre axes de recherche proposés sont **neutres ou
+négatifs** contre GNU à 10+0.1 : le gain manquant n'est pas dans ces coups de
+recherche, ou il est masqué par leur coût en nœuds. Le juge GNU à 400 parties
+(±34 Elo) ne suffit pas à confirmer un petit gain : S1.4b l'illustre (GNU +18,
+auto-match −6). Conclusion honnête : **aucun de ces lots n'est conservé** ;
+l'écart vs GNU à cette cadence reste ≈ −186 Elo.

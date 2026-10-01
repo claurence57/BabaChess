@@ -933,3 +933,20 @@ désormais comme **référence** pour les A/B de développement.
 ## Lignes précédentes (développement, non taguées)
 
 Historique complet des chantiers dans `DEVELOPMENT.md` (§ 1 à 6).
+
+### Campagne « écart vs GNU Chess » — étape 1 (recherche) : aucun lot retenu
+
+Instrumentation ajoutée : `scripts/gauntlet_gnu.sh` (juge 400 parties contre
+GNU Chess 6.2.7, écart Elo relatif) et `scripts/sym_check.py` (symétrie de
+l'évaluation, ≥ 3 000 positions, 0 écart). Point zéro mesuré : **25,5 %**
+(−186 Elo) — pas les 15 %/≈ −300 annoncés.
+
+Quatre lots de recherche implémentés puis **mesurés et rejetés** (aucun gain
+≥ +15 Elo ; aucun arbre conservé) : échecs calmes en quiescence (**−42,7**),
+élagage conscient des échecs (**+0,0**, +31 % nœuds), SEE dans le tri des
+prises (**−7,0**), null move `Eval ≥ β` (**−51,9**). Le null move avec
+vérification suggérait +17,8 Elo contre GNU mais l'auto-match donne −5,9
+(INCONCLUSIVE) : non retenu.
+
+Seule l'infrastructure iso-comportement est conservée : `Gives_Check` (vérifié
+sur 733 130 coups) et SEE sur les coups calmes. Détail : `DEVELOPMENT.md` §70.
