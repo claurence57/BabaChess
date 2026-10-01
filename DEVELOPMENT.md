@@ -1286,3 +1286,60 @@ vérifié) est **octet pour octet** identique au livre construit localement :
 `f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d`. La
 régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
 le workflow y contribue).
+
+## 71. Évaluation — lots 2.1, 2.2, 2.3, 2.4 (patches 1 à 4) : ADOPTÉS
+
+Les quatre premiers patches d'évaluation (étape 2 du plan) sont appliqués sur
+la branche `eval-improvements` (à partir de `main` @ 3a1997e) et **adoptés** :
+les deux juges concordent. Fichier unique touché : `src/bbchess-eval.adb`
+(+292 / −5 lignes), aucun changement de recherche ni de movegen.
+
+### 71.1 Contenu
+
+- **2.1 pions passés en finale** : distance du roi adverse et du roi ami à la
+  case de promotion, pion passé libre, pion imparable (`P_Pass_Enemy_King`,
+  `P_Pass_Own_King`, `P_Pass_Free`, `P_Unstoppable`).
+- **2.2 réduction vers la nulle** : facteur d'échelle de la composante finale
+  (fous de couleurs opposées, matériel insuffisant, etc.).
+- **2.3 pion arriéré** : pénale `P_Backward_Op/Eg`, majorée colonne semi-ouverte.
+- **2.4 fou enfermé** : pénale `P_Trapped_Bishop`.
+
+### 71.2 Moratoire `King_Safety`
+
+Vérifié : **aucune** ligne des patches 1-4 ne modifie `King_Safety` ni ses
+paramètres (`P_Shield*`, `P_OpenFile`, `P_Storm`, `P_Atk_*`, `P_Exposed`).
+Moratoire respecté.
+
+### 71.3 Mesures (toutes brutes)
+
+| Indicateur | Point zéro (1.0.0) | Lots 2.1-2.4 |
+|---|---|---|
+| `--bench 9/11/12` | 518 612 / 1 286 807 / 2 358 722 | **522 983 / 1 624 296 / 2 692 048** |
+| Symétrie (3 000 positions) | 0 écart | **0 écart** |
+| `--selftest` (debug / release) | 136/136 | **136/136** |
+
+**M1 — gauntlet GNU** (400 parties appariées, 10+0.1, graine 7, mêmes
+ouvertures) :
+
+| | W-D-L | Score | Elo |
+|---|---|---|---|
+| Point zéro | 59-86-255 | 25,5 % | −186,2 (IC −219,4 … −153,1) |
+| Lots 2.1-2.4 | **71-77-252** | **27,4 %** | **−169,5** (IC −202,8 … −136,2) |
+
+→ écart apparié **+16,7 Elo** vs point zéro (au-dessus de la barre +15).
+
+**M2 — SPRT auto-match** (`scripts/sprt.sh 10+0.1 -5 0 2000 7`), bornes
+[−5, 0] : NEW **373-262-456 = 55,1 %**, **+35,5 ± 15,7 Elo**, LOS 100 %,
+**PASS** (H1 accepté au bout de 1 091 parties).
+
+### 71.4 Verdict
+
+Les deux juges étant favorables (GNU +16,7 ; auto-match PASS), les lots
+**2.1 à 2.4 sont adoptés** et empilés sur `eval-improvements`.
+
+### 71.5 Comparaison à l'étape 1
+
+L'étape 1 (recherche) avait donné quatre lots **neutres ou négatifs** (§70) ;
+l'étape 2 (évaluation) donne un gain **positif et confirmé** par les deux
+juges. Cela recoupe l'audit externe : le manque est d'abord dans les
+**connaissances d'évaluation**, pas dans les coups de recherche.
