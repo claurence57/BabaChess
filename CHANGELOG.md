@@ -6,6 +6,23 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## Non publié (branche `claude_cloud`)
+
+### Évaluation : connaissance des pions passés (+30 Elo)
+
+- **Pions passés** : le pion arrière d'un doublé ne reçoit plus le bonus de
+  pion passé ; un passé dont la case d'arrêt est occupée garde 60 % de son
+  bonus ; en finale, bonus de **proximité des rois** à la case d'arrêt (roi
+  adverse loin, roi ami près), pondéré par la rangée.
+- Mesure : **+32,4 ± 17,4 Elo** (1000 parties, 4+0.04), confirmée par
+  **+30,7 ± 16,7 Elo** sur une seconde série (graine différente).
+- Cinq autres termes testés et **non retenus** (défauts neutres, arbre
+  identique, pilotables par `--params`) : réduction des finales nulles,
+  zone de mobilité, pièces en prise, pions connectés/arriérés, rampe de phase
+  de la sécurité du roi. Détail : `DEVELOPMENT.md` §70.
+- Self-test : 143 contrôles (sept positions de symétrie ajoutées).
+- `--bench 9/11/12` = 555 169 / 1 610 806 / 2 745 245 nœuds.
+
 ## 1.0.0 (2026-09-29)
 
 **Première release publique de BabaChess.** Moteur d'échecs bitboard en Ada 2012
