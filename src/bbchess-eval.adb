@@ -334,24 +334,32 @@ package body BBChess.Eval is
      P_Passed_Blocked  => 60,
      P_PKing_Them      => 19,
      P_PKing_Us        => 8,
+     --
+     --  The terms below were measured (SPRT, 1000 games each, see
+     --  DEVELOPMENT.md §70) and did not gain: they are kept as switchable
+     --  infrastructure with neutral defaults (node-identical to the build
+     --  without them). Values tried: OCB 32, NoPawn 1, Mob_Area 1,
+     --  Hanging 30/18, Threat_RQ 20, Connected 100, Backward 6/10,
+     --  KS ramp 10..30.
+     --
      --  Endgame scaling, out of 64 (64 = no scaling; P_Scale_NoPawn 0 = off).
-     P_Scale_OCB       => 32,
-     P_Scale_NoPawn    => 1,
+     P_Scale_OCB       => 64,
+     P_Scale_NoPawn    => 0,
      --  1 = mobility ignores the squares attacked by enemy pawns.
-     P_Mob_Area        => 1,
+     P_Mob_Area        => 0,
      --  Undefended enemy pieces we attack; rook attacking a queen.
-     P_Hanging_Op      => 30,
-     P_Hanging_Eg      => 18,
-     P_Threat_RQ       => 20,
+     P_Hanging_Op      => 0,
+     P_Hanging_Eg      => 0,
+     P_Threat_RQ       => 0,
      --  Connected (supported / phalanx) pawns, % of the base table
      --  (0 = off); backward pawns.
-     P_Connected       => 100,
-     P_Backward_Op     => 6,
-     P_Backward_Eg     => 10,
+     P_Connected       => 0,
+     P_Backward_Op     => 0,
+     P_Backward_Eg     => 0,
      --  King safety phase gate: full above Hi, none at or below Lo, linear
      --  in between. Hi <= Lo is the historical hard gate at Lo.
-     P_KS_Lo           => 10,
-     P_KS_Hi           => 30);
+     P_KS_Lo           => 20,
+     P_KS_Hi           => 20);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -875,7 +883,9 @@ package body BBChess.Eval is
 
                   if Kind = Rook then
                      -- Rook attacking an enemy queen.
-                     if (A and Enemy_Queens) /= 0 then
+                     if Threat_Rook_Queen /= 0
+                       and then (A and Enemy_Queens) /= 0
+                     then
                         Acc := Acc +
                           Both (Threat_Rook_Queen
                                 * Score_Type (Popcount (A and Enemy_Queens)));
@@ -1330,7 +1340,9 @@ package body BBChess.Eval is
 
       -- Drawish endgames: only low-material positions can be scaled, so the
       -- check is skipped above a phase of 40 (e.g. both queens and a rook).
-      if Phase <= 40 and then Result /= 0 then
+      if Phase <= 40 and then Result /= 0
+        and then (Scale_No_Pawn /= 0 or else Scale_OCB /= 64)
+      then
          Result := Result * Scale_Factor (Result) / 64;
       end if;
 
