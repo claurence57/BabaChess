@@ -157,8 +157,9 @@ package BBChess.Search is
       S_Counter_Score,
       S_Cont_History_Weight,
       S_History_Max,
-      --  Experimental search features (each neutral at its default).
-      S_Rfp_Depth,        -- reverse futility up to this depth (1 = historical)
+      --  Search features (DEVELOPMENT.md §71). RFP depth 6, IIR and the bad-
+      --  capture ordering are on by default; the others are neutral (off).
+      S_Rfp_Depth,        -- reverse futility up to this depth (1 = pre-§71)
       S_Rfp_Step,         -- extra RFP margin per ply beyond depth 1
       S_Nmp_Eval,         -- 1 = null move only when the static eval >= beta
       S_Qs_TT,            -- 1 = quiescence probes / stores the TT

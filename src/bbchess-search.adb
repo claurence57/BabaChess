@@ -84,13 +84,13 @@ package body BBChess.Search is
       S_Counter_Score        => 800_000,
       S_Cont_History_Weight  => 6,
       S_History_Max          => 16_384,
-      S_Rfp_Depth            => 1,
-      S_Rfp_Step             => 0,
+      S_Rfp_Depth            => 6,
+      S_Rfp_Step             => 80,
       S_Nmp_Eval             => 0,
       S_Qs_TT                => 0,
       S_Tm_Stable            => 0,
-      S_Iir_Depth            => 0,
-      S_Bad_Capture          => 0,
+      S_Iir_Depth            => 4,
+      S_Bad_Capture          => 1,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0);
 
