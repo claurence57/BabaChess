@@ -83,7 +83,16 @@ package body BBChess.Search is
       S_Check_Ext_Ply_Guard  => 4,
       S_Counter_Score        => 800_000,
       S_Cont_History_Weight  => 6,
-      S_History_Max          => 16_384);
+      S_History_Max          => 16_384,
+      S_Rfp_Depth            => 1,
+      S_Rfp_Step             => 0,
+      S_Nmp_Eval             => 0,
+      S_Qs_TT                => 0,
+      S_Tm_Stable            => 0,
+      S_Iir_Depth            => 0,
+      S_Bad_Capture          => 0,
+      S_Lmr_Hist             => 0,
+      S_Asp_Grow             => 0);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,
@@ -107,7 +116,16 @@ package body BBChess.Search is
       S_Check_Ext_Ply_Guard  => 0,
       S_Counter_Score        => 0,
       S_Cont_History_Weight  => 0,
-      S_History_Max          => 0);
+      S_History_Max          => 0,
+      S_Rfp_Depth            => 0,
+      S_Rfp_Step             => 0,
+      S_Nmp_Eval             => 0,
+      S_Qs_TT                => 0,
+      S_Tm_Stable            => 0,
+      S_Iir_Depth            => 0,
+      S_Bad_Capture          => 0,
+      S_Lmr_Hist             => 0,
+      S_Asp_Grow             => 0);
 
    Search_Param_Max : constant Search_Param_Array :=
      (S_Futility_Margin      => 32_000,
@@ -136,7 +154,16 @@ package body BBChess.Search is
       -- max is deliberately NOT lowered to 16_384 because a params file that
       -- requests a larger value is well-formed and its (already documented)
       -- behaviour must not change; History_Max is not tuned by spsa.py.
-      S_History_Max          => 1_000_000);
+      S_History_Max          => 1_000_000,
+      S_Rfp_Depth            => 16,
+      S_Rfp_Step             => 1_000,
+      S_Nmp_Eval             => 1,
+      S_Qs_TT                => 1,
+      S_Tm_Stable            => 1,
+      S_Iir_Depth            => 64,
+      S_Bad_Capture          => 1,
+      S_Lmr_Hist             => 1_000_000,
+      S_Asp_Grow             => 1);
 
    -- Named constants used by the rest of the search (the former hard-coded
    -- constants, now renames of the parameter table entries).
@@ -779,6 +806,15 @@ package body BBChess.Search is
               Ordering_Value (Captured_Kind (Position, Move));
             Attacker : constant Score_Type := Ordering_Value (Kind (Move.Piece));
          begin
+            -- A capture that loses material (SEE < 0) is tried after the
+            -- quiet moves. SEE is only computed when the attacker is worth
+            -- more than its victim: otherwise the exchange cannot lose.
+            if Search_Params (S_Bad_Capture) /= 0
+              and then Attacker > Victim
+              and then Static_Exchange_Value (Position, Move) < 0
+            then
+               return -2_000_000 + Victim * 16 - Attacker;
+            end if;
             return 2_000_000 + Victim * 16 - Attacker;
          end;
       end if;
@@ -1199,6 +1235,22 @@ package body BBChess.Search is
       Moves    : Move_List;
       Count    : Natural;
       Limit    : Natural;
+      -- Quiescence TT: probe and store only when enabled; a slot already
+      -- holding a full-width (depth >= 1) result is never overwritten.
+      Use_TT   : constant Boolean := Search_Params (S_Qs_TT) /= 0;
+      May_Store : Boolean := Use_TT;
+
+      function Finish (Score : in Score_Type) return Score_Type is
+      begin
+         if May_Store then
+            Store (Position, 0,
+                   (if Score >= B then Lower_Bound
+                    elsif Score <= Alpha then Upper_Bound
+                    else Exact),
+                   Score, Empty_Move, Ply);
+         end if;
+         return Score;
+      end Finish;
    begin
       Poll_Time (Ctx);
 
@@ -1237,6 +1289,44 @@ package body BBChess.Search is
          end if;
       end if;
 
+      if Use_TT then
+         declare
+            Bk : constant Natural := TT_Bucket (Position);
+            E  : TT_Entry := Transposition_Table (Bk);
+            Found : Boolean := Key_Match (E, Position.Key);
+         begin
+            if not Found then
+               E := Transposition_Table (Bk + 1);
+               Found := Key_Match (E, Position.Key);
+            end if;
+            if Found then
+               declare
+                  D  : constant Bitboard := E.Data;
+                  TS : constant Score_Type :=
+                    Adjust_Score (Data_Score (D), Ply);
+               begin
+                  if Data_Depth_Signed (D) >= 1 then
+                     May_Store := False;
+                  end if;
+                  if Data_Depth_Signed (D) >= 0 then
+                     case Data_Bound (D) is
+                        when Exact =>
+                           return TS;
+                        when Lower_Bound =>
+                           if TS >= B then
+                              return TS;
+                           end if;
+                        when Upper_Bound =>
+                           if TS <= A then
+                              return TS;
+                           end if;
+                     end case;
+                  end if;
+               end;
+            end if;
+         end;
+      end if;
+
       -- Stand pat is only legal when not in check: a side that is in check
       -- must play an evasion, so the static evaluation cannot be returned.
       if not In_Check then
@@ -1262,7 +1352,7 @@ package body BBChess.Search is
       end if;
 
       if Count = 0 and then In_Check then
-         return -(Mate_Score - Ply);
+         return Finish (-(Mate_Score - Ply));
       end if;
 
       -- Move the tactical moves (captures / promotions) to the front, then
@@ -1353,7 +1443,7 @@ package body BBChess.Search is
                   Unmake_Move (Position, Moves (I), Undo);
 
                   if Score >= B then
-                     return Score;
+                     return Finish (Score);
                   end if;
                   if Score > A then
                      A := Score;
@@ -1363,7 +1453,7 @@ package body BBChess.Search is
          end loop;
       end;
 
-      return A;
+      return Finish (A);
    end Quiescence;
 
    -------------
@@ -1424,8 +1514,12 @@ package body BBChess.Search is
                                   In_Check : in Boolean;
                                   Have_Eval : in Boolean;
                                   Eval_Now, Beta : in Score_Type) return Boolean is
-     (Depth = 1 and then not In_Check and then Have_Eval
-      and then Eval_Now - Futility_Margin >= Beta);
+     (Depth >= 1 and then Depth <= Natural (Search_Params (S_Rfp_Depth))
+      and then not In_Check and then Have_Eval
+      and then (Depth = 1 or else Beta < Mate_Threshold)
+      and then Eval_Now - Futility_Margin
+                 - Search_Params (S_Rfp_Step) * Score_Type (Depth - 1)
+               >= Beta);
    pragma Inline (Can_Reverse_Futility);
 
    function Can_Null_Move (Depth : in Natural;
@@ -1466,9 +1560,11 @@ package body BBChess.Search is
 
    function Negamax (Ctx        : in Context_Access;
                      Position   : in out Position_Type;
-                     Depth, Ply : in Natural;
+                     Depth_In, Ply : in Natural;
                      Alpha, Beta : in Score_Type) return Score_Type
    is
+      -- Remaining depth; lowered by the internal iterative reduction.
+      Depth       : Natural := Depth_In;
       A           : Score_Type := Alpha;
       B           : Score_Type := Beta;
       Moves       : Move_List;
@@ -1629,9 +1725,23 @@ package body BBChess.Search is
          end if;
       end if;
 
-      -- Static evaluation for the pruning decisions (only needed at low
-      -- depth and out of check).
-      if not In_Check and then Depth <= 3 then
+      -- Internal iterative reduction: without a hash move the ordering is
+      -- poor, so the node is searched one ply shallower.
+      if Search_Params (S_Iir_Depth) > 0
+        and then Hash_Move = Empty_Move
+        and then Depth >= Natural'Max (2, Natural (Search_Params (S_Iir_Depth)))
+      then
+         Depth := Depth - 1;
+      end if;
+
+      -- Static evaluation for the pruning decisions (only needed out of
+      -- check, at low depth, or at any depth when the null move or the
+      -- reverse futility pruning consult it).
+      if not In_Check
+        and then (Depth <= 3
+                  or else Search_Params (S_Nmp_Eval) /= 0
+                  or else Depth <= Natural (Search_Params (S_Rfp_Depth)))
+      then
          Eval_Now := Evaluate (Position);
          Have_Eval := True;
       end if;
@@ -1669,7 +1779,10 @@ package body BBChess.Search is
       -- never twice in a row). The null block clears this node's Move_Path
       -- slot, so a node reached right after a null move reads Prev =
       -- Empty_Move and is thereby barred from nulling again.
-      if Can_Null_Move (Depth, In_Check, Prev, Position) then
+      if Can_Null_Move (Depth, In_Check, Prev, Position)
+        and then (Search_Params (S_Nmp_Eval) = 0
+                  or else (Have_Eval and then Eval_Now >= B))
+      then
          declare
             -- Only Side, En_Passant and Key are touched here (the recursive
             -- call restores the board through Unmake), so saving just those
@@ -1793,6 +1906,22 @@ package body BBChess.Search is
                    Reduction :=
                      LMR_Table (Natural'Min (Depth, LMR_Max_Depth),
                                 Natural'Min (I, LMR_Max_Move));
+                   -- History-guided adjustment: a quiet move with a good
+                   -- history score is reduced less, a bad one more. Only the
+                   -- history band of the ordering score is used (killers and
+                   -- the counter-move score far above it).
+                   if Search_Params (S_Lmr_Hist) > 0
+                     and then Ord (I) < 500_000
+                   then
+                      declare
+                         Adj : constant Integer := Integer'Max
+                           (-2, Integer'Min
+                              (2, Ord (I) / Search_Params (S_Lmr_Hist)));
+                      begin
+                         Reduction := Natural
+                           (Integer'Max (0, Integer (Reduction) - Adj));
+                      end;
+                   end if;
                    if Reduction >= Child_Depth then
                       Reduction := Child_Depth - 1;
                    end if;
@@ -2041,6 +2170,14 @@ package body BBChess.Search is
       Last_Depth  : Natural := 0;
       Elapsed     : Duration;
       Prev_Iter   : Duration := 0.0;
+      --  Best-move stability time management: the soft target is scaled by
+      --  the number of consecutive iterations that kept the same best move,
+      --  and stretched when the score drops. Only with a clock (Soft < Hard):
+      --  a fixed move time is spent in full.
+      Soft_Eff    : Duration := Soft_Alloc;
+      Stable_Iter : Natural := 0;
+      Prev_Done_Best  : Move_Type := Empty_Move;
+      Prev_Done_Score : Score_Type := 0;
    begin
       Work.Key := Hash.Compute (Work);
 
@@ -2064,8 +2201,8 @@ package body BBChess.Search is
             end if;
             if Soft_Alloc > 0.0
               and then D > 1
-              and then (Elapsed >= Soft_Alloc
-                        or else Elapsed + Prev_Iter > Soft_Alloc)
+              and then (Elapsed >= Soft_Eff
+                        or else Elapsed + Prev_Iter > Soft_Eff)
             then
                exit;
             end if;
@@ -2078,7 +2215,28 @@ package body BBChess.Search is
                Alpha := Best_Score - Aspiration_Window;
                Beta  := Best_Score + Aspiration_Window;
                Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score);
-               if Score <= Alpha or else Score >= Beta then
+               if Search_Params (S_Asp_Grow) /= 0 then
+                  --  Widen only the failing side, doubling the margin, and
+                  --  fall back to the full window once it gets large.
+                  declare
+                     Delta_W : Score_Type := Aspiration_Window;
+                  begin
+                     while Score <= Alpha or else Score >= Beta loop
+                        Delta_W := 2 * Delta_W;
+                        if Delta_W > 1_000 then
+                           Alpha := -Infinity;
+                           Beta  := Infinity;
+                        elsif Score <= Alpha then
+                           Alpha := Score_Type'Max (-Infinity, Score - Delta_W);
+                        else
+                           Beta := Score_Type'Min (Infinity, Score + Delta_W);
+                        end if;
+                        Best := Root_Search (Ctx, Work, D, Best,
+                                             Alpha, Beta, Score);
+                        exit when Alpha = -Infinity and then Beta = Infinity;
+                     end loop;
+                  end;
+               elsif Score <= Alpha or else Score >= Beta then
                   Alpha := -Infinity;
                   Beta  := Infinity;
                   Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score);
@@ -2095,6 +2253,36 @@ package body BBChess.Search is
             --  Duration of the iteration just completed (used to estimate
             --  whether the next one can still fit under the soft target).
             Prev_Iter := To_Duration (Clock - Ctx.Start_Time) - Elapsed;
+
+            if Search_Params (S_Tm_Stable) /= 0
+              and then Soft_Alloc > 0.0
+              and then Time_Alloc > Soft_Alloc
+            then
+               if D > 1 and then Done_Best = Prev_Done_Best then
+                  Stable_Iter := Stable_Iter + 1;
+               else
+                  Stable_Iter := 0;
+               end if;
+               declare
+                  Pct : Natural :=
+                    (case Stable_Iter is
+                        when 0      => 140,
+                        when 1      => 120,
+                        when 2      => 100,
+                        when 3      => 85,
+                        when others => 70);
+               begin
+                  if D > 1 and then Done_Score < Prev_Done_Score - 25 then
+                     Pct := Pct + 30;
+                  end if;
+                  Soft_Eff := Soft_Alloc * Pct / 100;
+                  if Soft_Eff > Time_Alloc then
+                     Soft_Eff := Time_Alloc;
+                  end if;
+               end;
+               Prev_Done_Best := Done_Best;
+               Prev_Done_Score := Done_Score;
+            end if;
 
             if Report then
                --  Single-thread: report the exact counter. Lazy SMP: report

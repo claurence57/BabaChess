@@ -156,7 +156,17 @@ package BBChess.Search is
       S_Check_Ext_Ply_Guard,
       S_Counter_Score,
       S_Cont_History_Weight,
-      S_History_Max);
+      S_History_Max,
+      --  Experimental search features (each neutral at its default).
+      S_Rfp_Depth,        -- reverse futility up to this depth (1 = historical)
+      S_Rfp_Step,         -- extra RFP margin per ply beyond depth 1
+      S_Nmp_Eval,         -- 1 = null move only when the static eval >= beta
+      S_Qs_TT,            -- 1 = quiescence probes / stores the TT
+      S_Tm_Stable,        -- 1 = soft time scaled by best-move stability
+      S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
+      S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
+      S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
+      S_Asp_Grow);        -- 1 = aspiration window widened gradually
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
 
