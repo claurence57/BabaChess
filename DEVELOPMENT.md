@@ -1352,3 +1352,77 @@ indépendantes excluent 0 de plusieurs écarts-types.
   réutilisable pour un essai futur (autres valeurs, version plus rapide de F5).
 - Nouveaux nœuds de référence : `--bench 9/10/11/12` = 555 169 / 767 045 /
   1 610 806 / 2 745 245.
+
+## 71. Recherche : trois fonctions retenues sur huit (+79 Elo)
+
+Branche `claude/lucid-mendel-2zx7xp` (reprise de `claude_search`). Huit
+fonctions de recherche ont été ajoutées derrière des paramètres
+(`--params`), toutes neutres par défaut (arbre identique à `main`, `--bench 9`
+= 555 169), puis mesurées **séparément**. Journal brut complet, commité après
+chaque match : `CAMPAGNE_RECHERCHE.md`.
+
+### 71.1 Incident et protocole traçable
+
+Une première tentative (session précédente) a produit deux résultats
+(« s1b » +13,6, « s2 » +14,6) **inattribuables** : les fichiers de paramètres
+n'étaient pas commités et ont été perdus au recyclage du conteneur. Ils sont
+écartés. Le protocole de reprise rend chaque mesure reproductible :
+
+- un fichier de paramètres commité par test (`campaign/params/<id>.params`) ;
+- un seul binaire pour les deux camps (copie figée), « old » = défauts ;
+  mode `new:old` pour les mesures incrémentales (`campaign/run.sh`) ;
+- fastchess 4+0.04, 1 thread, 4 parties simultanées, SPRT [0, 5] α = β = 0,05,
+  plafond 1000 parties, chaque ouverture dans les deux couleurs ;
+- ouvertures `openings/ops.epd` (781 positions) générées par
+  `scripts/expand_openings.py` (graine 1, deux demi-coups aléatoires depuis
+  `openings.epd`, |éval| ≤ 70 cp à profondeur 7) ;
+- résultat ajouté, commité et poussé à la fin de chaque match.
+
+Second incident : un lot lancé en processus détaché (`setsid nohup`) a été
+tué au recyclage du conteneur (une tâche détachée ne maintient pas la
+session). Les matchs tournent depuis par lots de deux (≈ 95 min) dans une
+tâche de fond suivie par la session.
+
+### 71.2 Fonctions et résultats individuels (1000 parties chacun)
+
+| Id | Fonction | Paramètres | Graine 1 | Graine 2 |
+|---|---|---|---|---|
+| t1 | Reverse futility jusqu'à prof. 6 (marge + 80/ply au-delà de 1 ; hors scores de mat au-delà de 1) | `S_RFP_DEPTH 6`, `S_RFP_STEP 80` | +39,4 ± 16,9 | +8,0 ± 16,8 |
+| t2 | Null move seulement si éval statique ≥ beta | `S_NMP_EVAL 1` | +18,8 ± 16,0 | +6,3 ± 16,3 |
+| t3 | Table de transposition en quiescence | `S_QS_TT 1` | −2,1 ± 15,8 | — |
+| t4 | Temps modulé par la stabilité du meilleur coup | `S_TM_STABLE 1` | −1,0 ± 16,5 | — |
+| t5 | Réduction itérative interne (sans coup de table) dès prof. 4 | `S_IIR_DEPTH 4` | +21,9 ± 17,1 | +16,7 ± 16,6 |
+| t6 | Captures SEE < 0 ordonnées après les coups calmes | `S_BAD_CAPTURE 1` | +52,9 ± 16,8 | +50,4 ± 16,2 |
+| t7 | LMR ± 1-2 ply selon l'historique | `S_LMR_HIST 4000` | +0,7 ± 16,9 | — |
+| t8 | Fenêtre d'aspiration élargie progressivement | `S_ASP_GROW 1` | −16,7 ± 16,8 | — |
+
+### 71.3 Étape combinée (graine 3) et vérification finale (graine 4)
+
+| Test | Contre | Elo | Parties | LLR |
+|---|---|---|---|---|
+| c1 = t6 + t5 | défauts (`main`) | **+74,1 ± 18,8** | 838 | 2,95 (**PASS**) |
+| c2 = c1 + t1 | c1 | **+34,5 ± 16,4** | 1000 | 1,75 |
+| c4 = c2 + t2 | c2 | +4,2 ± 16,1 | 1000 | 0,13 |
+| **final** (défauts compilés = c2) | binaire `main` 79ac266 | **+79,1 ± 18,9** | 764 | 2,95 (**PASS**) |
+
+Retenus : **t6, t5, t1** (désormais défauts compilés). t1 est retenu sur trois
+mesures (+39, +8, +35) ; t2 ne l'est pas (+19, +6, +4 : l'effet s'efface).
+La vérification finale oppose deux **builds** distincts sans `--params`.
+
+### 71.4 Lecture
+
+- t6 est le gain principal : la recherche essayait les captures perdantes
+  avant les coups calmes ; hypothèse : cela dégradait l'ordre des coups (et
+  donc la LMR, qui réduit d'après le rang) dans une grande partie des nœuds.
+- t5 compense l'absence de coup de table aux nœuds profonds, et t1 étend un
+  élagage qui n'existait qu'à profondeur 1. Les trois s'additionnent
+  (+52 + +19 ≈ +74 pour c1, puis +35).
+- Leçon de méthode : à 1000 parties, ±17 Elo ; une seule série positive
+  (t1 graine 2 à +8, t2 à +19 puis +6) ne suffit pas. Deux séries
+  indépendantes, puis une mesure incrémentale, ont tranché.
+- Les cinq fonctions non retenues restent dans le code, **désactivées**
+  (arbre identique) : infrastructure pour d'autres réglages.
+- Défaut cosmétique relevé : fastchess signale parfois une PV UCI qui
+  continue après une triple répétition (sans effet sur le coup joué).
+- Nouveaux nœuds de référence : `--bench 9/10/11/12` = 515 690 / 1 008 971 /
+  1 681 664 / 2 559 357. Self-test 143/143, `debug` sans avertissement.

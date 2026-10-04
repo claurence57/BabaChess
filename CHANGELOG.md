@@ -6,7 +6,26 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Non publié (branche `claude_cloud`)
+## Non publié
+
+### Recherche : trois améliorations (+79 Elo)
+
+- **Ordre des captures** : une capture qui perd du matériel (SEE < 0) est
+  essayée après les coups calmes (+52,9 / +50,4 Elo sur deux séries).
+- **Réduction itérative interne** : sans coup de table, un nœud de
+  profondeur ≥ 4 est cherché un ply moins profond (+21,9 / +16,7).
+- **Reverse futility** étendue de la profondeur 1 à la profondeur 6, marge
+  +80 cp par ply (+34,5 en plus des deux précédentes).
+- Ensemble contre la version précédente : **+79,1 ± 18,9 Elo**, SPRT [0, 5]
+  accepté en 764 parties (4+0.04).
+- Cinq autres fonctions testées et **non retenues** (désactivées, pilotables
+  par `--params`) : null move conditionné par l'éval, table de transposition
+  en quiescence, temps selon la stabilité du meilleur coup, LMR guidée par
+  l'historique, fenêtre d'aspiration progressive. Détail : `DEVELOPMENT.md`
+  §71, journal brut `CAMPAGNE_RECHERCHE.md`.
+- Outils : `scripts/expand_openings.py` (suite `openings/ops.epd`, 781
+  positions), `campaign/run.sh` / `campaign/final.sh`.
+- `--bench 9/10/11/12` = 515 690 / 1 008 971 / 1 681 664 / 2 559 357 nœuds.
 
 ### Évaluation : connaissance des pions passés (+30 Elo)
 
@@ -21,7 +40,7 @@
   zone de mobilité, pièces en prise, pions connectés/arriérés, rampe de phase
   de la sécurité du roi. Détail : `DEVELOPMENT.md` §70.
 - Self-test : 143 contrôles (sept positions de symétrie ajoutées).
-- `--bench 9/11/12` = 555 169 / 1 610 806 / 2 745 245 nœuds.
+- `--bench 9/11/12` = 555 169 / 1 610 806 / 2 745 245 nœuds (avant §71).
 
 ## 1.0.0 (2026-09-29)
 
