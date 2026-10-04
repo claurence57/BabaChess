@@ -254,3 +254,17 @@ LLR: 0.24 (8.1%) (-2.94, 2.94) [0.00, 5.00]
 
 c1 vérifie que t6 et t5 s'additionnent ; c2 et c3 mesurent ce que t1 et t2
 apportent **en plus** de c1 (troisième mesure indépendante pour chacun).
+
+### c1_bad_iir — graine 3 — ac52ae5 — 2026-10-04 16:52:51 UTC
+
+Paramètres (`campaign/params/c1_bad_iir.params`) : `S_BAD_CAPTURE 1 S_IIR_DEPTH 4 ` — référence : défauts compilés
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 74.07 +/- 18.84, nElo: 95.42 +/- 23.52
+LOS: 100.00 %, DrawRatio: 32.70 %, PairsRatio: 2.62
+Games: 838, Wins: 359, Losses: 183, Draws: 296, Points: 507.0 (60.50 %)
+Ptnml(0-2): [22, 56, 137, 132, 72], WL/DD Ratio: 1.54
+LLR: 2.95 (100.3%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
