@@ -137,8 +137,9 @@ package BBChess.Search is
    -- The scalar search constants are held in these tables so the SPSA tuner
    -- can override them by name at run time, following the same interface as
    -- the evaluation parameters (Set / Load / Dump below, "--params" file).
-   -- The defaults equal the former hard-coded constants exactly, so an
-   -- unmodified run is bit-identical.
+   -- The original constants default to their former hard-coded values; the
+   -- experimental features (S_Rfp_Depth onward) are documented in the body
+   -- and in DEVELOPMENT.md §71.
 
    -- Integer margins / ordering scores.
    type Search_Param_Id is

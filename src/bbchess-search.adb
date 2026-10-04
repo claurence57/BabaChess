@@ -66,8 +66,9 @@ package body BBChess.Search is
    Max_Ply        : constant := 128;
 
    -- Tunable search parameters (declared in the spec, see the Set / Load /
-   -- Dump interface). The defaults are exactly the former hard-coded
-   -- constants, so an unmodified run is bit-identical.
+   -- Dump interface). The defaults of the original constants are the former
+   -- hard-coded values; the experimental features at the end are documented
+   -- at their defaults below.
    Search_Params : Search_Param_Array :=
      (S_Futility_Margin      => 180,
       S_Futility_Base        => 120,
@@ -84,15 +85,20 @@ package body BBChess.Search is
       S_Counter_Score        => 800_000,
       S_Cont_History_Weight  => 6,
       S_History_Max          => 16_384,
-      S_Rfp_Depth            => 1,
-      S_Rfp_Step             => 0,
+      --  Search campaign (DEVELOPMENT.md §71): RFP up to depth 6, the
+      --  quiescence TT, SEE-losing captures after the quiet moves and the
+      --  gradual aspiration window are on (combined SPRT PASS, +93 Elo).
+      --  The other four stay off: measured neutral (null move gated by the
+      --  eval, IIR, history LMR) or not proven (stability time management).
+      S_Rfp_Depth            => 6,
+      S_Rfp_Step             => 80,
       S_Nmp_Eval             => 0,
-      S_Qs_TT                => 0,
+      S_Qs_TT                => 1,
       S_Tm_Stable            => 0,
       S_Iir_Depth            => 0,
-      S_Bad_Capture          => 0,
+      S_Bad_Capture          => 1,
       S_Lmr_Hist             => 0,
-      S_Asp_Grow             => 0);
+      S_Asp_Grow             => 1);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,

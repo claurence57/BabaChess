@@ -28,8 +28,10 @@ que son score, qui sert d'ancre à l'itération suivante.
   faute de score précédent.
 - **Itérations suivantes** : fenêtre d'aspiration de `Aspiration_Window = 40`
   centipions autour du score précédent. Si le score sort de la fenêtre (fail low
-  ou fail high), la profondeur est **re-cherchée en fenêtre pleine** : correct et
-  peu coûteux tant que la fenêtre tient, ce qui est presque toujours le cas.
+  ou fail high), seule la **borne franchie est élargie**, en doublant la marge à
+  chaque échec (`S_Asp_Grow`) ; au-delà de 1000 cp la fenêtre devient pleine.
+  Avant §71 de `DEVELOPMENT.md`, tout échec relançait directement en fenêtre
+  pleine.
 - L'itération s'arrête plus tôt en cas de mat trouvé
   (`Abs (Best_Score) >= Mate_Score - 200`) ou de résultat de tablebase
   (`Abs (Best_Score) >= BBChess.Syzygy.TB_Win - 100`).
@@ -170,7 +172,10 @@ trie la liste par sélection. Du plus prioritaire au moins prioritaire :
 2. **Promotions** (`50_000_000 + valeur de la pièce promue`).
 3. **Captures MVV-LVA** (`2_000_000 + 16 × victime - attaquant`) : *Most Valuable
    Victim, Least Valuable Attacker*, la pièce la plus chère prise par la moins
-   chère ; `Captured_Kind` gère la prise en passant.
+   chère ; `Captured_Kind` gère la prise en passant. Une capture **perdante**
+   (attaquant plus cher que la victime et `Static_Exchange_Value < 0`) passe en
+   revanche **après tous les coups tranquilles** (`-2_000_000 + ...`,
+   `S_Bad_Capture`).
 4. **Killers** (`1_000_000` et `900_000`) : les deux coups tranquilles ayant
    provoqué une coupure bêta au même ply ailleurs, dans `Ctx.Killers`.
 5. **History** : les autres coups tranquilles sont ordonnés par
@@ -187,6 +192,10 @@ valeur de la victime (MVV), sans killers ni history.
 `Quiescence` prolonge la recherche au-delà de l'horizon, car on ne peut pas
 évaluer statiquement une position au milieu d'une série d'échanges. Sa logique :
 
+- **Table de transposition** (`S_Qs_TT`) : la quiescence sonde la TT (toute
+  entrée de profondeur ≥ 0, coupure selon la borne) et y écrit ses résultats en
+  profondeur 0, sans jamais écraser une entrée de la recherche principale
+  (profondeur ≥ 1).
 - **Stand pat** : hors échec, on évalue la position (`Evaluate`) ; si la valeur
   atteint `Beta`, on coupe, si elle dépasse `Alpha`, on l'adopte.
 - **En échec**, pas de stand pat : toutes les évasions sont générées et
@@ -216,8 +225,10 @@ qu'on n'est ni en échec ni dans une position de mat.
   finales de pions. Le trait est passé (`Position.Side` inversé, en passant
   annulé, clé mise à jour) et le nœud est cherché avec `Null_Reduction = 2` plis
   en moins ; un score `>= Beta` coupe.
-- **Reverse futility** : à `Depth = 1`, si l'évaluation statique moins
-  `Futility_Margin = 180` atteint déjà `Beta`, le nœud est renvoyé tel quel.
+- **Reverse futility** : à `Depth <= 6` (`S_Rfp_Depth`), si l'évaluation
+  statique moins `Futility_Margin + 80 × (Depth - 1)` (`S_Rfp_Step`) atteint
+  déjà `Beta` (hors scores de mat au-delà de la profondeur 1), le nœud est
+  renvoyé tel quel.
 - **Futility pruning** : à `Depth <= 2`, un coup tranquille dont l'évaluation
   statique plus `Futility_Base = 120` fois la profondeur ne peut pas atteindre
   `Alpha` est sauté.

@@ -6,7 +6,21 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Non publié (branche `claude_cloud`)
+## Non publié
+
+### Recherche : quatre améliorations cumulées (+93 Elo)
+
+- **Captures perdantes** (SEE < 0) jouées après les coups tranquilles au lieu
+  d'avant les killers : +49 Elo à elles seules.
+- **Fenêtre d'aspiration** élargie progressivement au lieu d'une relance en
+  fenêtre pleine.
+- **Table de transposition en quiescence**.
+- **Reverse futility** étendu jusqu'à la profondeur 6.
+- Test combiné contre la version précédente : **+93,4 ± 20,7 Elo, SPRT PASS**.
+- Quatre autres idées mesurées et laissées désactivées (null move conditionné
+  par l'éval, IIR, LMR guidé par l'history, temps selon la stabilité du
+  meilleur coup). Détail : `DEVELOPMENT.md` §71.
+- `--bench 9/11/12` = 460 479 / 1 442 602 / 2 692 597 nœuds.
 
 ### Évaluation : connaissance des pions passés (+30 Elo)
 
