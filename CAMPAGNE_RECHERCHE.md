@@ -57,3 +57,17 @@ Tout terme positif sera **confirmé par une seconde série (autre graine)**
 avant d'être retenu.
 
 ## Résultats traçables
+
+### t1_rfp — graine 1 — bb93e74 — 2026-10-04 05:01:21 UTC
+
+Paramètres (`campaign/params/t1_rfp.params`) : `S_RFP_DEPTH 6 S_RFP_STEP 80 `
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 39.43 +/- 16.90, nElo: 50.71 +/- 21.53
+LOS: 100.00 %, DrawRatio: 35.60 %, PairsRatio: 1.62
+Games: 1000, Wins: 358, Losses: 245, Draws: 397, Points: 556.5 (55.65 %)
+Ptnml(0-2): [32, 91, 178, 130, 69], WL/DD Ratio: 1.02
+LLR: 1.96 (66.4%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
