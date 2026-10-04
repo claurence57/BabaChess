@@ -944,3 +944,10 @@ touché). `--bench 9/11/12 = 522 983 / 1 624 296 / 2 692 048`.
 
 Le lot 2.5 (mobilité « sûre ») est mesuré puis **rejeté** (−10,0 Elo contre les
 lots 2.1-2.4). Détail : `DEVELOPMENT.md` §71-72.
+
+### Recherche — lot 1.5 (historique persistant) : rejeté
+
+Historique persistant entre les coups implémenté puis rejeté : juge GNU +15,0
+Elo (29,1 %, confirmé à 800 parties) mais auto-match SPRT **INCONCLUSIVE**
+(+8,0 sur 2 000, puis +0,6 sur 6 000). M2 non PASS → non adopté, code annulé.
+Détail : `DEVELOPMENT.md` §73.

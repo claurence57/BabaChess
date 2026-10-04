@@ -1361,3 +1361,29 @@ adoptés**, mesuré, puis **rejeté**.
 Le commit du patch a été **annulé** (`git revert`) ; l'arbre revient aux lots
 2.1-2.4 (`--bench 9/11/12 = 522 983 / 1 624 296 / 2 692 048`). La mobilité
 « sûre » change tout le milieu de partie et coûte plus qu'elle ne rapporte ici.
+
+## 73. Recherche — lot 1.5 (historique persistant) : REJETÉ (M2 non PASS)
+
+Lot 1.5 : conserver l'historique (plain + continuation) d'un coup à l'autre de
+la partie, vieilli ÷4, remis à zéro par `Reset_Search`, chaque worker Lazy SMP
+ayant son propre store persistant. Implémenté, mesuré, puis **rejeté**.
+
+- `--bench 9/11/12` inchangés (**522 983 / 1 624 296 / 2 692 048**), car
+  `--bench` passe par le chemin à profondeur fixe (`Worker_Id = 0` : pas de
+  persistance) — le déterminisme du bench est préservé.
+- **M1 — gauntlet GNU** contre le binaire 2.1-2.4 adopté : 400 parties →
+  **77-79-244 = 29,1 %** (−154,5). Confirmé à **800 parties** : 149-168-483 =
+  29,1 % (−154,5). Soit **+15,0 Elo** — exactement la barre, non franchie.
+- **M2 — SPRT auto-match** [−5, 0] contre 2.1-2.4 : 2 000 parties → +8,0 Elo,
+  LOS 92,7 %, **INCONCLUSIVE**. Étendu à **6 000 parties** : **+0,6 ± 6,3 Elo,
+  LOS 57,9 %, INCONCLUSIVE**. Le « gain » GNU de +15 est donc **du bruit**
+  (le juge GNU à 400-800 parties ne résout pas mieux que ±12-18 Elo).
+- Règle de décision (adoption d'un lot de connaissance : GNU ≥ +15 **ET** M2
+  PASS) : **M2 n'est pas PASS** → lot **non adopté**.
+
+Le code a été **annulé** ; l'arbre revient à l'état 2.1-2.4
+(`--bench 9/11/12 = 522 983 / 1 624 296 / 2 692 048`, `--selftest` 136/136).
+
+C'est le second cas (après S1.4b §70.2) où le juge GNU suggère un petit gain
+que l'auto-match démentit : **l'auto-match SPRT est le juge décisif**, le
+gauntlet GNU ne tranche que les écarts plus gros.
