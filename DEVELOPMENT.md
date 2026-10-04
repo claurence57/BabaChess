@@ -1479,3 +1479,50 @@ avancé), faute d'échantillons : sans effet pratique observé.
 parties humaines : leurs résultats reflètent des fautes que le moteur ne
 commettrait pas, et leurs positions ne ressemblent pas à celles que le moteur
 rencontre. Sur ses propres parties, la même méthode rapporte plus de 100 Elo.
+
+## 73. Termes rejetés de §70 retestés après le réglage Texel : la zone de mobilité gagne
+
+Branche `claude_eval2`. Hypothèse : les termes de §70 avaient peut-être perdu
+à cause de poids non réglés. Chacun est réactivé, ses propres poids (et ceux
+des termes voisins) sont réglés par Texel (`scripts/texel.py --only`, mêmes
+670 679 positions que §72, le reste de l'éval figé), puis mesuré par SPRT de
+1000 parties contre `main`.
+
+### 73.1 Réglage par terme (erreur de validation, référence 0,114182)
+
+| Terme | Paramètres réglés | Validation | Résultat du réglage |
+|---|---|---|---|
+| F2 réduction des finales nulles | `P_SCALE_OCB` | **0,113362** | OCB ≈ 32, inchangé |
+| F4 pièces en prise, tour sur dame | `P_HANGING_*`, `P_THREAT_*` | 0,114035 | Hanging 26/26, Threat_RQ 44, menaces pion/mineure 7/4 |
+| F3 zone de mobilité | `P_MOBILITY_*` | 0,114105 | poids inchangés (l'activation seule baisse l'erreur) |
+| F6 rampe de sécurité du roi | `P_KS_LO/HI`, `P_ATK_*`, `P_EXPOSED` | 0,114114 | rampe 22 → 54, `P_EXPOSED` 24 → 2 |
+| F5 pions connectés / arriérés | `P_CONNECTED`, `P_BACKWARD_*`, `P_ISOLATED_*`, `P_DOUBLED_*` | 0,114125 | gain trop faible pour son coût (−13 % nps) : pas de match |
+
+### 73.2 Matchs (fastchess, 4+0.04, 1000 parties, contre `main`)
+
+| Terme | Elo | Verdict |
+|---|---|---|
+| F3 zone de mobilité (graine 7) | **+18,1 ± 16,2** | – |
+| F3 zone de mobilité (graine 51, confirmation) | **+31,4 ± 17,1** | **retenu** |
+| F3 + F6 (graine 51) | +17,7 ± 16,3 | F6 n'ajoute rien |
+| F6 rampe de sécurité du roi | +9,0 ± 16,0 | non prouvé |
+| F2 finales nulles | −2,4 ± 15,5 | rejeté |
+| F4 pièces en prise | −7,0 ± 16,3 | rejeté |
+
+### 73.3 Lecture
+
+- La **zone de mobilité** (cases attaquées par un pion adverse exclues du
+  comptage de mobilité) était neutre en §70 (−0,7) avec l'ancienne éval ; avec
+  l'éval réglée elle rapporte +18 et +31 sur deux séries indépendantes.
+- F2 confirme que la baisse d'erreur ne prédit pas la force : c'est le terme qui
+  baisse le plus l'erreur (−0,00082) et il reste neutre en match, probablement
+  parce que ces finales sont rares et déjà bien jouées par la recherche.
+- F4 reste négatif : la quiescence et le SEE traitent déjà ces menaces.
+
+### 73.4 État livré
+
+- Défaut : `P_MOB_AREA 1` ; les autres termes restent désactivés (valeurs
+  essayées notées dans le code).
+- `--bench 9/11/12` = **546 046 / 1 343 555 / 2 646 747** nœuds.
+- `--selftest` 143/143, `debug` sans avertissement.
+- `scripts/texel.py` accepte `--only REGEX` pour régler un sous-ensemble.

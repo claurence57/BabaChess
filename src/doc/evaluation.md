@@ -104,7 +104,9 @@ Si `Popcount (Pieces (Color, Bishop)) = 2`, un bonus tapered est ajouté
 
 Pour chaque cavalier, fou, tour et dame, `Piece_Attacks` produit les cases
 atteignables selon l'occupation et on compte
-`Popcount (Piece_Attacks and Free)` où `Free = not Own`. La mobilité est
+`Popcount (Piece_Attacks and Free)` où `Free` exclut les cases occupées par
+ses propres pièces **et les cases attaquées par un pion adverse** (zone de
+mobilité, `P_MOB_AREA`, activée depuis §73 de `DEVELOPMENT.md`). La mobilité est
 **pondérée par phase** : les poids d'ouverture valent `Mobility_N` (4),
 `Mobility_B` (4), `Mobility_R` (2), `Mobility_Q` (1), et les poids de finale
 `Mobility_N_Eg`, `Mobility_B_Eg`, `Mobility_R_Eg`, `Mobility_Q_Eg` (défaut
@@ -161,9 +163,10 @@ Cette partie est entièrement bitboard :
   (29 et 16 par défaut depuis le réglage Texel, §72).
 
 Les autres termes ajoutés au §70 de `DEVELOPMENT.md` (réduction des finales
-nulles, zone de mobilité, pièces en prise, pions connectés/arriérés, rampe de
-sécurité du roi) existent sous forme de paramètres mais sont **désactivés** par
-défaut : mesurés sans gain.
+nulles, pièces en prise, pions connectés/arriérés, rampe de sécurité du roi)
+existent sous forme de paramètres mais sont **désactivés** par défaut : mesurés
+sans gain, y compris après réglage de leurs poids (§73). La zone de mobilité,
+elle, est activée (§73).
 
 ### 4.4 Activité du roi en finale
 
