@@ -309,3 +309,15 @@ LLR: 0.13 (4.3%) (-2.94, 2.94) [0.00, 5.00]
 désormais les **défauts compilés** (`--bench 9` = 515 690, identique à c2).
 Vérification finale : binaire sans `--params` contre le binaire de `main`
 (79ac266, bench 555 169), graine 4 (`campaign/final.sh`).
+
+### final (défauts compilés de 5943a58) contre main 79ac266 — graine 4 — 2026-10-04 19:06:33 UTC
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 79.10 +/- 18.94, nElo: 106.62 +/- 24.64
+LOS: 100.00 %, DrawRatio: 32.46 %, PairsRatio: 2.91
+Games: 764, Wins: 328, Losses: 157, Draws: 279, Points: 467.5 (61.19 %)
+Ptnml(0-2): [15, 51, 124, 132, 60], WL/DD Ratio: 1.58
+LLR: 2.95 (100.3%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
