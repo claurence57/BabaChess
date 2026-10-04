@@ -85,3 +85,10 @@ Ptnml(0-2): [31, 110, 180, 132, 47], WL/DD Ratio: 1.50
 LLR: 0.94 (32.0%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+> **Incident (05:53 UTC)** : t3_qs_tt interrompu après 97 parties. Le runner
+> t3-t8 avait été lancé comme processus détaché (`setsid nohup`) ; un tel
+> processus ne maintient pas la session active et le conteneur a été recyclé
+> peu après. Résultat partiel écarté. Correction : chaque lot de 2 matchs
+> (≈ 95 min) tourne dans une tâche de fond suivie par la session (limite 2 h),
+> relancée à la fin de la précédente. t3 repris à 08:21 UTC.
