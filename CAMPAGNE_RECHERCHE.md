@@ -289,3 +289,17 @@ LLR: 1.75 (59.5%) (-2.94, 2.94) [0.00, 5.00]
 mesuré au-dessus de tout ce qui est retenu). Note : fastchess signale parfois
 « PV continues after threefold repetition » (PV UCI cosmétique, sans effet
 sur le coup joué).
+
+### c4_c2_nmp:c2_c1_rfp — graine 3 — 25dd191 — 2026-10-04 18:28:54 UTC
+
+Paramètres (`campaign/params/c4_c2_nmp.params`) : `S_BAD_CAPTURE 1 S_IIR_DEPTH 4 S_RFP_DEPTH 6 S_RFP_STEP 80 S_NMP_EVAL 1 ` — référence : `c2_c1_rfp.params` : `S_BAD_CAPTURE 1 S_IIR_DEPTH 4 S_RFP_DEPTH 6 S_RFP_STEP 80 `
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 4.17 +/- 16.07, nElo: 5.59 +/- 21.53
+LOS: 69.46 %, DrawRatio: 37.40 %, PairsRatio: 1.09
+Games: 1000, Wins: 321, Losses: 309, Draws: 370, Points: 506.0 (50.60 %)
+Ptnml(0-2): [41, 109, 187, 123, 40], WL/DD Ratio: 1.71
+LLR: 0.13 (4.3%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
