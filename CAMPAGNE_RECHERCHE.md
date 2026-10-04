@@ -134,3 +134,17 @@ Ptnml(0-2): [40, 103, 172, 124, 61], WL/DD Ratio: 1.57
 LLR: 1.04 (35.3%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+### t6_bad_capture — graine 1 — 33a51cb — 2026-10-04 11:29:29 UTC
+
+Paramètres (`campaign/params/t6_bad_capture.params`) : `S_BAD_CAPTURE 1 `
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 52.87 +/- 16.76, nElo: 69.04 +/- 21.53
+LOS: 100.00 %, DrawRatio: 33.60 %, PairsRatio: 1.94
+Games: 1000, Wins: 400, Losses: 249, Draws: 351, Points: 575.5 (57.55 %)
+Ptnml(0-2): [26, 87, 168, 148, 71], WL/DD Ratio: 1.90
+LLR: 2.64 (89.8%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
