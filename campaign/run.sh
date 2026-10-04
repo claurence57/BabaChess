@@ -6,6 +6,8 @@
 # committed + pushed, so a container restart never loses a finished match.
 #
 # Usage: campaign/run.sh <seed> <id> [<id> ...]
+# An id written new:old plays new.params against old.params instead of the
+# compiled defaults (incremental tests).
 set -u
 cd "$(dirname "$0")/.."
 SEED=$1; shift
@@ -15,11 +17,18 @@ mkdir -p campaign/bin campaign/logs
 cp bin/babachess "$BIN"          # frozen copy: a rebuild cannot disturb a match
 
 for ID in "$@"; do
-  P=campaign/params/$ID.params
-  LOG=campaign/logs/${ID}_s${SEED}.log
+  NEW_ID=${ID%%:*}
+  OLD_ID=; [[ $ID == *:* ]] && OLD_ID=${ID#*:}
+  P=campaign/params/$NEW_ID.params
+  OLD_ARGS=; OLD_DESC="défauts compilés"
+  if [[ -n $OLD_ID ]]; then
+    OLD_ARGS="args=--params campaign/params/$OLD_ID.params"
+    OLD_DESC="\`$OLD_ID.params\` : \`$(tr '\n' ' ' < campaign/params/$OLD_ID.params)\`"
+  fi
+  LOG=campaign/logs/${NEW_ID}${OLD_ID:+_vs_$OLD_ID}_s${SEED}.log
   fastchess \
     -engine cmd="$BIN" args="--params $P" name=new \
-    -engine cmd="$BIN" name=old \
+    -engine cmd="$BIN" ${OLD_ARGS:+"$OLD_ARGS"} name=old \
     -each proto=uci tc=4+0.04 \
     -openings file=openings/ops.epd format=epd order=random \
     -repeat -rounds 500 -games 2 -concurrency 4 \
@@ -29,7 +38,7 @@ for ID in "$@"; do
     echo
     echo "### $ID — graine $SEED — $(git rev-parse --short HEAD) — $(date -u '+%F %T') UTC"
     echo
-    echo "Paramètres (\`$P\`) : \`$(tr '\n' ' ' < "$P")\`"
+    echo "Paramètres (\`$P\`) : \`$(tr '\n' ' ' < "$P")\` — référence : $OLD_DESC"
     echo
     echo '```'
     grep -A6 '^Results of' "$LOG" | tail -7

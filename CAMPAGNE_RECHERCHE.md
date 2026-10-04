@@ -232,3 +232,25 @@ Ptnml(0-2): [38, 110, 202, 96, 54], WL/DD Ratio: 1.62
 LLR: 0.24 (8.1%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+## Bilan des deux séries et étape combinée
+
+| Id | Graine 1 | Graine 2 | Verdict |
+|---|---|---|---|
+| t6_bad_capture | +52,9 ± 16,8 | +50,4 ± 16,2 | **confirmé** |
+| t5_iir | +21,9 ± 17,1 | +16,7 ± 16,6 | **confirmé** |
+| t1_rfp | +39,4 ± 16,9 | +8,0 ± 16,8 | non confirmé (≈ +24 sur 2000) |
+| t2_nmp_eval | +18,8 ± 16,0 | +6,3 ± 16,3 | non confirmé (≈ +12 sur 2000) |
+| t3, t4, t7 | ≈ 0 | — | rejetés (neutres) |
+| t8_asp_grow | −16,7 ± 16,8 | — | rejeté |
+
+Étape combinée (graine 3, `campaign/run.sh` accepte désormais `new:old`) :
+
+| Id | Paramètres | Référence | `--bench 9` |
+|---|---|---|---|
+| c1_bad_iir | t6 + t5 | défauts | 450 242 |
+| c2_c1_rfp | c1 + t1 | c1_bad_iir | 515 690 |
+| c3_c1_nmp | c1 + t2 | c1_bad_iir | 513 639 |
+
+c1 vérifie que t6 et t5 s'additionnent ; c2 et c3 mesurent ce que t1 et t2
+apportent **en plus** de c1 (troisième mesure indépendante pour chacun).
