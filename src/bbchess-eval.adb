@@ -45,6 +45,9 @@ package body BBChess.Eval is
    type PST_Table is array (Natural range 0 .. 7, Natural range 0 .. 7)
      of Score_Type;
 
+   -- Per-row bonus table (passed pawns), indexed by the own row.
+   type Row_Table is array (Natural range 0 .. 7) of Score_Type;
+
    -- One-bit-per-square mask of every file (used for pawn-file queries).
    type File_Mask_Table is array (Natural range 0 .. 7) of Bitboard;
    File_Mask : constant File_Mask_Table :=
@@ -183,7 +186,7 @@ package body BBChess.Eval is
    pragma Inline (Defended_By_Pawn);
 
    -- Rows: 0 = own back rank, 7 = just before the opponent's back rank.
-   Pawn_PST : constant PST_Table :=
+   Pawn_PST : PST_Table :=
      ((0, 0, 0, 0, 0, 0, 0, 0),
       (0, 0, 0, 0, 0, 0, 0, 0),
       (0, 0, 5, 10, 10, 5, 0, 0),
@@ -193,7 +196,7 @@ package body BBChess.Eval is
       (0, 10, 20, 50, 50, 20, 10, 0),
       (0, 0, 0, 0, 0, 0, 0, 0));
 
-   Knight_PST : constant PST_Table :=
+   Knight_PST : PST_Table :=
      ((-50, -40, -30, -30, -30, -30, -40, -50),
       (-40, -20, 0, 0, 0, 0, -20, -40),
       (-30, 0, 10, 15, 15, 10, 0, -30),
@@ -203,7 +206,7 @@ package body BBChess.Eval is
       (-40, -20, 0, 5, 5, 0, -20, -40),
       (-50, -40, -30, -30, -30, -30, -40, -50));
 
-   Bishop_PST : constant PST_Table :=
+   Bishop_PST : PST_Table :=
      ((-20, -10, -10, -10, -10, -10, -10, -20),
       (-10, 0, 0, 0, 0, 0, 0, -10),
       (-10, 0, 5, 10, 10, 5, 0, -10),
@@ -213,7 +216,7 @@ package body BBChess.Eval is
       (-10, 0, 5, 10, 10, 5, 0, -10),
       (-20, -10, -10, -10, -10, -10, -10, -20));
 
-   Rook_PST : constant PST_Table :=
+   Rook_PST : PST_Table :=
      ((0, 0, 0, 0, 0, 0, 0, 0),
       (5, 10, 10, 10, 10, 10, 10, 5),
       (-5, 0, 0, 0, 0, 0, 0, -5),
@@ -223,7 +226,7 @@ package body BBChess.Eval is
       (5, 10, 10, 10, 10, 10, 10, 5),
       (0, 0, 0, 0, 0, 0, 0, 0));
 
-   Queen_PST : constant PST_Table :=
+   Queen_PST : PST_Table :=
      ((-20, -10, -10, -5, -5, -10, -10, -20),
       (-10, 0, 0, 0, 0, 0, 0, -10),
       (-10, 0, 5, 5, 5, 5, 0, -10),
@@ -234,7 +237,7 @@ package body BBChess.Eval is
       (-20, -10, -10, -5, -5, -10, -10, -20));
 
    -- Middlegame: the king belongs near its castled squares.
-   King_PST : constant PST_Table :=
+   King_PST : PST_Table :=
      ((20, 30, 10, 0, 0, 10, 30, 20),
       (-10, -10, 0, 0, 0, 0, -10, -10),
       (-20, -20, -20, -20, -20, -20, -20, -20),
@@ -245,7 +248,7 @@ package body BBChess.Eval is
       (-40, -40, -40, -40, -40, -40, -40, -40));
 
    -- Endgame: the king must be active and central.
-   King_End_PST : constant PST_Table :=
+   King_End_PST : PST_Table :=
      ((-20, -15, -10, -5, -5, -10, -15, -20),
       (-15, -10, -5, 0, 0, -5, -10, -15),
       (-10, -5, 0, 5, 5, 0, -5, -10),
@@ -254,6 +257,13 @@ package body BBChess.Eval is
       (-10, -5, 0, 5, 5, 0, -5, -10),
       (-15, -10, -5, 0, 0, -5, -10, -15),
       (-20, -15, -10, -5, -5, -10, -15, -20));
+
+   -- Passed pawn bonus indexed by the pawn "own row" (0 = back rank).
+   -- Row 0 and 7 are unreachable for a pawn, hence 0.
+   Passed_Pawn_Opening : Row_Table :=
+     (0, 5, 8, 12, 16, 22, 30, 0);
+   Passed_Pawn_Endgame : Row_Table :=
+     (0, 12, 22, 38, 60, 90, 130, 0);
 
    -- Tunable evaluation parameters (see the renames further down and the
    -- Set_Param / Load_Params / Dump_Params interface).
@@ -431,6 +441,63 @@ package body BBChess.Eval is
             return;
          end if;
       end loop;
+
+      -- Table entries (tuner names, see Dump_Params):
+      --   P_PST_<T>_<row>_<file>  T in P N B R Q K KE, file 0 .. 3; the
+      --                           mirrored file 7 - file gets the same value;
+      --   P_PASSED_OP_<row> / P_PASSED_EG_<row>.
+      if U'Length = 13 and then U (U'First .. U'First + 11) = "P_PASSED_OP_"
+        and then U (U'Last) in '0' .. '7'
+      then
+         Passed_Pawn_Opening (Character'Pos (U (U'Last)) - Character'Pos ('0'))
+           := Value;
+         return;
+      end if;
+      if U'Length = 13 and then U (U'First .. U'First + 11) = "P_PASSED_EG_"
+        and then U (U'Last) in '0' .. '7'
+      then
+         Passed_Pawn_Endgame (Character'Pos (U (U'Last)) - Character'Pos ('0'))
+           := Value;
+         return;
+      end if;
+      if U'Length >= 11 and then U (U'First .. U'First + 5) = "P_PST_"
+        and then U (U'Last) in '0' .. '3'
+        and then U (U'Last - 1) = '_'
+        and then U (U'Last - 2) in '0' .. '7'
+        and then U (U'Last - 3) = '_'
+      then
+         declare
+            T   : constant String := U (U'First + 6 .. U'Last - 4);
+            Row : constant Natural :=
+              Character'Pos (U (U'Last - 2)) - Character'Pos ('0');
+            Fl  : constant Natural :=
+              Character'Pos (U (U'Last)) - Character'Pos ('0');
+            procedure Put_Entry (Tbl : in out PST_Table) is
+            begin
+               Tbl (Row, Fl) := Value;
+               Tbl (Row, 7 - Fl) := Value;
+            end Put_Entry;
+         begin
+            if T = "P" then
+               Put_Entry (Pawn_PST);
+            elsif T = "N" then
+               Put_Entry (Knight_PST);
+            elsif T = "B" then
+               Put_Entry (Bishop_PST);
+            elsif T = "R" then
+               Put_Entry (Rook_PST);
+            elsif T = "Q" then
+               Put_Entry (Queen_PST);
+            elsif T = "K" then
+               Put_Entry (King_PST);
+            elsif T = "KE" then
+               Put_Entry (King_End_PST);
+            else
+               return;
+            end if;
+            Rebuild_Material_PST;
+         end;
+      end if;
    end Set_Param;
 
    -- Real parameters do not exist on the evaluation side: the shared file
@@ -452,11 +519,39 @@ package body BBChess.Eval is
       Rebuild_Material_PST;
    end Load_Params;
 
+   function Image_Digit (N : in Natural) return String is
+     ((1 => Character'Val (Character'Pos ('0') + N)));
+
+   -- Dump the queen-side half (files 0 .. 3) of a PST; Set_Param mirrors it.
+   procedure Dump_PST (T : in String; Tbl : in PST_Table;
+                       First_Row, Last_Row : in Natural) is
+   begin
+      for R in First_Row .. Last_Row loop
+         for F in 0 .. 3 loop
+            BBChess.Tunable.Put ("P_PST_" & T & "_" & Image_Digit (R) & "_"
+                                 & Image_Digit (F), Tbl (R, F));
+         end loop;
+      end loop;
+   end Dump_PST;
+
    procedure Dump_Params is
    begin
       for Id in Param_Id loop
          BBChess.Tunable.Put (Param_Id'Image (Id), Params (Id));
       end loop;
+      for R in 1 .. 6 loop
+         BBChess.Tunable.Put ("P_PASSED_OP_" & Image_Digit (R),
+                              Passed_Pawn_Opening (R));
+         BBChess.Tunable.Put ("P_PASSED_EG_" & Image_Digit (R),
+                              Passed_Pawn_Endgame (R));
+      end loop;
+      Dump_PST ("P", Pawn_PST, 1, 6);
+      Dump_PST ("N", Knight_PST, 0, 7);
+      Dump_PST ("B", Bishop_PST, 0, 7);
+      Dump_PST ("R", Rook_PST, 0, 7);
+      Dump_PST ("Q", Queen_PST, 0, 7);
+      Dump_PST ("K", King_PST, 0, 7);
+      Dump_PST ("KE", King_End_PST, 0, 7);
    end Dump_Params;
 
    -- Row of Square from the given side's own point of view (same convention
@@ -584,12 +679,6 @@ package body BBChess.Eval is
    Isolated_Pawn_Opening : Score_Type renames Params (P_Isolated_Op);
    Isolated_Pawn_Endgame : Score_Type renames Params (P_Isolated_Eg);
 
-   -- Passed pawn bonus indexed by the pawn "own row" (0 = back rank).
-   -- Row 0 and 7 are unreachable for a pawn, hence 0.
-   Passed_Pawn_Opening : constant array (Natural range 0 .. 7) of Score_Type :=
-     (0, 5, 8, 12, 16, 22, 30, 0);
-   Passed_Pawn_Endgame : constant array (Natural range 0 .. 7) of Score_Type :=
-     (0, 12, 22, 38, 60, 90, 130, 0);
 
    Protected_Passed_Opening : Score_Type renames Params (P_Protected_Op);
    Protected_Passed_Endgame : Score_Type renames Params (P_Protected_Eg);
