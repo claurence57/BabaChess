@@ -16,7 +16,7 @@ when it no longer improves (over-fitting guard).
 Requires numpy.
 
 Usage: texel.py DATASET [--engine BIN] [--start FILE] [--out FILE]
-                [--rounds N] [--jobs N]
+                [--rounds N] [--jobs N] [--only REGEX]
 """
 
 import argparse
@@ -112,6 +112,9 @@ def main():
     ap.add_argument("--out", default="texel_tuned.params")
     ap.add_argument("--rounds", type=int, default=8)
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--only", default=None,
+                    help="regex: tune only the matching parameters "
+                         "(overrides the default exclusion list)")
     args = ap.parse_args()
 
     results = []
@@ -129,7 +132,11 @@ def main():
     val, train = perm[:n_val], perm[n_val:]
 
     params = read_params(args.engine, args.start)
-    names = [n for n in params if not EXCLUDE.match(n)]
+    if args.only:
+        only = re.compile(args.only)
+        names = [n for n in params if only.fullmatch(n)]
+    else:
+        names = [n for n in params if not EXCLUDE.match(n)]
     ev = Evaluator(args.engine, fens_path, results, train, val)
     e0 = ev.evals(params)
     k = ev.fit_k(e0)
