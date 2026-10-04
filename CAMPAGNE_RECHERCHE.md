@@ -268,3 +268,17 @@ Ptnml(0-2): [22, 56, 137, 132, 72], WL/DD Ratio: 1.54
 LLR: 2.95 (100.3%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+### c2_c1_rfp:c1_bad_iir — graine 3 — 563ef93 — 2026-10-04 17:40:55 UTC
+
+Paramètres (`campaign/params/c2_c1_rfp.params`) : `S_BAD_CAPTURE 1 S_IIR_DEPTH 4 S_RFP_DEPTH 6 S_RFP_STEP 80 ` — référence : `c1_bad_iir.params` : `S_BAD_CAPTURE 1 S_IIR_DEPTH 4 `
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: 34.51 +/- 16.36, nElo: 45.74 +/- 21.53
+LOS: 100.00 %, DrawRatio: 33.40 %, PairsRatio: 1.58
+Games: 1000, Wins: 350, Losses: 251, Draws: 399, Points: 549.5 (54.95 %)
+Ptnml(0-2): [30, 99, 167, 150, 54], WL/DD Ratio: 1.23
+LLR: 1.75 (59.5%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
