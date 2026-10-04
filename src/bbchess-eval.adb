@@ -269,7 +269,13 @@ package body BBChess.Eval is
       P_Protected_Op, P_Protected_Eg, P_Outside_Op, P_Outside_Eg,
       P_Shield1, P_Shield2, P_Shield3, P_OpenFile, P_Storm,
       P_Atk_N, P_Atk_B, P_Atk_R, P_Atk_Q, P_Exposed,
-      P_Threat_Pawn, P_Threat_Minor);
+      P_Threat_Pawn, P_Threat_Minor,
+      P_Passed_Rear, P_Passed_Blocked, P_PKing_Them, P_PKing_Us,
+      P_Scale_OCB, P_Scale_NoPawn,
+      P_Mob_Area,
+      P_Hanging_Op, P_Hanging_Eg, P_Threat_RQ,
+      P_Connected, P_Backward_Op, P_Backward_Eg,
+      P_KS_Lo, P_KS_Hi);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -319,7 +325,41 @@ package body BBChess.Eval is
      P_Atk_Q           => 24,
      P_Exposed         => 28,
      P_Threat_Pawn     => 15,
-     P_Threat_Minor    => 10);
+     P_Threat_Minor    => 10,
+     --  Passed pawns: 1 = the rear pawn of a doubled passer gets no passed
+     --  bonus; Blocked = % of the row bonus kept when the stop square is
+     --  occupied (100 = no effect); king proximity to the stop square, in
+     --  eighths of a centipawn per square and per unit of the row weight.
+     P_Passed_Rear     => 1,
+     P_Passed_Blocked  => 60,
+     P_PKing_Them      => 19,
+     P_PKing_Us        => 8,
+     --
+     --  The terms below were measured (SPRT, 1000 games each, see
+     --  DEVELOPMENT.md §70) and did not gain: they are kept as switchable
+     --  infrastructure with neutral defaults (node-identical to the build
+     --  without them). Values tried: OCB 32, NoPawn 1, Mob_Area 1,
+     --  Hanging 30/18, Threat_RQ 20, Connected 100, Backward 6/10,
+     --  KS ramp 10..30.
+     --
+     --  Endgame scaling, out of 64 (64 = no scaling; P_Scale_NoPawn 0 = off).
+     P_Scale_OCB       => 64,
+     P_Scale_NoPawn    => 0,
+     --  1 = mobility ignores the squares attacked by enemy pawns.
+     P_Mob_Area        => 0,
+     --  Undefended enemy pieces we attack; rook attacking a queen.
+     P_Hanging_Op      => 0,
+     P_Hanging_Eg      => 0,
+     P_Threat_RQ       => 0,
+     --  Connected (supported / phalanx) pawns, % of the base table
+     --  (0 = off); backward pawns.
+     P_Connected       => 0,
+     P_Backward_Op     => 0,
+     P_Backward_Eg     => 0,
+     --  King safety phase gate: full above Hi, none at or below Lo, linear
+     --  in between. Hi <= Lo is the historical hard gate at Lo.
+     P_KS_Lo           => 20,
+     P_KS_Hi           => 20);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -570,7 +610,46 @@ package body BBChess.Eval is
    Exposed_King          : Score_Type renames Params (P_Exposed);
    Threat_Pawn           : Score_Type renames Params (P_Threat_Pawn);
    Threat_Minor          : Score_Type renames Params (P_Threat_Minor);
-   King_Safety_Min_Phase : constant Natural := 20;
+   KS_Phase_Lo           : Score_Type renames Params (P_KS_Lo);
+   KS_Phase_Hi           : Score_Type renames Params (P_KS_Hi);
+
+   Passed_Rear_Fix       : Score_Type renames Params (P_Passed_Rear);
+   Passed_Blocked_Pct    : Score_Type renames Params (P_Passed_Blocked);
+   Passed_King_Them      : Score_Type renames Params (P_PKing_Them);
+   Passed_King_Us        : Score_Type renames Params (P_PKing_Us);
+   Scale_OCB             : Score_Type renames Params (P_Scale_OCB);
+   Scale_No_Pawn         : Score_Type renames Params (P_Scale_NoPawn);
+   Mobility_Area         : Score_Type renames Params (P_Mob_Area);
+   Hanging_Opening       : Score_Type renames Params (P_Hanging_Op);
+   Hanging_Endgame       : Score_Type renames Params (P_Hanging_Eg);
+   Threat_Rook_Queen     : Score_Type renames Params (P_Threat_RQ);
+   Connected_Pct         : Score_Type renames Params (P_Connected);
+   Backward_Opening      : Score_Type renames Params (P_Backward_Op);
+   Backward_Endgame      : Score_Type renames Params (P_Backward_Eg);
+
+   -- Connected pawn base bonus by own row (supported or phalanx pawn).
+   Connected_Seed : constant array (Natural range 0 .. 7) of Score_Type :=
+     (0, 7, 8, 12, 29, 48, 86, 0);
+
+   -- Ranks_Below (K): every square on ranks 0 .. K-1 (K in 0 .. 8).
+   Ranks_Below : constant array (Natural range 0 .. 8) of Bitboard :=
+     (0 => 0,
+      1 => 16#0000_0000_0000_00FF#,
+      2 => 16#0000_0000_0000_FFFF#,
+      3 => 16#0000_0000_00FF_FFFF#,
+      4 => 16#0000_0000_FFFF_FFFF#,
+      5 => 16#0000_00FF_FFFF_FFFF#,
+      6 => 16#0000_FFFF_FFFF_FFFF#,
+      7 => 16#00FF_FFFF_FFFF_FFFF#,
+      8 => 16#FFFF_FFFF_FFFF_FFFF#);
+
+   Light_Squares : constant Bitboard := 16#55AA_55AA_55AA_55AA#;
+
+   -- King (Chebyshev) distance between two squares.
+   function Distance (A, B : in Square_Type) return Natural is
+     (Natural'Max (abs (Integer (Rank_Of (A)) - Integer (Rank_Of (B))),
+                   abs (Integer (File_Of (A)) - Integer (File_Of (B)))));
+   pragma Inline (Distance);
 
    --------------------
    -- King safety --
@@ -689,14 +768,24 @@ package body BBChess.Eval is
                                Occ      : in Bitboard;
                                Near_Danger : out Score_Type;
                                Far_Danger  : out Score_Type;
-                               Attackers   : out Natural)
+                               Attackers   : out Natural;
+                               All_Attacks : out Bitboard)
      return Tapered_Score_Type
    is
       Enemy    : constant Color_Type := Opposite (Color);
       Own      : constant Bitboard := Color_Board (Position, Color);
-      Free     : constant Bitboard := not Own;
       Own_Pawns   : constant Bitboard := Position.Pieces (Make (Color, Pawn));
       Enemy_Pawns : constant Bitboard := Position.Pieces (Make (Enemy, Pawn));
+      Own_King    : constant Square_Type :=
+        Lowest_Bit (Position.Pieces (Make (Color, King)));
+      -- Mobility area: squares not holding an own piece and, when enabled,
+      -- not attacked by an enemy pawn.
+      Free     : constant Bitboard :=
+        (if Mobility_Area /= 0
+         then not (Own or Pawn_Attack_Set (Enemy_Pawns, Enemy))
+         else not Own);
+      Enemy_Queens : constant Bitboard :=
+        Position.Pieces (Make (Enemy, Queen));
       Enemy_Non_Pawn : constant Bitboard :=
         Position.Pieces (Make (Enemy, Knight))
         or Position.Pieces (Make (Enemy, Bishop))
@@ -753,6 +842,7 @@ package body BBChess.Eval is
                   Sq  : constant Square_Type := Lowest_Bit (Pieces_Here);
                   A   : constant Bitboard := Piece_Attacks (Kind, Sq, Occ);
                begin
+                  All_Attacks := All_Attacks or A;
                   --  Phase-tapered mobility: opening and endgame weights may
                   --  differ (default: equal, so this equals Both (Weight * N)).
                   Acc := Acc +
@@ -792,6 +882,14 @@ package body BBChess.Eval is
                   end if;
 
                   if Kind = Rook then
+                     -- Rook attacking an enemy queen.
+                     if Threat_Rook_Queen /= 0
+                       and then (A and Enemy_Queens) /= 0
+                     then
+                        Acc := Acc +
+                          Both (Threat_Rook_Queen
+                                * Score_Type (Popcount (A and Enemy_Queens)));
+                     end if;
                      declare
                         Fm : constant Bitboard := File_Mask (File_Of (Sq));
                      begin
@@ -828,6 +926,8 @@ package body BBChess.Eval is
          Near_Danger := 0;
          Far_Danger  := 0;
          Attackers   := 0;
+         All_Attacks := Pawn_Attack_Set (Own_Pawns, Color)
+                        or King_Attacks (Own_King);
          Mobility_Of (Knight, Mobility_N, Mobility_N_Eg, King_Attack_Knight);
          Mobility_Of (Bishop, Mobility_B, Mobility_B_Eg, King_Attack_Bishop);
          Mobility_Of (Rook,   Mobility_R, Mobility_R_Eg, King_Attack_Rook);
@@ -858,7 +958,29 @@ package body BBChess.Eval is
       --  is defended by a friendly pawn ("protected") or far from the enemy
       --  king ("outside", good to deflect it in king-pawn endgames).
       function Pawn_Structure_Term return Tapered_Score_Type is
-         Passed : constant Bitboard := Passed_Pawns (Position, Color);
+         -- Own pawns that have another own pawn in front of them on the same
+         -- file (inclusive fill of the own pawns toward the own side, shifted
+         -- one rank): the rear pawn of a doubled pair is not a passer.
+         function Rear_Pawns return Bitboard is
+            F : Bitboard := Own_Pawns;
+         begin
+            if Color = White then
+               F := F or South_1 (F);
+               F := F or (F / 65536);
+               F := F or (F / 4294967296);
+               return Own_Pawns and South_1 (F);
+            else
+               F := F or North_1 (F);
+               F := F or (F * 65536);
+               F := F or (F * 4294967296);
+               return Own_Pawns and North_1 (F);
+            end if;
+         end Rear_Pawns;
+
+         Passed : constant Bitboard :=
+           (if Passed_Rear_Fix /= 0
+            then Passed_Pawns (Position, Color) and not Rear_Pawns
+            else Passed_Pawns (Position, Color));
          PB     : Bitboard;
          -- Per-file presence collapse: OR the eight ranks of each file into
          -- the low byte (square = Rank*8+File, so a right shift by 8*k brings
@@ -924,10 +1046,32 @@ package body BBChess.Eval is
                Outside_Pawn  : constant Boolean :=
                  abs (Integer (F) - Integer (File_Of (Enemy_King)))
                  >= Outside_Passed_Distance;
+               -- Square in front of the pawn (a pawn never stands on its
+               -- last row, so it always exists).
+               Stop : constant Square_Type :=
+                 (if Color = White then Sq + 8 else Sq - 8);
+               Pct  : constant Score_Type :=
+                 (if (Occ and Bit (Stop)) /= 0
+                  then Passed_Blocked_Pct else 100);
             begin
                Acc := Acc +
-                 (Opening => Passed_Pawn_Opening (Row),
-                  End_Game => Passed_Pawn_Endgame (Row));
+                 (Opening => Passed_Pawn_Opening (Row) * Pct / 100,
+                  End_Game => Passed_Pawn_Endgame (Row) * Pct / 100);
+               -- King proximity (endgame): the enemy king far from the stop
+               -- square and the own king close to it, weighted by the row.
+               if Row >= 3 then
+                  declare
+                     W : constant Score_Type := Score_Type (5 * Row - 13);
+                     D_Them : constant Score_Type := Score_Type
+                       (Natural'Min (Distance (Enemy_King, Stop), 5));
+                     D_Us   : constant Score_Type := Score_Type
+                       (Natural'Min (Distance (Own_King, Stop), 5));
+                  begin
+                     Acc.End_Game := Acc.End_Game
+                       + (D_Them * Passed_King_Them - D_Us * Passed_King_Us)
+                         * W / 8;
+                  end;
+               end if;
                if Defended_Pawn then
                   Acc := Acc +
                     (Opening => Passed_Pawn_Opening (Row)
@@ -943,6 +1087,72 @@ package body BBChess.Eval is
             end;
             PB := PB and (PB - 1);
          end loop;
+
+         -- Connected (supported or phalanx) and backward pawns.
+         if Connected_Pct /= 0
+           or else Backward_Opening /= 0 or else Backward_Endgame /= 0
+         then
+            PB := Own_Pawns;
+            while PB /= 0 loop
+               declare
+                  Sq    : constant Square_Type := Lowest_Bit (PB);
+                  B     : constant Bitboard := Bit (Sq);
+                  F     : constant Natural := File_Of (Sq);
+                  R     : constant Natural := Rank_Of (Sq);
+                  Row   : constant Natural := Own_Row (Color, Sq);
+                  Adj   : constant Bitboard :=
+                    (if F > 0 then File_Mask (F - 1) else 0)
+                    or (if F < 7 then File_Mask (F + 1) else 0);
+                  Ahead : constant Bitboard :=
+                    (if Color = White then not Ranks_Below (R + 1)
+                     else Ranks_Below (R));
+                  Stop  : constant Square_Type :=
+                    (if Color = White then Sq + 8 else Sq - 8);
+                  Support : constant Natural := Popcount
+                    (Pawn_Attacks (Enemy, Sq) and Own_Pawns);
+                  Phalanx : constant Boolean :=
+                    ((East_1 (B) or West_1 (B)) and Own_Pawns) /= 0;
+                  Opposed : constant Boolean :=
+                    (Enemy_Pawns and File_Mask (F) and Ahead) /= 0;
+               begin
+                  if Support > 0 or else Phalanx then
+                     declare
+                        V : constant Score_Type :=
+                          (Connected_Seed (Row)
+                           * (2 + Boolean'Pos (Phalanx)
+                                - Boolean'Pos (Opposed))
+                           + 21 * Score_Type (Support))
+                          * Connected_Pct / 200;
+                     begin
+                        Acc := Acc +
+                          (Opening => V,
+                           End_Game => V * Score_Type
+                             (Natural'Max (Row, 2) - 2) / 4);
+                     end;
+                  elsif (Own_Pawns and Adj) /= 0 then
+                     -- Not isolated: backward when no adjacent own pawn
+                     -- stands level with or behind the stop square and the
+                     -- stop square is attacked or blocked by an enemy pawn.
+                     declare
+                        Behind_Stop : constant Bitboard :=
+                          (if Color = White then Ranks_Below (R + 2)
+                           else not Ranks_Below (R - 1));
+                     begin
+                        if (Own_Pawns and Adj and Behind_Stop) = 0
+                          and then
+                            ((Pawn_Attacks (Color, Stop) and Enemy_Pawns) /= 0
+                             or else (Enemy_Pawns and Bit (Stop)) /= 0)
+                        then
+                           Acc := Acc +
+                             (Opening => -Backward_Opening,
+                              End_Game => -Backward_Endgame);
+                        end if;
+                     end;
+                  end if;
+               end;
+               PB := PB and (PB - 1);
+            end loop;
+         end if;
          return Acc;
       end Pawn_Structure_Term;
 
@@ -1004,6 +1214,69 @@ package body BBChess.Eval is
       W_Att         : Natural;
       B_Near, B_Far : Score_Type;
       B_Att         : Natural;
+      -- Union of each color's attacks (pawns, pieces, king).
+      W_All, B_All  : Bitboard;
+      Ramp_KS       : Score_Type := 0;
+
+      -- Undefended enemy pieces (knight .. queen) attacked by Color.
+      function Hanging (Color : in Color_Type; Att, Def : in Bitboard)
+        return Tapered_Score_Type
+      is
+         E : constant Color_Type := Opposite (Color);
+         N : constant Score_Type := Score_Type (Popcount
+           ((Position.Pieces (Make (E, Knight))
+             or Position.Pieces (Make (E, Bishop))
+             or Position.Pieces (Make (E, Rook))
+             or Position.Pieces (Make (E, Queen)))
+            and Att and not Def));
+      begin
+         return (Opening => Hanging_Opening * N,
+                 End_Game => Hanging_Endgame * N);
+      end Hanging;
+
+      -- Endgame scale factor (out of 64) for the side Score favours.
+      function Scale_Factor (Score : in Score_Type) return Score_Type is
+         Strong : constant Color_Type :=
+           (if Score > 0 then White else Black);
+         Weak   : constant Color_Type := Opposite (Strong);
+         function NPM (C : in Color_Type) return Score_Type is
+           (Piece_Value (Knight)
+              * Score_Type (Popcount (Position.Pieces (Make (C, Knight))))
+            + Piece_Value (Bishop)
+              * Score_Type (Popcount (Position.Pieces (Make (C, Bishop))))
+            + Piece_Value (Rook)
+              * Score_Type (Popcount (Position.Pieces (Make (C, Rook))))
+            + Piece_Value (Queen)
+              * Score_Type (Popcount (Position.Pieces (Make (C, Queen)))));
+         NPM_S : constant Score_Type := NPM (Strong);
+         NPM_W : constant Score_Type := NPM (Weak);
+         WB : constant Bitboard := Position.Pieces (White_Bishop);
+         BB : constant Bitboard := Position.Pieces (Black_Bishop);
+      begin
+         -- The stronger side has no pawn and at most a minor piece more:
+         -- usually impossible (or very hard) to win.
+         if Scale_No_Pawn /= 0
+           and then Position.Pieces (Make (Strong, Pawn)) = 0
+           and then NPM_S - NPM_W <= Piece_Value (Bishop)
+         then
+            if NPM_S < Piece_Value (Rook) then
+               return 0;
+            elsif NPM_W <= Piece_Value (Bishop) then
+               return 4;
+            else
+               return 14;
+            end if;
+         end if;
+         -- Opposite-coloured bishops, no other piece.
+         if NPM_S = Piece_Value (Bishop) and then NPM_W = Piece_Value (Bishop)
+           and then Popcount (WB) = 1 and then Popcount (BB) = 1
+           and then ((WB and Light_Squares) /= 0)
+                    /= ((BB and Light_Squares) /= 0)
+         then
+            return Scale_OCB;
+         end if;
+         return 64;
+      end Scale_Factor;
    begin
       -- Material + piece-square tables: maintained incrementally by
       -- Make_Move / Unmake_Move (White-positive).
@@ -1012,9 +1285,11 @@ package body BBChess.Eval is
       -- Positional terms, tapered by the game phase.
       declare
          White_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, White, Occ, W_Near, W_Far, W_Att);
+           Positional_Score (Position, White, Occ, W_Near, W_Far, W_Att,
+                             W_All);
          Black_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, Black, Occ, B_Near, B_Far, B_Att);
+           Positional_Score (Position, Black, Occ, B_Near, B_Far, B_Att,
+                             B_All);
          Diff : Tapered_Score_Type;
       begin
          -- King safety (middlegame only), per color. It must be folded into
@@ -1022,7 +1297,15 @@ package body BBChess.Eval is
          -- splitting the division would change the truncation of negative
          -- intermediate sums. Each term is flat (equal opening / endgame
          -- values), so folding Both(KS) here is the previous arithmetic.
-         if Phase >= King_Safety_Min_Phase then
+         --
+         -- Above KS_Phase_Hi (or above Lo with the historical hard gate,
+         -- Hi <= Lo) the term is full; between Lo and Hi it is scaled
+         -- linearly and added after the blend, so it fades in instead of
+         -- jumping at a single phase value.
+         if Score_Type (Phase) >= KS_Phase_Hi
+           or else (KS_Phase_Hi <= KS_Phase_Lo
+                    and then Score_Type (Phase) >= KS_Phase_Lo)
+         then
             declare
                KS_W : constant Score_Type :=
                  King_Safety (Position, White, B_Near, B_Far, B_Att);
@@ -1032,13 +1315,36 @@ package body BBChess.Eval is
                White_Positional := White_Positional + Both (KS_W);
                Black_Positional := Black_Positional + Both (KS_B);
             end;
+         elsif KS_Phase_Hi > KS_Phase_Lo
+           and then Score_Type (Phase) > KS_Phase_Lo
+         then
+            Ramp_KS :=
+              (King_Safety (Position, White, B_Near, B_Far, B_Att)
+               - King_Safety (Position, Black, W_Near, W_Far, W_Att))
+              * (Score_Type (Phase) - KS_Phase_Lo)
+              / (KS_Phase_Hi - KS_Phase_Lo);
+         end if;
+
+         if Hanging_Opening /= 0 or else Hanging_Endgame /= 0 then
+            White_Positional := White_Positional
+              + Hanging (White, W_All, B_All);
+            Black_Positional := Black_Positional
+              + Hanging (Black, B_All, W_All);
          end if;
 
          Diff :=
            (Opening  => White_Positional.Opening - Black_Positional.Opening,
             End_Game => White_Positional.End_Game - Black_Positional.End_Game);
-         Result := Result + Blend (Diff, Phase);
+         Result := Result + Blend (Diff, Phase) + Ramp_KS;
       end;
+
+      -- Drawish endgames: only low-material positions can be scaled, so the
+      -- check is skipped above a phase of 40 (e.g. both queens and a rook).
+      if Phase <= 40 and then Result /= 0
+        and then (Scale_No_Pawn /= 0 or else Scale_OCB /= 64)
+      then
+         Result := Result * Scale_Factor (Result) / 64;
+      end if;
 
       return Result;
    end Static;

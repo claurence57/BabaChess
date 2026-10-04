@@ -1286,3 +1286,69 @@ vérifié) est **octet pour octet** identique au livre construit localement :
 `f917c95b84eb27d8d488b4ad35d3a529236d9ab205ab515e22a40043a3454e7d`. La
 régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
 le workflow y contribue).
+
+## 70. Évaluation : six termes de connaissance, un seul retenu (pions passés)
+
+Branche `claude_cloud`. Hypothèse de départ : le tuning (Texel §21, SPSA §20)
+a échoué parce que les **paramètres** sont à un optimum local ; le levier
+restant est d'ajouter de la **connaissance** absente de l'évaluation. Six termes
+ont été implémentés, chacun piloté par des paramètres (`--params`) afin de les
+mesurer **séparément** avec un seul binaire.
+
+### 70.1 Les termes
+
+| # | Terme | Paramètres |
+|---|---|---|
+| F1 | Pions passés : le pion arrière d'un doublé n'est plus passé ; case d'arrêt occupée → 60 % du bonus ; proximité des rois à la case d'arrêt en finale (`(min(D_eux,5)·19 − min(D_nous,5)·8)·(5·Row−13)/8`, rangée ≥ 3) | `P_PASSED_REAR`, `P_PASSED_BLOCKED`, `P_PKING_THEM`, `P_PKING_US` |
+| F2 | Réduction des finales nulles (sur 64) : fous de couleurs opposées seuls → 32 ; camp fort sans pion et avance ≤ un fou → 0 / 4 / 14 | `P_SCALE_OCB`, `P_SCALE_NOPAWN` |
+| F3 | Zone de mobilité : cases attaquées par un pion adverse exclues | `P_MOB_AREA` |
+| F4 | Pièces (C..D) adverses attaquées et non défendues (30/18) ; tour attaquant une dame (20) | `P_HANGING_OP/EG`, `P_THREAT_RQ` |
+| F5 | Pions connectés (soutenus / phalange, table type Stockfish classique ÷ 2) et arriérés (6/10) | `P_CONNECTED`, `P_BACKWARD_OP/EG` |
+| F6 | Sécurité du roi : rampe linéaire de phase 10 à 30 au lieu du seuil sec à 20 | `P_KS_LO`, `P_KS_HI` |
+
+Paramètres neutres (`P_PASSED_REAR 0`, `P_PASSED_BLOCKED 100`, poids à 0,
+`P_SCALE_OCB 64`, `P_KS_LO = P_KS_HI = 20`) ⇒ **arbre identique** à la base :
+`--bench 9` = 518 612 nœuds. Symétrie : sept positions ajoutées au self-test
+(doublés/bloqués, connectés/arriérés, pièces en prise, fous opposés, finale
+sans pion, rampe du roi) → **143 contrôles**. `debug` sans avertissement.
+
+### 70.2 Protocole
+
+`cutechess-cli` n'étant pas disponible dans l'environnement, les matchs ont
+utilisé **fastchess** (UCI), 4+0.04, 4 parties simultanées, SPRT [0, 5]
+plafonnée à **1000 parties**, chaque ouverture jouée dans les deux couleurs.
+Ouvertures : **763 positions** dérivées des 65 de `openings/openings.epd`
+(deux demi-coups aléatoires, |éval| ≤ 70 cp à profondeur 7) pour limiter la
+répétition des mêmes parties. Livre absent des deux côtés. Chaque terme seul
+(`--params`) contre le binaire de base.
+
+### 70.3 Résultats (1000 parties chacun)
+
+| Terme | Elo | LOS | Coût nps | Verdict |
+|---|---|---|---|---|
+| F1 pions passés | **+32,4 ± 17,4** | 99,99 % | ≈ 0 | **retenu** |
+| F2 finales nulles | −10,8 ± 17,1 | 10,8 % | ≈ 0 | rejeté |
+| F3 zone de mobilité | −0,7 ± 16,7 | 46,8 % | ≈ 0 | rejeté (neutre) |
+| F4 menaces | −8,3 ± 17,0 | 16,8 % | faible | rejeté |
+| F5 connectés/arriérés | −23,3 ± 17,2 | 0,4 % | **≈ −13 %** | rejeté |
+| F6 rampe sécurité roi | −8,3 ± 16,2 | 15,6 % | ≈ 0 | rejeté |
+
+**Confirmation** du binaire final (F1 seul, défauts compilés, sans
+`--params`) contre la base, graine différente (13) : **+30,7 ± 16,7 Elo,
+LOS 99,99 %**, 1000 parties (382-294-324). Le gain de F1 est reproduit.
+
+La LLR de fastchess reste sous 2,94 au plafond (bornes en Elo normalisé, plus
+exigeantes) : verdict formel « inconclusif au plafond », mais deux mesures
+indépendantes excluent 0 de plusieurs écarts-types.
+
+### 70.4 Lecture
+
+- F1 vise la faiblesse mesurée en finale (§68.3, conversions KRPvKR variables) :
+  c'est le seul terme qui apporte une information que la recherche ne trouve
+  pas seule à faible profondeur (course roi/pion).
+- F5 perd surtout par la vitesse (boucle par pion) ; F2/F4/F6 sont dans le
+  bruit côté négatif. Comme pour §65.5, les cinq termes rejetés restent dans
+  le code **avec des défauts neutres** (arbre identique) : infrastructure
+  réutilisable pour un essai futur (autres valeurs, version plus rapide de F5).
+- Nouveaux nœuds de référence : `--bench 9/10/11/12` = 555 169 / 767 045 /
+  1 610 806 / 2 745 245.
