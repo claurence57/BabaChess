@@ -153,12 +153,12 @@ Cette partie est entièrement bitboard :
   du roi ennemi touche `Outside_Passed_Opening` / `Outside_Passed_Endgame`.
 - **pion arrière d'un doublé** (`P_Passed_Rear`) : un pion qui a un pion ami
   devant lui sur sa colonne n'est pas compté comme passé ;
-- **bloqué** (`P_Passed_Blocked`, 60 %) : si la case d'arrêt (devant le pion)
+- **bloqué** (`P_Passed_Blocked`, 56 % après réglage Texel, §72) : si la case d'arrêt (devant le pion)
   est occupée, seule cette fraction du bonus par rangée est gardée ;
 - **proximité des rois** (finale, rangée propre ≥ 3) : avec la distance de roi
   `D` à la case d'arrêt plafonnée à 5 et le poids `W = 5·Row − 13`, la finale
   reçoit `(D_ennemi × P_PKing_Them − D_ami × P_PKing_Us) × W / 8`
-  (19 et 8 par défaut).
+  (29 et 16 par défaut depuis le réglage Texel, §72).
 
 Les autres termes ajoutés au §70 de `DEVELOPMENT.md` (réduction des finales
 nulles, zone de mobilité, pièces en prise, pions connectés/arriérés, rampe de

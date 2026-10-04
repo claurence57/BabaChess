@@ -1396,3 +1396,84 @@ fastchess : les quatre gains se cumulent (somme individuelle ≈ +93).
 - `--selftest` 143/143, `debug` sans avertissement.
 - S3 (temps) reste à mesurer à cadence plus longue (≥ 10+0.1) : 4+0.04
   sous-estime l'effet d'une meilleure répartition du temps.
+
+## 72. Réglage Texel sur parties d'auto-jeu : +104 Elo (SPRT PASS)
+
+Branche `claude_texel`. Le tuning Texel de §21 (`DEVELOPMENT_HISTORY.md`) avait
+échoué (−38 Elo) sur des **parties humaines** Lichess et sur les seuls
+paramètres scalaires. Refait ici avec les deux corrections classiques :
+données d'**auto-jeu** et réglage des **tables**.
+
+### 72.1 Données
+
+- **Ouvertures** : 120 000 positions après 6-9 demi-coups aléatoires depuis la
+  position initiale, filtrées par éval statique (|éval| ≤ 60) puis par une
+  recherche de profondeur 5 (|score| ≤ 80) → **28 288** ouvertures équilibrées.
+- **Auto-jeu** : fastchess, BabaChess (`main` après §71) contre lui-même à
+  nœuds fixes, une passe à 10 000 et une à 16 000 nœuds par coup (le moteur
+  étant déterministe à nœuds fixes, pas de `-repeat`), adjudication nulle au
+  coup 60 (|score| ≤ 5 sur 8 coups) et abandon à 1000 cp → **56 576 parties**
+  (~2 h sur 4 cœurs).
+- **Extraction** (`scripts/texel_extract.py`) : jusqu'à 12 positions par
+  partie, hors 8 premiers et 6 derniers demi-coups, camp au trait pas en
+  échec, et **coup joué calme** (ni capture, ni promotion, ni échec), sans
+  doublon → **670 679 positions** (37 % gains blancs, 25 % nulles, 38 % gains
+  noirs).
+
+### 72.2 Paramètres réglés
+
+Les tables pièce-case et les tables de pions passés étaient des constantes ;
+elles passent par `--dump-params` / `--params` : `P_PST_<T>_<rangée>_<colonne>`
+(T ∈ P N B R Q K KE, colonnes 0-3, la colonne miroir 7−c prend la même valeur)
+et `P_PASSED_{OP,EG}_<rangée>`. Avec les scalaires (hors interrupteurs, termes
+désactivés de §70 et `P_PAWN` qui fixe l'échelle) : **274 paramètres**.
+
+La table de la dame avait deux entrées asymétriques ; elle devient symétrique
+(c'est la seule différence d'un aller-retour dump → load).
+
+### 72.3 Réglage (`scripts/texel.py`)
+
+Erreur quadratique entre le résultat et `sigmoïde(K·Static/400)`, K ajusté
+une fois (0,956). Descente coordonnée : pour chaque paramètre, ±pas et ±2·pas
+évalués en parallèle par le moteur lui-même (`--eval-fens`, 670 k positions en
+~2 s), meilleur candidat gardé s'il baisse l'erreur d'entraînement ; 10 % des
+positions en validation.
+
+| Tour | Entraînement | Validation | Modifiés |
+|---|---|---|---|
+| départ | 0,117432 | 0,117976 | – |
+| 1 | 0,114876 | 0,115367 | 244 |
+| 2 | 0,114181 | 0,114697 | 194 |
+| 3 | 0,113918 | 0,114405 | 155 |
+| 4 | 0,113792 | 0,114287 | 114 |
+| 5 | 0,113733 | 0,114217 | 88 |
+| 6 | 0,113687 | 0,114187 | 79 |
+
+Arrêté après le tour 6 (gain marginal < 0,00003 par tour), la validation
+baissant encore : pas de sur-apprentissage.
+
+Principaux mouvements : dame 900 → 996, tour 500 → 484 ; pions passés en 7ᵉ
+30/130 → 62/162 ; proximité des rois aux passés 19/8 → 29/16 ; roi de finale
+poussé vers l'avant (+20 à +44 en rangées 4-6) plutôt que simplement centré ;
+cavaliers de bord plus pénalisés ; mobilité plus forte pour fous et tours.
+La table du roi de milieu de partie garde du bruit sur les cases rares (roi
+avancé), faute d'échantillons : sans effet pratique observé.
+
+### 72.4 Validation
+
+- SPRT réglé (`--params`) contre `main`, graine 31 : **+104,2 ± 23,2 Elo,
+  LOS 100 %, LLR 2,96 → PASS** après 608 parties (317-140-151, 64,6 %).
+- Valeurs intégrées comme défauts (arbre identique au test : `--bench 9` =
+  520 079 avec et sans `--params`), confirmation contre `main`, graine 41 :
+  en cours.
+- `--selftest` 143/143 avec les nouveaux paramètres (symétrie comprise),
+  `debug` sans avertissement.
+- Nouveaux nœuds de référence : `--bench 9/11/12` = 520 079 / 1 467 094 /
+  3 020 821.
+
+### 72.5 Leçon
+
+§21 concluait « la MSE est déconnectée de la force ». C'était vrai pour des
+parties humaines : leurs résultats reflètent des fautes que le moteur ne
+commettrait pas, et leurs positions ne ressemblent pas à celles que le moteur
+rencontre. Sur ses propres parties, la même méthode rapporte plus de 100 Elo.
