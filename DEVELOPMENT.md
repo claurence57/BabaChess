@@ -1352,3 +1352,47 @@ indépendantes excluent 0 de plusieurs écarts-types.
   réutilisable pour un essai futur (autres valeurs, version plus rapide de F5).
 - Nouveaux nœuds de référence : `--bench 9/10/11/12` = 555 169 / 767 045 /
   1 610 806 / 2 745 245.
+
+## 71. Recherche : quatre gains cumulés (+93 Elo, SPRT PASS)
+
+Branche `claude_search`. Même méthode que §70 : chaque idée derrière un
+paramètre `S_*` (défaut neutre ⇒ arbre identique à `main`, `--bench 9/11` =
+555 169 / 1 610 806), puis SPRT de 1000 parties **contre le binaire `main`**
+(fastchess, 4+0.04, 763 ouvertures, livre absent).
+
+### 71.1 Idées et résultats individuels
+
+| Id | Idée | Paramètres testés | Elo | Verdict |
+|---|---|---|---|---|
+| S5 | Captures perdantes (attaquant > victime et SEE < 0) ordonnées **après** les coups tranquilles | `S_BAD_CAPTURE 1` | **+49,0 ± 16,7** | retenu |
+| S7 | Fenêtre d'aspiration élargie progressivement (×2 sur la borne franchie) au lieu d'un saut en fenêtre pleine | `S_ASP_GROW 1` | +16,3 ± 16,4 | retenu |
+| S2 | Table de transposition en quiescence (sonde + écriture en profondeur 0) | `S_QS_TT 1` | +14,6 ± 16,3 | retenu |
+| S1b | Reverse futility jusqu'à la profondeur 6, marge `180 + 80·(d−1)` | `S_RFP_DEPTH 6`, `S_RFP_STEP 80` | +13,6 ± 16,2 | retenu |
+| S3 | Temps « soft » modulé par la stabilité du meilleur coup (70 %-140 %, +30 % si le score chute) | `S_TM_STABLE 1` | +7,3 ± 15,4 | non prouvé |
+| S6 | LMR modulé par l'history (±2 plis) | `S_LMR_HIST 8192` | +2,8 ± 16,8 | rejeté |
+| S4 | IIR (−1 pli sans coup TT, profondeur ≥ 4) | `S_IIR_DEPTH 4` | +0,7 ± 16,5 | rejeté |
+| S1a | Null move seulement si l'éval statique ≥ β | `S_NMP_EVAL 1` | −1,4 ± 16,5 | rejeté |
+
+Au bench, S1a et S1b se contrarient (`--bench 11` : S1b −16 % de nœuds, S1a
++6 %, les deux ensemble +38 %) : d'où leur test séparé.
+
+S5 corrige un vrai défaut : MVV-LVA plaçait « dame prend pion défendu » devant
+les killers et l'history. Le tri SEE avait été rejeté en §9.3 de `DEVELOPMENT_HISTORY.md`, mais dans
+un lot mélangé, jugé sur 30 parties contre GNU et avec un SEE calculé pour toute
+capture ; ici le SEE n'est calculé que si l'attaquant vaut plus que la victime.
+
+### 71.2 Test combiné (S5 + S7 + S2 + S1b)
+
+SPRT contre `main`, graine 21 : **+93,4 ± 20,7 Elo, LOS 100 %, LLR 2,97 →
+PASS** après 674 parties (309-132-233, 63,1 %). Premier PASS formel du banc
+fastchess : les quatre gains se cumulent (somme individuelle ≈ +93).
+
+### 71.3 État livré
+
+- Défauts : `S_RFP_DEPTH 6`, `S_RFP_STEP 80`, `S_QS_TT 1`, `S_BAD_CAPTURE 1`,
+  `S_ASP_GROW 1` ; `S_NMP_EVAL`, `S_TM_STABLE`, `S_IIR_DEPTH`, `S_LMR_HIST`
+  restent à 0 (infrastructure conservée, réactivable par `--params`).
+- `--bench 9/11/12` = **460 479 / 1 442 602 / 2 692 597** nœuds.
+- `--selftest` 143/143, `debug` sans avertissement.
+- S3 (temps) reste à mesurer à cadence plus longue (≥ 10+0.1) : 4+0.04
+  sous-estime l'effet d'une meilleure répartition du temps.
