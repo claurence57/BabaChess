@@ -8,6 +8,19 @@
 
 ## Non publié
 
+### Évaluation : zone de mobilité (+18 à +31 Elo)
+
+- La mobilité ne compte plus les cases attaquées par un pion adverse.
+  Neutre avec l'ancienne évaluation, ce terme gagne une fois l'évaluation
+  réglée par Texel : **+18,1 ± 16,2** puis **+31,4 ± 17,1 Elo** (deux séries
+  de 1000 parties).
+- Les autres termes rejetés en §70 ont été retestés avec des poids réglés
+  (finales nulles, pièces en prise, pions connectés, rampe de sécurité du
+  roi) : toujours sans gain, ils restent désactivés. Détail :
+  `DEVELOPMENT.md` §73.
+- `scripts/texel.py --only REGEX` règle un sous-ensemble de paramètres.
+- `--bench 9/11/12` = 546 046 / 1 343 555 / 2 646 747 nœuds.
+
 ### Évaluation : réglage Texel sur parties d'auto-jeu (+100 Elo et plus)
 
 - **274 paramètres d'évaluation réglés** (valeurs scalaires, tables

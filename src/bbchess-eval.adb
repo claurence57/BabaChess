@@ -346,17 +346,19 @@ package body BBChess.Eval is
      P_PKing_Us        => 16,
      --
      --  The terms below were measured (SPRT, 1000 games each, see
-     --  DEVELOPMENT.md §70) and did not gain: they are kept as switchable
-     --  infrastructure with neutral defaults (node-identical to the build
-     --  without them). Values tried: OCB 32, NoPawn 1, Mob_Area 1,
-     --  Hanging 30/18, Threat_RQ 20, Connected 100, Backward 6/10,
-     --  KS ramp 10..30.
+     --  DEVELOPMENT.md §70 and §73). The mobility area gains once the
+     --  evaluation is Texel-tuned (§73) and is on. The others did not gain,
+     --  even re-tuned: they are kept as switchable infrastructure with
+     --  neutral defaults (node-identical to the build without them).
+     --  Values tried: OCB 32, NoPawn 1, Hanging 30/18 then 26/26,
+     --  Threat_RQ 20 then 44, Connected 100 then 76, Backward 6/10,
+     --  KS ramp 10..30 then 22..54.
      --
      --  Endgame scaling, out of 64 (64 = no scaling; P_Scale_NoPawn 0 = off).
      P_Scale_OCB       => 64,
      P_Scale_NoPawn    => 0,
      --  1 = mobility ignores the squares attacked by enemy pawns.
-     P_Mob_Area        => 0,
+     P_Mob_Area        => 1,
      --  Undefended enemy pieces we attack; rook attacking a queen.
      P_Hanging_Op      => 0,
      P_Hanging_Eg      => 0,
