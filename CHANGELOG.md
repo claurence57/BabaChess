@@ -8,6 +8,19 @@
 
 ## Non publié
 
+### Évaluation : réglage Texel sur parties d'auto-jeu (+100 Elo et plus)
+
+- **274 paramètres d'évaluation réglés** (valeurs scalaires, tables
+  pièce-case, tables de pions passés) sur 670 679 positions calmes extraites
+  de 56 576 parties du moteur contre lui-même.
+- Mesure : **+104,2 ± 23,2 Elo** (SPRT PASS, 608 parties), confirmé par
+  **+131,3 ± 26,3 Elo** (SPRT PASS, 546 parties, graine différente).
+- Les tables pièce-case et de pions passés sont désormais réglables par
+  `--params` (`P_PST_*`, `P_PASSED_OP_*`, `P_PASSED_EG_*`).
+- Nouveaux outils : `scripts/texel_extract.py` (jeu de données depuis des PGN
+  d'auto-jeu) et `scripts/texel.py` (réglage). Détail : `DEVELOPMENT.md` §72.
+- `--bench 9/11/12` = 520 079 / 1 467 094 / 3 020 821 nœuds.
+
 ### Recherche : quatre améliorations cumulées (+93 Elo)
 
 - **Captures perdantes** (SEE < 0) jouées après les coups tranquilles au lieu

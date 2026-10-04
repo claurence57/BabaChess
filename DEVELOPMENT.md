@@ -1465,7 +1465,9 @@ avancé), faute d'échantillons : sans effet pratique observé.
   LOS 100 %, LLR 2,96 → PASS** après 608 parties (317-140-151, 64,6 %).
 - Valeurs intégrées comme défauts (arbre identique au test : `--bench 9` =
   520 079 avec et sans `--params`), confirmation contre `main`, graine 41 :
-  en cours.
+  **+131,3 ± 26,3 Elo, LOS 100 %, LLR 2,96 → PASS** après 546 parties
+  (309-112-125, 68,0 %). Les deux séries indépendantes concordent
+  (≈ +104 et +131) : gain retenu d'environ **+100 Elo ou plus**.
 - `--selftest` 143/143 avec les nouveaux paramètres (symétrie comprise),
   `debug` sans avertissement.
 - Nouveaux nœuds de référence : `--bench 9/11/12` = 520 079 / 1 467 094 /
