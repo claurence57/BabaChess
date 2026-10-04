@@ -275,7 +275,7 @@ package body BBChess.Eval is
       P_Mob_Area,
       P_Hanging_Op, P_Hanging_Eg, P_Threat_RQ,
       P_Connected, P_Backward_Op, P_Backward_Eg,
-      P_KS_Lo, P_KS_Hi);
+      P_KS_Lo, P_KS_Hi, P_Trapped_Bishop);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -359,7 +359,10 @@ package body BBChess.Eval is
      --  King safety phase gate: full above Hi, none at or below Lo, linear
      --  in between. Hi <= Lo is the historical hard gate at Lo.
      P_KS_Lo           => 20,
-     P_KS_Hi           => 20);
+     P_KS_Hi           => 20,
+     --  Bishop shut in on the enemy's 7th-rank corner (a7/h7 behind a pawn
+     --  on b6/g6); half of it on the 6th rank (a6/h6 behind b5/g5).
+     P_Trapped_Bishop  => 100);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -626,6 +629,7 @@ package body BBChess.Eval is
    Connected_Pct         : Score_Type renames Params (P_Connected);
    Backward_Opening      : Score_Type renames Params (P_Backward_Op);
    Backward_Endgame      : Score_Type renames Params (P_Backward_Eg);
+   Trapped_Bishop        : Score_Type renames Params (P_Trapped_Bishop);
 
    -- Connected pawn base bonus by own row (supported or phalanx pawn).
    Connected_Seed : constant array (Natural range 0 .. 7) of Score_Type :=
@@ -1156,6 +1160,39 @@ package body BBChess.Eval is
          return Acc;
       end Pawn_Structure_Term;
 
+      --  Trapped bishop: a bishop that took a rook's-file pawn deep in the
+      --  enemy camp (own row 6 on file a/h) is cut off by an enemy pawn on
+      --  the adjacent file one row below (b6/g6 for White). Squares are
+      --  expressed in own-row coordinates, so the term is colour-generic.
+      function Trapped_Bishop_Term return Tapered_Score_Type is
+         function Sq_At (Row, File : Natural) return Square_Type is
+           (Square_Type ((if Color = White then Row else 7 - Row) * 8
+                         + File));
+         Bishops : constant Bitboard := Position.Pieces (Make (Color, Bishop));
+         Pen     : Score_Type := 0;
+      begin
+         if Bishops /= 0 then
+            for Side_File in 0 .. 1 loop
+               declare
+                  F_Edge : constant Natural := (if Side_File = 0 then 0 else 7);
+                  F_Next : constant Natural := (if Side_File = 0 then 1 else 6);
+               begin
+                  if (Bishops and Bit (Sq_At (6, F_Edge))) /= 0
+                    and then (Enemy_Pawns and Bit (Sq_At (5, F_Next))) /= 0
+                  then
+                     Pen := Pen + Trapped_Bishop;
+                  end if;
+                  if (Bishops and Bit (Sq_At (5, F_Edge))) /= 0
+                    and then (Enemy_Pawns and Bit (Sq_At (4, F_Next))) /= 0
+                  then
+                     Pen := Pen + Trapped_Bishop / 2;
+                  end if;
+               end;
+            end loop;
+         end if;
+         return Both (-Pen);
+      end Trapped_Bishop_Term;
+
       --  Threats: pawns attacking enemy pieces, and minor pieces attacking
       --  enemy rooks/queens. Computed per color and mirrored, so symmetric.
       --  The pawn attack set is the union of the attack squares of all the
@@ -1198,6 +1235,7 @@ package body BBChess.Eval is
       Result := Result + Mobility_Term (Near_Danger, Far_Danger, Attackers);
       Result := Result + Connected_Rooks_Term;
       Result := Result + Pawn_Structure_Term;
+      Result := Result + Trapped_Bishop_Term;
       Result := Result + Pawn_Threats_Term;
       Result := Result + King_Activity_Term;
 

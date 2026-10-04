@@ -504,6 +504,32 @@ package body BBChess.Self_Tests is
          Check_Symmetry ("8/8/3k4/8/2R5/8/3KB3/5r2 w - - 0 1");
          Check_Symmetry ("2r3k1/1q3pp1/p3p2p/1p6/3Q4/P4N2/1P3PPP/2R3K1 w - - 0 1");
          Check_Symmetry ("6k1/5ppp/8/8/3q4/8/5PPP/3R2K1 w - - 0 1");
+         Check_Symmetry ("8/B4k2/1p6/8/8/8/8/6K1 w - - 0 1");
+      end;
+
+      --  Trapped bishop: the same material with the bishop's diagonal blocked
+      --  on the 7th-rank edge (a7 behind a b6 pawn) must score lower than the
+      --  free version, and the term must be colour-generic (the black mirror
+      --  is the negated white case). Bounds are loose and relative, so they do
+      --  not pin the exact constant.
+      declare
+         function Eval (Fen : in String) return Score_Type is
+            P : Position_Type;
+         begin
+            Load (P, Fen);
+            return Static (P);
+         end Eval;
+         White_Trapped : constant Score_Type :=
+           Eval ("8/B4k2/1p6/8/8/8/8/6K1 w - - 0 1");
+         White_Free : constant Score_Type :=
+           Eval ("8/B4k2/8/1p6/8/8/8/6K1 w - - 0 1");
+         Black_Trapped : constant Score_Type :=
+           Eval ("6k1/8/8/8/8/1P6/b4K2/8 b - - 0 1");
+      begin
+         Assert (White_Free - White_Trapped >= 50,
+                 "trapped bishop must cost >= 50 cp");
+         Assert (White_Trapped = -Black_Trapped,
+                 "trapped bishop must be symmetric under mirroring");
       end;
 
       Ada.Text_IO.Put_Line ("evaluation OK");
