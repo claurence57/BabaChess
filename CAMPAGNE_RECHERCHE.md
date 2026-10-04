@@ -92,3 +92,17 @@ LLR: 0.94 (32.0%) (-2.94, 2.94) [0.00, 5.00]
 > peu après. Résultat partiel écarté. Correction : chaque lot de 2 matchs
 > (≈ 95 min) tourne dans une tâche de fond suivie par la session (limite 2 h),
 > relancée à la fin de la précédente. t3 repris à 08:21 UTC.
+
+### t3_qs_tt — graine 1 — 1a66a81 — 2026-10-04 09:08:06 UTC
+
+Paramètres (`campaign/params/t3_qs_tt.params`) : `S_QS_TT 1 `
+
+```
+Results of new vs old (4+0.04, 1t, 16MB, ops.epd):
+Elo: -2.08 +/- 15.75, nElo: -2.85 +/- 21.53
+LOS: 39.76 %, DrawRatio: 38.20 %, PairsRatio: 1.02
+Games: 1000, Wins: 295, Losses: 301, Draws: 404, Points: 497.0 (49.70 %)
+Ptnml(0-2): [42, 111, 191, 123, 33], WL/DD Ratio: 1.25
+LLR: -0.22 (-7.5%) (-2.94, 2.94) [0.00, 5.00]
+--------------------------------------------------
+```
