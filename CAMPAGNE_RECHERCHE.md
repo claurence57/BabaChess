@@ -303,3 +303,9 @@ Ptnml(0-2): [41, 109, 187, 123, 40], WL/DD Ratio: 1.71
 LLR: 0.13 (4.3%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+**Après c4** : t2 n'ajoute que +4,2 ± 16,1 au-dessus de c2 (mesures : +18,8,
++6,3, +4,2) → **non retenu**. Configuration finale = c2 (t6 + t5 + t1),
+désormais les **défauts compilés** (`--bench 9` = 515 690, identique à c2).
+Vérification finale : binaire sans `--params` contre le binaire de `main`
+(79ac266, bench 555 169), graine 4 (`campaign/final.sh`).
