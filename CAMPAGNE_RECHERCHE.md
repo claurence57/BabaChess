@@ -282,3 +282,10 @@ Ptnml(0-2): [30, 99, 167, 150, 54], WL/DD Ratio: 1.23
 LLR: 1.75 (59.5%) (-2.94, 2.94) [0.00, 5.00]
 --------------------------------------------------
 ```
+
+**Après c1/c2** : c1 passe le SPRT (LLR 2,95, 838 parties) ; t1 ajoute
++34,5 ± 16,4 au-dessus de c1 → troisième mesure positive (+39, +8, +35),
+**t1 retenu**. c3 est remplacé par **c4_c2_nmp = c2 + t2 contre c2** (t2
+mesuré au-dessus de tout ce qui est retenu). Note : fastchess signale parfois
+« PV continues after threefold repetition » (PV UCI cosmétique, sans effet
+sur le coup joué).
