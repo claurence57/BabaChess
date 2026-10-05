@@ -1547,3 +1547,17 @@ Lecture : le premier passage a récolté l'essentiel. Un second passage sur les
 mêmes termes ne fait que déplacer les poids autour du même optimum. Un nouveau
 gain par réglage demanderait de nouveaux termes d'évaluation, pas un nouveau
 passage.
+
+## 75. Temps modulé par la stabilité du meilleur coup (S3) à 10+0.1 — non prouvé
+
+Suite de §71 (S3 : +7,3 ± 15,4 Elo à 4+0.04, cadence jugée trop courte pour
+mesurer la gestion du temps). Même binaire `main` avec `S_TM_STABLE 1` contre
+`main`, fastchess **10+0.1**, graine 71, 1000 parties : **+7,3 ± 15,6 Elo**,
+LOS 82 %, LLR 0,31 (295-274-431), aucune perte au temps.
+
+Les deux séries indépendantes donnent la même estimation ; cumulées (2000
+parties) : ≈ **+7 ± 11 Elo**. Tendance positive mais sous le seuil de preuve :
+`S_TM_STABLE` reste à 0 par défaut (règle du projet : un non-PASS n'est pas
+adopté). Pistes si l'on y revient : des facteurs plus marqués (arrêt plus tôt
+quand le coup est stable depuis longtemps) ou un critère fondé sur la part des
+nœuds passés sous le meilleur coup à la racine.
