@@ -128,15 +128,22 @@ cutechess-cli \
   | grep -aE "Score of|Elo|LOS|SPRT|Finished match|^Finished game" || true
 
 # --- verdict ---------------------------------------------------------------
+# cutechess terminates the line with "ubound 2.94 - H0/H1 was accepted" (no
+# comma after the bound), so the bound parser must stop at the first non-number
+# character, not at a comma: matching "[^,]*" would swallow "2.94 - H0 ..."
+# and, worse, the " - " would make the field non-numeric, yielding -inf and a
+# bogus PASS. Extract only the signed decimal.
 SPRT_LINE="$(grep -a "SPRT:" "$LOG" | tail -1 || true)"
-LLR="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*llr \([^ ]*\).*/\1/p')"
-LB="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*lbound \([^,]*\).*/\1/p')"
-UB="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*ubound \([^,]*\).*/\1/p')"
+LLR="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*llr  *\(-\?[0-9][0-9.]*\).*/\1/p')"
+LB="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*lbound  *\(-\?[0-9][0-9.]*\).*/\1/p')"
+UB="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*ubound  *\(-\?[0-9][0-9.]*\).*/\1/p')"
+# The acceptance sentence is unambiguous; trust it over the numeric bounds.
+ACCEPTED="$(printf '%s\n' "$SPRT_LINE" | sed -n 's/.*\(H[01]\) was accepted.*/\1/p')"
 
 echo
 echo "Last SPRT: ${SPRT_LINE:-<none>}"
 RC=0
-python3 - "$LLR" "$LB" "$UB" <<'PY' || RC=$?
+python3 - "$LLR" "$LB" "$UB" "$ACCEPTED" <<'PY' || RC=$?
 import math, sys
 
 def num(x):
@@ -149,10 +156,19 @@ if not sys.argv[1]:
     print("VERDICT: ERROR (no SPRT line found in cutechess output)")
     sys.exit(3)
 llr, lo, hi = (num(x) for x in sys.argv[1:4])
-if llr >= hi:
+accepted = sys.argv[4] if len(sys.argv) > 4 else ""
+# cutechess states which hypothesis was accepted; that is the authoritative
+# verdict and does not depend on parsing the (possibly signed) bounds.
+if accepted == "H1":
+    print("VERDICT: PASS  (H1 accepted: NEW is stronger by >= elo1)")
+elif accepted == "H0":
+    print("VERDICT: FAIL  (H0 accepted: NEW is not stronger by >= elo0)")
+    sys.exit(1)
+elif llr >= hi:
     print("VERDICT: PASS  (H1 accepted: NEW is stronger by >= elo1)")
 elif llr <= lo:
     print("VERDICT: FAIL  (H0 accepted: NEW is not stronger by >= elo0)")
+    sys.exit(1)
 else:
     print(f"VERDICT: INCONCLUSIVE (cap reached; llr={llr:.2f} in [{lo:.2f}, {hi:.2f}])")
     sys.exit(2)
