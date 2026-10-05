@@ -1526,3 +1526,24 @@ des termes voisins) sont réglés par Texel (`scripts/texel.py --only`, mêmes
 - `--bench 9/11/12` = **546 046 / 1 343 555 / 2 646 747** nœuds.
 - `--selftest` 143/143, `debug` sans avertissement.
 - `scripts/texel.py` accepte `--only REGEX` pour régler un sous-ensemble.
+
+## 74. Second passage Texel (auto-jeu du moteur réglé) — neutre, non retenu
+
+Branche `claude_texel2`. Même protocole que §72, avec des parties jouées par le
+moteur de `main` après §72-§73 (éval réglée, zone de mobilité) :
+
+- **Auto-jeu** : 56 576 parties sur les mêmes 28 288 ouvertures, à 12 000 puis
+  20 000 nœuds par coup (le conteneur a redémarré pendant la première passe ;
+  elle a été reprise à l'ouverture 19 894, sans perte).
+- **Données** : 672 888 positions calmes ; K = 1,0095 (contre 0,956 en §72 :
+  l'éval réglée est mieux calibrée).
+- **Réglage** des mêmes 274 paramètres : validation 0,118357 → **0,117729**
+  (arrêt au tour 6, la validation ne baissant plus), soit −0,0006 contre
+  −0,0026 au premier passage.
+- **SPRT** contre `main`, graine 61 : **+3,5 ± 17,9 Elo**, LOS 64,9 %, 1000
+  parties (337-327-336) → **neutre, non retenu**.
+
+Lecture : le premier passage a récolté l'essentiel. Un second passage sur les
+mêmes termes ne fait que déplacer les poids autour du même optimum. Un nouveau
+gain par réglage demanderait de nouveaux termes d'évaluation, pas un nouveau
+passage.
