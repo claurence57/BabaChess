@@ -964,3 +964,13 @@ désormais comme **référence** pour les A/B de développement.
 ## Lignes précédentes (développement, non taguées)
 
 Historique complet des chantiers dans `DEVELOPMENT.md` (§ 1 à 6).
+
+### Fou enfermé (porté de `eval-improvements`) : rejeté
+
+Terme `P_Trapped_Bishop` porté seul sur `main`, mesuré puis rejeté : juge GNU
+800 p. **−13,9 Elo** (33,8 % contre 35,6 % à `main`), auto-match SPRT
+**−15,0 Elo, H0 accepté → FAIL**. Non fusionné. Détail : `DEVELOPMENT.md` §72.
+
+Correction d'outillage au passage : `sprt.sh` affichait « PASS » pour **tout**
+SPRT terminé (borne `ubound` mal parsée → `-inf`) ; corrigé, le verdict suit
+désormais la phrase « H0/H1 was accepted » de cutechess.

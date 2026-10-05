@@ -1396,3 +1396,43 @@ fastchess : les quatre gains se cumulent (somme individuelle ≈ +93).
 - `--selftest` 143/143, `debug` sans avertissement.
 - S3 (temps) reste à mesurer à cadence plus longue (≥ 10+0.1) : 4+0.04
   sous-estime l'effet d'une meilleure répartition du temps.
+
+## 72. Évaluation — fou enfermé (porté de `eval-improvements`) : REJETÉ
+
+Seul terme de la branche `eval-improvements` non déjà couvert par l'évaluation
+de `main` (§70) : le **fou enfermé**. Porté seul sur `main` (commit `58e4f77`,
+branche `feat/trapped-bishop`), mesuré, puis **rejeté**.
+
+- **Contenu** : un fou sur sa 7e rangée en bord de colonne (a7/h7), coupé par un
+  pion ennemi en b6/g6 → −100 cp ; sur la 6e (a6/h6 derrière b5/g5) → −50 cp.
+  Générique en couleur, `P_Trapped_Bishop` tunable. Trois self-tests ajoutés
+  (**146 contrôles**), symétrie 0/3000.
+- `--bench 9/11/12` = 473 209 / 1 524 255 / 2 545 779 (main : 460 479 /
+  1 442 602 / 2 692 597).
+- **M1 — gauntlet GNU** (800 parties appariées, 10+0.1, graine 7) :
+  - main `8aabf40` : 172-226-402 = **35,6 %**, **−102,8 Elo** ;
+  - fou enfermé : 165-211-424 = **33,8 %**, **−116,7 Elo** ;
+  - → écart apparié **−13,9 Elo** : sous la barre +15 (et négatif). Non adopté.
+- **M2 — SPRT auto-match** [−5, 0] contre `main` : **392-489-1365 = 47,8 %**,
+  **−15,0 ± 9,0 Elo**, LOS 0,1 %, **H0 accepté → FAIL** (régression confirmée,
+  2 246 parties).
+
+Les deux juges concordent : le terme **régresse** la force. La branche reste
+poussée (`feat/trapped-bishop`, `origin`) comme trace, mais **n'est pas
+fusionnée**.
+
+### 72.1 Bug d'outillage corrigé (`sprt.sh`)
+
+En vérifiant ce lot, un **bug du script `sprt.sh`** a été trouvé et corrigé
+(commit `2165e66`) : la ligne cutechess se termine par `ubound 2.94 - H0 was
+accepted` (sans virgule), l'extraction des bornes matchait jusqu'à la virgule,
+avalait `2.94 - H0 …`, échouait à parser et donnait `-inf` → `llr >= ubound`
+toujours vrai → **tout SPRT terminé affichait « PASS »**, y compris les cas
+« H0 accepté » (régression). Le correctif n'extrait que le décimal signé et fait
+foi de la phrase explicite « H0/H1 was accepted ». Vérifié : le run fou-enfermé
+(`llr -2.98`, « H0 was accepted ») affiche désormais **FAIL**.
+
+**Impact sur les verdicts antérieurs** : seul ce lot était concerné. Le PASS de
+l'adoption des lots 2.1-2.4 (`eval-improvements`) indiquait « H1 was accepted »
+(H1 réellement accepté) : il **reste valide**. Les autres runs étaient étiquetés
+INCONCLUSIVE et le restent.
