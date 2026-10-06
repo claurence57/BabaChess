@@ -11,6 +11,9 @@ with Interfaces.C;
 with BBChess.Board;
 use BBChess.Board;
 
+with BBChess.Moves;
+use BBChess.Moves;
+
 package BBChess.Syzygy is
 
    -- Scores returned by the search for a tablebase win/loss (below mate,
@@ -46,5 +49,21 @@ package BBChess.Syzygy is
    -- Fathom WDL value (0..4) from the side to move's point of view, or -1 when
    -- the probe fails (no tablebase, castling rights, or a non-zero halfmove
    -- clock).
+
+   function Has_DTZ return Boolean;
+   -- True when the loaded tablebases include DTZ data (distance to zero),
+   -- required by the root probe. False with WDL-only tables.
+   pragma Inline (Has_DTZ);
+
+   function Probe_Root_Move
+     (Position : in Position_Type; Move : out Move_Type;
+      Wdl : out Integer) return Boolean;
+   -- DTZ root probe (Fathom tb_probe_root): on success fills Move with a move
+   -- that preserves the WDL value while minimising the distance to zero, and
+   -- sets Wdl to that value (0..4, from the side to move's point of view), then
+   -- returns True. Returns False when the probe fails (no DTZ tables, castling
+   -- rights, > Largest pieces, or an unavailable material). The halfmove clock
+   -- is passed as rule50, so a cursed/blessed result already accounts for the
+   -- 50-move context. NOT thread-safe: call once at the search root only.
 
 end BBChess.Syzygy;

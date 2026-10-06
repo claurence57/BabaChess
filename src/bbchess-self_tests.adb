@@ -46,6 +46,9 @@ use BBChess.See;
 with BBChess.Search;
 use BBChess.Search;
 
+with BBChess.Syzygy;
+use BBChess.Syzygy;
+
 with BBChess.Clocks;
 use BBChess.Clocks;
 
@@ -926,6 +929,26 @@ package body BBChess.Self_Tests is
       Ada.Text_IO.Put_Line ("TT data round-trip OK");
    end Test_TT_Data;
 
+   -----------------------
+   --  Syzygy DTZ root  --
+   -----------------------
+
+   procedure Test_Syzygy_Root is
+      P : Position_Type;
+      M : Move_Type;
+      W : Integer;
+   begin
+      -- Without tablebases loaded (the selftest never opens one), the DTZ root
+      -- probe must decline cleanly: no crash, no move, and the caller falls
+      -- back to the search. This pins the "no degraded behaviour" contract
+      -- independent of the machine's tablebases.
+      Load (P, "8/8/8/3k4/8/8/8/KQ6 w - - 95 1");
+      Assert (not Probe_Root_Move (P, M, W),
+              "DTZ root probe must fail without tablebases");
+      Assert (M = Empty_Move, "a failed DTZ probe must not set a move");
+      Ada.Text_IO.Put_Line ("syzygy DTZ root OK");
+   end Test_Syzygy_Root;
+
    -------------
    --  SMP     --
    -------------
@@ -1092,6 +1115,7 @@ package body BBChess.Self_Tests is
       Test_See;
       Test_Polyglot;
       Test_TT_Data;
+      Test_Syzygy_Root;
       Test_Smp;
       Test_Text_Handling;
       Test_Thread_Arguments;

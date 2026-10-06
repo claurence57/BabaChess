@@ -31,3 +31,7 @@ perf.data*
 scripts/__pycache__/
 build/
 dist/
+# Syzygy tablebase files must never be committed (they are large and live
+# outside the repository); guard against a stray download landing here.
+*.rtbw
+*.rtbz

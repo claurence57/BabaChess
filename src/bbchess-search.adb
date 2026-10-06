@@ -98,7 +98,11 @@ package body BBChess.Search is
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 0,
-      S_Asp_Grow             => 1);
+      S_Asp_Grow             => 1,
+      --  Syzygy DTZ root: off by default (strict SPRT baseline).
+      S_Syzygy_Root          => 0,
+      S_Syzygy_Root_Max_Pieces => 7,
+      S_Syzygy_Root_Min_Hm   => 80);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,
@@ -131,7 +135,10 @@ package body BBChess.Search is
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 0,
       S_Lmr_Hist             => 0,
-      S_Asp_Grow             => 0);
+      S_Asp_Grow             => 0,
+      S_Syzygy_Root          => 0,
+      S_Syzygy_Root_Max_Pieces => 0,
+      S_Syzygy_Root_Min_Hm   => 0);
 
    Search_Param_Max : constant Search_Param_Array :=
      (S_Futility_Margin      => 32_000,
@@ -169,7 +176,10 @@ package body BBChess.Search is
       S_Iir_Depth            => 64,
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 1_000_000,
-      S_Asp_Grow             => 1);
+      S_Asp_Grow             => 1,
+      S_Syzygy_Root          => 1,
+      S_Syzygy_Root_Max_Pieces => 64,
+      S_Syzygy_Root_Min_Hm   => 100);
 
    -- Named constants used by the rest of the search (the former hard-coded
    -- constants, now renames of the parameter table entries).
@@ -2191,6 +2201,39 @@ package body BBChess.Search is
       --  returning to it is detected as a repetition (the game-history scan
       --  alone counts the root's single occurrence as G = 1, never >= 2).
       Ctx.Search_Path (0) := Work.Key;
+
+      --  Syzygy DTZ root (S_Syzygy_Root, default off): in the 50-move zone,
+      --  with few enough men and a DTZ win, play the move that minimises the
+      --  distance to zero instead of searching. Restricted to a WDL win (a
+      --  DTZ-optimal move in a draw/loss is documented as unnatural) and to
+      --  the primary reporting thread (the probe is not thread-safe, and all
+      --  workers search the same root). Falls through to the normal search on
+      --  any failure, so the behaviour is never degraded.
+      if Report
+        and then Search_Params (S_Syzygy_Root) /= 0
+        and then BBChess.Syzygy.Has_DTZ
+        and then Popcount (Work.All_Occ)
+          <= Search_Params (S_Syzygy_Root_Max_Pieces)
+        and then Work.Halfmove >= Search_Params (S_Syzygy_Root_Min_Hm)
+      then
+         declare
+            Root_Move : Move_Type;
+            Root_Wdl  : Integer;
+            --  Fathom TB_WIN (see tbprobe.h); Probe_Root_Move returns the WDL
+            --  as a plain Integer, so compare against the literal.
+            Tb_Win    : constant Integer := 4;
+         begin
+            if BBChess.Syzygy.Probe_Root_Move (Work, Root_Move, Root_Wdl)
+              and then Root_Wdl = Tb_Win
+            then
+               Result.Best := Root_Move;
+               Result.Score := BBChess.Syzygy.TB_Win;
+               Result.Depth := 0;
+               Result.Nodes := 0;
+               return Result;
+            end if;
+         end;
+      end if;
 
       begin
          for D in 1 .. Max_Depth loop

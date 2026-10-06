@@ -167,7 +167,13 @@ package BBChess.Search is
       S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
-      S_Asp_Grow);        -- 1 = aspiration window widened gradually
+      S_Asp_Grow,         -- 1 = aspiration window widened gradually
+      --  Syzygy DTZ root (0 = off): when on, a root position in the 50-move
+      --  zone (halfmove >= S_Syzygy_Root_Min_Hm) with at most
+      --  S_Syzygy_Root_Max_Pieces men is played by the DTZ-optimal move.
+      S_Syzygy_Root,          -- 1 = probe DTZ at the root
+      S_Syzygy_Root_Max_Pieces,
+      S_Syzygy_Root_Min_Hm);
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
 
