@@ -98,7 +98,8 @@ package body BBChess.Search is
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 0,
-      S_Asp_Grow             => 1);
+      S_Asp_Grow             => 1,
+      S_Corr_Pct             => 0);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,
@@ -131,7 +132,8 @@ package body BBChess.Search is
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 0,
       S_Lmr_Hist             => 0,
-      S_Asp_Grow             => 0);
+      S_Asp_Grow             => 0,
+      S_Corr_Pct             => 0);
 
    Search_Param_Max : constant Search_Param_Array :=
      (S_Futility_Margin      => 32_000,
@@ -169,7 +171,8 @@ package body BBChess.Search is
       S_Iir_Depth            => 64,
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 1_000_000,
-      S_Asp_Grow             => 1);
+      S_Asp_Grow             => 1,
+      S_Corr_Pct             => 400);
 
    -- Named constants used by the rest of the search (the former hard-coded
    -- constants, now renames of the parameter table entries).
@@ -510,6 +513,13 @@ package body BBChess.Search is
    -- to recover the opponent's previous move (counter-move / continuation).
    type Move_Path_Array is array (0 .. Max_Ply) of Move_Type;
 
+   --  Correction history table: side to move x pawn-structure hash.
+   Corr_Bits  : constant := 14;
+   Corr_Size  : constant := 2 ** Corr_Bits;
+   Corr_Grain : constant := 256;
+   Corr_Limit : constant := 96 * Corr_Grain;
+   type Corr_Array is array (Color_Type, 0 .. Corr_Size - 1) of Integer;
+
    type Search_Context is
       record
          Killers          : Killer_Array := (others => (others => Empty_Move));
@@ -534,6 +544,10 @@ package body BBChess.Search is
          Shared_Report    : Boolean := False;
          Start_Time       : Time := Clock;
          Time_Budget      : Duration := 0.0;
+         --  Correction history (see Corrected_Eval): running average of
+         --  (search score - static eval), per side to move and pawn structure,
+         --  in 1/256 centipawn.
+         Corr             : Corr_Array;
       end record;
    --  Every field is written by Init_Context before any read (each allocation
    --  is followed by Init_Context), so the implicit default initialization of
@@ -617,6 +631,7 @@ package body BBChess.Search is
       Ctx.History := (others => (others => (others => 0)));
       Ctx.Counter := (others => (others => (others => Empty_Move)));
       Ctx.Cont_History := (others => (others => 0));
+      Ctx.Corr := (others => (others => 0));
       Ctx.Move_Path := (others => Empty_Move);
       Ctx.Search_Path := (others => 0);
       Ctx.Game_Key_Count := Init_Game_Key_Count;
@@ -688,6 +703,74 @@ package body BBChess.Search is
       return (Color_Board (Position, Opposite (Position.Side)) and Bit (Move.To)) /= 0;
    end Is_Tactical;
    pragma Inline (Is_Tactical);
+
+   -----------------------------
+   -- Correction history --
+   -----------------------------
+
+   --  Index of the pawn structure in the correction table: a multiplicative
+   --  hash of the two pawn bitboards, top Corr_Bits bits.
+   function Pawn_Index (Position : in Position_Type) return Natural is
+      W : constant Bitboard := Position.Pieces (White_Pawn);
+      B : constant Bitboard := Position.Pieces (Black_Pawn);
+      H : constant Bitboard :=
+        (W * 16#9E37_79B9_7F4A_7C15#)
+        xor ((B xor 16#D1B5_4A32_D192_ED03#) * 16#C2B2_AE3D_27D4_EB4F#);
+   begin
+      return Natural (H / 2 ** (64 - Corr_Bits));
+   end Pawn_Index;
+   pragma Inline (Pawn_Index);
+
+   --  Static evaluation corrected by the average error the search observed
+   --  on positions with the same pawn structure and side to move. Identity
+   --  when S_Corr_Pct = 0.
+   function Corrected_Eval (Ctx      : in Context_Access;
+                            Position : in Position_Type;
+                            Raw      : in Score_Type) return Score_Type is
+      Pct : constant Integer := Search_Params (S_Corr_Pct);
+   begin
+      if Pct = 0 then
+         return Raw;
+      end if;
+      return Raw
+        + Ctx.Corr (Position.Side, Pawn_Index (Position)) * Pct
+          / (100 * Corr_Grain);
+   end Corrected_Eval;
+   pragma Inline (Corrected_Eval);
+
+   --  Learn from a finished node: move the entry toward (Score - Raw),
+   --  weighted by the depth. Only when the score says something about the
+   --  static evaluation: not in check, no tactical best move, no mate score,
+   --  and the bound is on the informative side of the corrected eval.
+   procedure Update_Corr (Ctx       : in Context_Access;
+                          Position  : in Position_Type;
+                          Depth     : in Natural;
+                          Bound     : in Bound_Type;
+                          Score     : in Score_Type;
+                          Raw, Eval : in Score_Type;
+                          Best      : in Move_Type) is
+   begin
+      if Search_Params (S_Corr_Pct) = 0
+        or else abs Score >= Mate_Threshold
+        or else (Best /= Empty_Move and then Is_Tactical (Position, Best))
+        or else (Bound = Lower_Bound and then Score <= Eval)
+        or else (Bound = Upper_Bound and then Score >= Eval)
+      then
+         return;
+      end if;
+      declare
+         Idx : constant Natural := Pawn_Index (Position);
+         W   : constant Integer := Integer'Min (Integer (Depth) + 1, 16);
+         D   : constant Integer :=
+           Integer'Max (-Corr_Limit,
+                        Integer'Min (Corr_Limit, (Score - Raw) * Corr_Grain));
+         E   : Integer := Ctx.Corr (Position.Side, Idx);
+      begin
+         E := (E * (256 - W) + D * W) / 256;
+         Ctx.Corr (Position.Side, Idx) :=
+           Integer'Max (-Corr_Limit, Integer'Min (Corr_Limit, E));
+      end;
+   end Update_Corr;
 
    -- History_Max and Cont_History_Weight are tunable search parameters
    -- (renames of Search_Params).
@@ -1284,7 +1367,7 @@ package body BBChess.Search is
             -- Not in check: the alpha-updated stand-pat score is the safe
             -- truncation (exactly the score the unbounded search would use
             -- as its floor before trying more captures).
-            Stand := Evaluate (Position);
+            Stand := Corrected_Eval (Ctx, Position, Evaluate (Position));
             if Stand >= B then
                return Stand;
             end if;
@@ -1336,7 +1419,7 @@ package body BBChess.Search is
       -- Stand pat is only legal when not in check: a side that is in check
       -- must play an evasion, so the static evaluation cannot be returned.
       if not In_Check then
-         Stand := Evaluate (Position);
+         Stand := Corrected_Eval (Ctx, Position, Evaluate (Position));
          if Stand >= B then
             return Stand;
          end if;
@@ -1581,6 +1664,8 @@ package body BBChess.Search is
       Best_Score  : Score_Type := -Infinity;
       Child_Depth : Natural := 0;
       Eval_Now    : Score_Type := 0;
+      -- Uncorrected static evaluation (correction-history learning target).
+      Raw_Eval    : Score_Type := 0;
       Have_Eval   : Boolean := False;
       TT_Score    : Score_Type := 0;
       -- Move made on the previous ply (the move that led to this node); the
@@ -1746,9 +1831,11 @@ package body BBChess.Search is
       if not In_Check
         and then (Depth <= 3
                   or else Search_Params (S_Nmp_Eval) /= 0
+                  or else Search_Params (S_Corr_Pct) /= 0
                   or else Depth <= Natural (Search_Params (S_Rfp_Depth)))
       then
-         Eval_Now := Evaluate (Position);
+         Raw_Eval := Evaluate (Position);
+         Eval_Now := Corrected_Eval (Ctx, Position, Raw_Eval);
          Have_Eval := True;
       end if;
 
@@ -1998,6 +2085,10 @@ package body BBChess.Search is
                   end if;
                   Store (Position, Depth, Lower_Bound, Score,
                          Best_Move_Here, Ply);
+                  if Have_Eval then
+                     Update_Corr (Ctx, Position, Depth, Lower_Bound, Score,
+                                  Raw_Eval, Eval_Now, Best_Move_Here);
+                  end if;
                   return Score;
                end if;
                if Score > A then
@@ -2020,6 +2111,10 @@ package body BBChess.Search is
             Bound := Exact;
          end if;
          Store (Position, Depth, Bound, A, Best_Move_Here, Ply);
+         if Have_Eval then
+            Update_Corr (Ctx, Position, Depth, Bound, A,
+                         Raw_Eval, Eval_Now, Best_Move_Here);
+         end if;
       end;
 
       return A;

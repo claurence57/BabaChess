@@ -167,7 +167,8 @@ package BBChess.Search is
       S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
-      S_Asp_Grow);        -- 1 = aspiration window widened gradually
+      S_Asp_Grow,         -- 1 = aspiration window widened gradually
+      S_Corr_Pct);        -- correction history strength in % (0 = off)
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
 
