@@ -99,7 +99,8 @@ package body BBChess.Search is
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 1,
-      S_Corr_Pct             => 0);
+      S_Corr_Pct             => 0,
+      S_Corr_Keep            => 0);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,
@@ -133,7 +134,8 @@ package body BBChess.Search is
       S_Bad_Capture          => 0,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0,
-      S_Corr_Pct             => 0);
+      S_Corr_Pct             => 0,
+      S_Corr_Keep            => 0);
 
    Search_Param_Max : constant Search_Param_Array :=
      (S_Futility_Margin      => 32_000,
@@ -172,7 +174,8 @@ package body BBChess.Search is
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 1_000_000,
       S_Asp_Grow             => 1,
-      S_Corr_Pct             => 400);
+      S_Corr_Pct             => 400,
+      S_Corr_Keep            => 1);
 
    -- Named constants used by the rest of the search (the former hard-coded
    -- constants, now renames of the parameter table entries).
@@ -520,6 +523,21 @@ package body BBChess.Search is
    Corr_Limit : constant := 96 * Corr_Grain;
    type Corr_Array is array (Color_Type, 0 .. Corr_Size - 1) of Integer;
 
+   --  Correction table carried from one move to the next of the same game
+   --  (S_Corr_Keep = 1): loaded into each context at Init_Context, saved
+   --  back by the primary thread when its search ends, cleared by
+   --  Reset_Search (new game).
+   Kept_Corr : Corr_Array := (others => (others => 0));
+
+   procedure Clear_Kept_Corr is
+   begin
+      for C in Color_Type loop
+         for I in Kept_Corr'Range (2) loop
+            Kept_Corr (C, I) := 0;
+         end loop;
+      end loop;
+   end Clear_Kept_Corr;
+
    type Search_Context is
       record
          Killers          : Killer_Array := (others => (others => Empty_Move));
@@ -631,7 +649,11 @@ package body BBChess.Search is
       Ctx.History := (others => (others => (others => 0)));
       Ctx.Counter := (others => (others => (others => Empty_Move)));
       Ctx.Cont_History := (others => (others => 0));
-      Ctx.Corr := (others => (others => 0));
+      if Search_Params (S_Corr_Keep) /= 0 then
+         Ctx.Corr := Kept_Corr;
+      else
+         Ctx.Corr := (others => (others => 0));
+      end if;
       Ctx.Move_Path := (others => Empty_Move);
       Ctx.Search_Path := (others => 0);
       Ctx.Game_Key_Count := Init_Game_Key_Count;
@@ -1239,6 +1261,7 @@ package body BBChess.Search is
       -- A fresh game also gets a fresh transposition table: entries from a
       -- previous game must not leak into the next one.
       Clear_Transposition_Table;
+      Clear_Kept_Corr;
       Init_Game_Key_Count := 0;
       TT_Generation := 0;
    end Reset_Search;
@@ -2582,6 +2605,9 @@ package body BBChess.Search is
          Init_Context (Ctx, Arm => False, Budget => 0.0);
          Result := Iterative_Search (Ctx, Position, Depth, 0.0, 0.0, False);
          Accum_Nodes := Accum_Nodes + Ctx.Nodes_Count;
+         if Search_Params (S_Corr_Keep) /= 0 then
+            Kept_Corr := Ctx.Corr;
+         end if;
          Free_Context (Ctx);
       end;
 
@@ -2694,6 +2720,9 @@ package body BBChess.Search is
             Log_Worker_Exception ("search worker exception", E);
       end;
       if Ctx /= null then
+         if Id = 1 and then Search_Params (S_Corr_Keep) /= 0 then
+            Kept_Corr := Ctx.Corr;
+         end if;
          Free_Context (Ctx);
       end if;
       -- The primary thread stops the helpers as soon as it is done.
@@ -2770,6 +2799,9 @@ package body BBChess.Search is
             Result := Iterative_Search (Ctx, Position, Max_Depth,
                                         Hard_Alloc, Soft_Alloc, True);
             Accum_Nodes := Accum_Nodes + Ctx.Nodes_Count;
+            if Search_Params (S_Corr_Keep) /= 0 then
+               Kept_Corr := Ctx.Corr;
+            end if;
             Free_Context (Ctx);
             if Result.Best = Empty_Move then
                return Quick_Move (Position);
