@@ -1561,3 +1561,40 @@ parties) : ≈ **+7 ± 11 Elo**. Tendance positive mais sous le seuil de preuve 
 adopté). Pistes si l'on y revient : des facteurs plus marqués (arrêt plus tôt
 quand le coup est stable depuis longtemps) ou un critère fondé sur la part des
 nœuds passés sous le meilleur coup à la racine.
+
+## 76. Match de référence contre GNU Chess 6.2.7 : égalité
+
+Mesure de force externe après §70-§73 (aucun changement de code). BabaChess
+`main` (`--bench 9` = 546 046) contre GNU Chess 6.2.7 en UCI
+(`gnuchess --uci`, `OwnBook=false`), fastchess, **60+1**, 50 ouvertures
+équilibrées tirées de la suite de 763 positions, chacune jouée dans les deux
+couleurs (100 parties), 2 parties en parallèle, livre absent des deux côtés.
+
+| | Valeur |
+|---|---|
+| Score BabaChess | **48,5 / 100** (23 victoires, 26 défaites, 51 nulles) |
+| Écart Elo estimé | **−10,4 ± 49,9** (LOS 34 %) |
+| Pentanomial (0-2) | [3, 14, 21, 7, 5] |
+| Plantages | GNU : 4 (« disconnects ») ; BabaChess : 0, aucune perte au temps |
+
+Les 4 plantages de GNU (instabilité déjà notée en §26 de
+`DEVELOPMENT_HISTORY.md`) sont comptés comme des victoires de BabaChess par
+fastchess. Les positions finales ont été vérifiées une à une : BabaChess y était
+chaque fois **gagnant sur l'échiquier** (fou + 4 pions contre 1 pion ; tour +
+fou + 2 pions contre 2 pions ; dame + fou contre roi seul ; dame contre pions),
+donc le score n'est pas gonflé.
+
+Un mini-match exploratoire de 10 parties (même cadence, avant le réglage Texel
+de §72) avait donné 5-5 sur l'échiquier.
+
+Historique contre le même GNU Chess 6.2.7 :
+
+| Moment | Score BabaChess | Ordre de grandeur |
+|---|---|---|
+| Avant l'élagage moderne (§9 de l'historique) | 0-8-2 | ≈ −380 Elo |
+| Après l'élagage (§9 de l'historique) | 1-13-6 | ≈ −240 Elo |
+| Après §70-§73 | 23-26-51 | ≈ −10 Elo : égalité |
+
+Cohérent avec les gains mesurés en auto-jeu sur la même période : pions passés
+(+30), recherche (+93), réglage Texel (+104 / +131), zone de mobilité
+(+18 / +31).
