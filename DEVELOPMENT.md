@@ -1598,3 +1598,34 @@ Historique contre le même GNU Chess 6.2.7 :
 Cohérent avec les gains mesurés en auto-jeu sur la même période : pions passés
 (+30), recherche (+93), réglage Texel (+104 / +131), zone de mobilité
 (+18 / +31).
+
+## 77. Correction history — neutre, non retenue
+
+Branche `claude_corrhist`. Technique popularisée par Stockfish : l'éval statique
+servant aux élagages (RFP, futility, razoring) et au stand pat de quiescence est
+corrigée par la moyenne mobile de (score de recherche − éval statique), indexée
+par le camp au trait et une empreinte de la structure de pions (multiplication
+des deux bitboards de pions, 2¹⁴ entrées). Mise à jour à chaque écriture TT d'un
+nœud hors échec, sans coup tactique, sans score de mat, borne informative
+uniquement, pondération `min(profondeur + 1, 16) / 256`, valeur bornée à ±96 cp.
+
+Paramètres (sur la branche) : `S_CORR_PCT` (force en %, 0 = désactivé, arbre identique à `main`)
+et `S_CORR_KEEP` (1 = table conservée d'un coup à l'autre de la partie, remise
+à zéro par `Reset_Search`).
+
+Matchs contre `main` (fastchess, 4+0.04, 1000 parties, graine 81) :
+
+| Variante | Elo |
+|---|---|
+| `S_CORR_PCT 100` | −4,2 ± 17,3 |
+| `S_CORR_PCT 50` | +6,6 ± 17,0 |
+| `S_CORR_PCT 100`, `S_CORR_KEEP 1` | −5,2 ± 16,9 |
+
+Aucune variante ne gagne. Lecture probable : depuis le réglage Texel (§72), l'éval
+est bien calibrée sur les positions que le moteur rencontre et les biais
+systématiques résiduels par structure de pions sont faibles.
+
+Le code n'est **pas fusionné dans `main`** (trois variantes sans signal
+positif : la complexité ne se justifie pas). L'implémentation reste disponible
+sur la branche `claude_corrhist` (commits `99716f5` et `7e8cf19`) pour un essai
+futur.
