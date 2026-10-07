@@ -1599,7 +1599,38 @@ Cohérent avec les gains mesurés en auto-jeu sur la même période : pions pass
 (+30), recherche (+93), réglage Texel (+104 / +131), zone de mobilité
 (+18 / +31).
 
-## 77. Syzygy DTZ à la racine (`S_Syzygy_Root`) — infrastructure, gain ciblé démontré
+## 77. Correction history — neutre, non retenue
+
+Branche `claude_corrhist`. Technique popularisée par Stockfish : l'éval statique
+servant aux élagages (RFP, futility, razoring) et au stand pat de quiescence est
+corrigée par la moyenne mobile de (score de recherche − éval statique), indexée
+par le camp au trait et une empreinte de la structure de pions (multiplication
+des deux bitboards de pions, 2¹⁴ entrées). Mise à jour à chaque écriture TT d'un
+nœud hors échec, sans coup tactique, sans score de mat, borne informative
+uniquement, pondération `min(profondeur + 1, 16) / 256`, valeur bornée à ±96 cp.
+
+Paramètres (sur la branche) : `S_CORR_PCT` (force en %, 0 = désactivé, arbre identique à `main`)
+et `S_CORR_KEEP` (1 = table conservée d'un coup à l'autre de la partie, remise
+à zéro par `Reset_Search`).
+
+Matchs contre `main` (fastchess, 4+0.04, 1000 parties, graine 81) :
+
+| Variante | Elo |
+|---|---|
+| `S_CORR_PCT 100` | −4,2 ± 17,3 |
+| `S_CORR_PCT 50` | +6,6 ± 17,0 |
+| `S_CORR_PCT 100`, `S_CORR_KEEP 1` | −5,2 ± 16,9 |
+
+Aucune variante ne gagne. Lecture probable : depuis le réglage Texel (§72), l'éval
+est bien calibrée sur les positions que le moteur rencontre et les biais
+systématiques résiduels par structure de pions sont faibles.
+
+Le code n'est **pas fusionné dans `main`** (trois variantes sans signal
+positif : la complexité ne se justifie pas). L'implémentation reste disponible
+sur la branche `claude_corrhist` (commits `99716f5` et `7e8cf19`) pour un essai
+futur.
+
+## 78. Syzygy DTZ à la racine (`S_Syzygy_Root`) — infrastructure, gain ciblé démontré
 
 Branche `syzygy-dtz-root`. Le moteur ne sonde que le **WDL** ; la limite
 « pas de DTZ à la racine » est documentée (§68.3, `README.md`) : dans certaines
@@ -1607,7 +1638,7 @@ finales gagnées, la recherche ne trouve pas le chemin le plus court et laisse
 filtrer la nulle par la règle des 50 coups. Ce lot ajoute une sonde **DTZ au
 root**, derrière un paramètre **désactivé par défaut**.
 
-### 77.1 Implémentation
+### 78.1 Implémentation
 
 - **Fathom** : `baba_tb_probe_root` et `baba_tb_has_dtz` ajoutés au wrapper C
   (`tb_probe_root` exige les tables **DTZ**, distinctes des WDL).
@@ -1623,7 +1654,7 @@ root**, derrière un paramètre **désactivé par défaut**.
   est documenté par Fathom comme « non naturel ». Tout échec retombe sur la
   recherche normale (aucune dégradation).
 
-### 77.2 Vérification d'exactitude (le point fragile)
+### 78.2 Vérification d'exactitude (le point fragile)
 
 Contre le lecteur Syzygy **indépendant** de `python-chess` (`chess.syzygy`), le
 coup retourné doit être **DTZ-optimal**, c'est-à-dire que le DTZ de l'enfant
@@ -1643,7 +1674,7 @@ DTZ 3-4-5 proviennent de `tablebase.lichess.ovh/tables/standard/3-4-5-dtz/`
 (145 fichiers, 561 Mo) ; elles doivent être dans le **même répertoire** que les
 WDL (Fathom n'associe pas deux chemins séparés).
 
-### 77.3 Effet mesuré sur la conversion
+### 78.3 Effet mesuré sur la conversion
 
 `scripts/syzygy_dtz_test.py` joue des finales gagnées critiques (KBNvK, KQvKR,
 KRPvKR + contrôles KQvK/KRvK/KBBvK), feature **off puis on**, et classe
@@ -1661,7 +1692,7 @@ mat / nulle / plafond. `movetime` 50 ms, plafond 150 coups :
 convertit une finale que la recherche seule laisse filer. C'est exactement le
 défaut visé (§68.3).
 
-### 77.4 Pourquoi la SPRT est INCONCLUSIVE (et non un échec)
+### 78.4 Pourquoi la SPRT est INCONCLUSIVE (et non un échec)
 
 La SPRT demandée (ON vs OFF, 2000 parties) donne **−3,6 ± 9,2 Elo, LOS 21,9 %,
 INCONCLUSIVE** — et c'est **attendu** : le filtre ne déclenche que dans **0,29 %
@@ -1671,7 +1702,7 @@ ON/OFF généraliste n'a donc **aucune puissance** pour ce changement : elle
 mesure le bruit. Le lot a été validé par le **test de conversion ciblé**
 (§77.3), pas par l'Elo global — c'est le seul instrument adapté.
 
-### 77.5 État livré
+### 78.5 État livré
 
 - Défaut `S_Syzygy_Root = 0` : comportement **inchangé** (arbre identique,
   `--bench 9/11/12` identiques), donc adoptable sans risque de régression.
