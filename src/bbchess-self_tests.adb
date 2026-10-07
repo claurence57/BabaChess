@@ -16,6 +16,9 @@ with Ada.Directories;
 
 use Ada.Real_Time;
 
+with Interfaces;
+use Interfaces;
+
 with BBChess.Pieces;
 use BBChess.Pieces;
 
@@ -1068,23 +1071,90 @@ package body BBChess.Self_Tests is
       Ada.Text_IO.Put_Line ("long-token handling OK");
    end Test_Text_Handling;
 
-   --------------------------
-   --  Thread arguments     --
-   --------------------------
+    --------------------------
+    --  Thread arguments     --
+    --------------------------
 
-   procedure Test_Thread_Arguments is
+    procedure Test_Thread_Arguments is
+    begin
+       -- Thread arguments: -T#, --thread=#, and the malformed fallbacks.
+       Assert (Thread_Count ("-T4", 0) = 4, "-T4");
+       Assert (Thread_Count ("-T1", 0) = 1, "-T1");
+       Assert (Thread_Count ("--thread=8", 0) = 8, "--thread=8");
+       Assert (Thread_Count ("-T", 0) = 0, "-T without digits");
+       Assert (Thread_Count ("-Tx", 0) = 0, "-Tx is not a count");
+       Assert (Thread_Count ("--thread=", 0) = 0, "--thread= without digits");
+       Assert (Thread_Count ("--threads", 0) = 0, "--threads needs a value");
+       Assert (Thread_Count ("-T12", 0) = 12, "two-digit -T12");
+       Ada.Text_IO.Put_Line ("thread argument parsing OK");
+    end Test_Thread_Arguments;
+
+    -------------------
+    --  Gives_Check  --
+    -------------------
+
+    --  Gives_Check must equal the make/unmake reference on every legal move:
+    --  play it, ask King_In_Check about the opponent, unmake. A deterministic
+    --  PRNG walks random legal games so quiet, tactical, castling, en-passant
+    --  and promotion moves are all exercised, then every legal move of the
+    --  last position of each walk is checked against the oracle.
+   procedure Test_Gives_Check is
+      State : Unsigned_32 := 2463534242;
+      function Rand (N : in Natural) return Natural is
+      begin
+         -- xorshift32: a bounded, deterministic PRNG. State is a modular
+         -- type so the shifts/xor wrap without tripping an overflow check.
+         State := State xor Shift_Right (State, 13);
+         State := State xor (State * 1_000_000_007);
+         State := State xor Shift_Right (State, 17);
+         return Natural (State mod Unsigned_32 (N));
+      end Rand;
+
+      procedure Check_Position (P : in Position_Type; Moves_Checked : in out Natural;
+                                Mismatches : in out Natural) is
+         Moves : Move_List;
+         Count : Natural;
+         Undo  : Undo_Info;
+         Ref   : Boolean;
+      begin
+         Generate_Legal_Moves (P, Moves, Count);
+         for I in 1 .. Count loop
+            declare
+               P2 : Position_Type := P;
+            begin
+               Make_Move (P2, Moves (I), Undo);
+               Ref := King_In_Check (P2, Opposite (P.Side));
+            end;
+            if Gives_Check (P, Moves (I)) /= Ref then
+               Mismatches := Mismatches + 1;
+            end if;
+            Moves_Checked := Moves_Checked + 1;
+         end loop;
+      end Check_Position;
+
+      Walk : Position_Type;
+      Moves : Move_List;
+      Count : Natural;
+      Undo  : Undo_Info;
+      Total : Natural := 0;
+      Bad   : Natural := 0;
    begin
-      -- Thread arguments: -T#, --thread=#, and the malformed fallbacks.
-      Assert (Thread_Count ("-T4", 0) = 4, "-T4");
-      Assert (Thread_Count ("-T1", 0) = 1, "-T1");
-      Assert (Thread_Count ("--thread=8", 0) = 8, "--thread=8");
-      Assert (Thread_Count ("-T", 0) = 0, "-T without digits");
-      Assert (Thread_Count ("-Tx", 0) = 0, "-Tx is not a count");
-      Assert (Thread_Count ("--thread=", 0) = 0, "--thread= without digits");
-      Assert (Thread_Count ("--threads", 0) = 0, "--threads needs a value");
-      Assert (Thread_Count ("-T12", 0) = 12, "two-digit -T12");
-      Ada.Text_IO.Put_Line ("thread argument parsing OK");
-   end Test_Thread_Arguments;
+      for Game in 1 .. 400 loop
+         Walk := Start_Position;
+         for Ply in 1 .. 60 loop
+            Check_Position (Walk, Total, Bad);
+            Generate_Legal_Moves (Walk, Moves, Count);
+            exit when Count = 0;
+            Make_Move (Walk, Moves (1 + Rand (Count)), Undo);
+         end loop;
+      end loop;
+      --  A single aggregated check keeps the harness tally stable (one entry
+      --  per property, not per move) while still covering every move.
+      Assert (Total > 10_000 and then Bad = 0,
+              "Gives_Check must match the make/unmake oracle on all moves");
+      Ada.Text_IO.Put_Line ("Gives_Check OK (" & Natural'Image (Total)
+                            & " moves checked)");
+   end Test_Gives_Check;
 
    ---------
    -- Run --
@@ -1119,7 +1189,7 @@ package body BBChess.Self_Tests is
       Test_Smp;
       Test_Text_Handling;
       Test_Thread_Arguments;
-
+      Test_Gives_Check;
       -- Final tally. A non-zero failure count turns into a non-zero exit
       -- status so the CI job fails instead of silently passing.
       Ada.Text_IO.New_Line;
