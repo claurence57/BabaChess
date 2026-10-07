@@ -34,6 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A manual run with release_tag builds the tagged sources, not main.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -67,6 +70,9 @@ jobs:
             label: portable
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A manual run with release_tag builds the tagged sources, not main.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
 
       - name: Install GNAT toolchain
         run: |
@@ -122,6 +128,9 @@ jobs:
             label: portable
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A manual run with release_tag builds the tagged sources, not main.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
 
       # alire-project/setup-alire only exposes `alr` itself; the GNAT compiler
       # it installs is not on the PATH, and this project is not an Alire crate
@@ -184,6 +193,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A manual run with release_tag builds the tagged sources, not main.
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
 
       - name: Download all packages and checksums
         uses: actions/download-artifact@v4
