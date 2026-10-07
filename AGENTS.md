@@ -52,7 +52,7 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
 ## Test & verify (no test framework; CI runs in GitHub Actions)
 
 ```bash
-./bin/babachess --selftest    # 143 checks: perft 1-5, Zobrist, packed moves,
+./bin/babachess --selftest    # 145 checks: perft 1-5, Zobrist, packed moves,
                                  # FEN validation, search, repetition, SEE,
                                  # Polyglot key, book hardening, protocol.
                                  # Pass/fail counter; exit non-zero on failure.

@@ -36,7 +36,7 @@ representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** an
 - **Polyglot** opening book and **Syzygy** endgame tablebases (via a vendored
   Fathom probe).
 - Soft/hard time management with `movestogo` support.
-- Integral self-test suite (143 checks, pass/fail counter with a non-zero exit
+- Integral self-test suite (145 checks, pass/fail counter with a non-zero exit
   on failure): perft 1-5, Zobrist, packed moves, FEN validation, search,
   repetition, SEE, Polyglot keys, book-file hardening and protocol parsing.
 
@@ -70,7 +70,7 @@ optimization history.
 ## Testing
 
 ```bash
-./bin/babachess --selftest    # 143 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 145 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -123,7 +123,7 @@ Sanity check:
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 143 checks passed, 0 failed
+./bin/babachess --selftest            # -> 145 checks passed, 0 failed
 ```
 
 ## Using the engine
@@ -139,9 +139,11 @@ the real size and warns on a different request), `Threads`, `OwnBook`,
 
 ## Known limitations
 
-- **No DTZ at the root.** Syzygy probing is WDL-only, so the engine knows a
-  position is won but not the distance-to-zero; in the 50-move zone it may take
-  a longer route and miss wins a DTZ-aware engine would convert.
+- **DTZ at the root is opt-in.** By default Syzygy probing is WDL-only, so the
+  engine knows a position is won but not the distance-to-zero; in the 50-move
+  zone it may take a longer route and miss wins a DTZ-aware engine would
+  convert. Since 1.2.0 a DTZ root probe exists behind `S_SYZYGY_ROOT 1`
+  (`--params`), off by default (see `DEVELOPMENT.md` §78).
 - **Transposition table assumes the x86-64 memory model.** The lock-free shared
   TT relies on x86-64 total-store-order semantics (three `pragma Atomic`, no
   explicit barriers) and is **not portable** to ARM or POWER. Releases are

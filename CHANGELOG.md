@@ -6,7 +6,30 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Non publié
+## 1.2.0 (2026-10-07)
+
+**Gain de force majeur.** Quatre campagnes mesurées par SPRT (fastchess,
+1000 parties par test) ; chaque gain retenu a été confirmé sur une seconde
+série indépendante ou par un SPRT PASS.
+
+### Résumé de haut niveau (1.2.0)
+
+- **Évaluation réglée par Texel sur parties d'auto-jeu** : +104 / +131 Elo.
+- **Recherche** : captures perdantes après les coups tranquilles, fenêtre
+  d'aspiration progressive, table de transposition en quiescence, reverse
+  futility jusqu'à la profondeur 6 : +93 Elo.
+- **Évaluation** : pions passés (proximité des rois, pion bloqué, doublé
+  arrière) +30 Elo ; zone de mobilité +18 / +31 Elo.
+- **Contre GNU Chess 6.2.7** (60+1, 100 parties) : **48,5 / 100**, égalité
+  (contre 0-8-2 puis 1-13-6 historiquement). Détail : `DEVELOPMENT.md` §76.
+- **Sonde Syzygy DTZ à la racine** (`S_Syzygy_Root`), désactivée par défaut.
+- Self-test : **145 contrôles**. `--bench 9` = 546 046 nœuds.
+- Version : `BabaChess 1.2.0` (UCI, XBoard, `--version`).
+- Mesuré sans gain et laissé désactivé ou non fusionné (voir `DEVELOPMENT.md`
+  §70-§77) : réduction des finales nulles, pièces en prise, pions
+  connectés/arriérés, rampe de sécurité du roi, IIR, LMR guidé par l'history,
+  null move conditionné par l'éval, gestion du temps par stabilité, second
+  passage Texel, correction history.
 
 ### Évaluation : zone de mobilité (+18 à +31 Elo)
 
@@ -62,6 +85,15 @@
   de la sécurité du roi. Détail : `DEVELOPMENT.md` §70.
 - Self-test : 143 contrôles (sept positions de symétrie ajoutées).
 - `--bench 9/11/12` = 555 169 / 1 610 806 / 2 745 245 nœuds.
+
+### Syzygy : sonde DTZ à la racine (infrastructure, désactivée par défaut)
+
+Nouveau paramètre `S_Syzygy_Root` (défaut 0) + `S_Syzygy_Root_Max_Pieces` (7) et
+`S_Syzygy_Root_Min_Hm` (80) : dans la zone des 50 coups, avec peu de pièces et
+une victoire DTZ, le moteur joue le coup DTZ-optimal au lieu de chercher.
+Conversion vérifiée DTZ-optimale 6/6 contre `python-chess` ; KBNvK converti
+(nulle → mat) là où la recherche seule échouait. Désactivé par défaut : aucune
+régression possible. Détail : `DEVELOPMENT.md` §78.
 
 ## 1.0.0 (2026-09-29)
 
@@ -990,12 +1022,3 @@ désormais comme **référence** pour les A/B de développement.
 ## Lignes précédentes (développement, non taguées)
 
 Historique complet des chantiers dans `DEVELOPMENT.md` (§ 1 à 6).
-
-### Syzygy : sonde DTZ à la racine (infrastructure, désactivée par défaut)
-
-Nouveau paramètre `S_Syzygy_Root` (défaut 0) + `S_Syzygy_Root_Max_Pieces` (7) et
-`S_Syzygy_Root_Min_Hm` (80) : dans la zone des 50 coups, avec peu de pièces et
-une victoire DTZ, le moteur joue le coup DTZ-optimal au lieu de chercher.
-Conversion vérifiée DTZ-optimale 6/6 contre `python-chess` ; KBNvK converti
-(nulle → mat) là où la recherche seule échouait. Désactivé par défaut : aucune
-régression possible. Détail : `DEVELOPMENT.md` §77.

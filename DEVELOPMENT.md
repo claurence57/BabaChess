@@ -1712,3 +1712,14 @@ mesure le bruit. Le lot a été validé par le **test de conversion ciblé**
 - **Décision humaine requise** : activer `S_Syzygy_Root` par défaut n'a de sens
   que si les archives de release embarquent des tables DTZ (les WDL seuls ne
   suffisent pas). Sinon laisser à 0 (recommandé).
+
+## 79. Release 1.2.0
+
+Version `1.2.0` (`BBChess.Text.BabaChess_Version`), notes `RELEASE_NOTES_1.2.0.md`,
+entrée `CHANGELOG.md`. Contenu : §70-§73 (pions passés, recherche, Texel, zone
+de mobilité) et l'infrastructure DTZ de §78 (désactivée par défaut). Les essais
+sans gain (§70-§77) sont documentés et laissés désactivés ou non fusionnés.
+`--selftest` 145/145, `--bench 9` = 546 046 nœuds (identique à `main` avant la
+release : seule la chaîne de version change). La release est publiée en
+**brouillon** par `.github/workflows/release.yml` sur le tag `v1.2.0` ; la
+publication reste une décision humaine.

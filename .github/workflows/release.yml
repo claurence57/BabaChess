@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version for the archive names (e.g. 1.0.0)'
+        description: 'Version for the archive names (e.g. 1.2.0)'
         required: true
-        default: '1.0.0'
+        default: '1.2.0'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -89,7 +89,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          [[ "$V" =~ ^[0-9] ]] || V="1.2.0"
           scripts/package_release.sh --binary bin/babachess --os linux \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -156,7 +156,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          [[ "$V" =~ ^[0-9] ]] || V="1.2.0"
           scripts/package_release.sh --binary bin/babachess.exe --os windows \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -197,7 +197,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.0.0"
+          [[ "$V" =~ ^[0-9] ]] || V="1.2.0"
           gh release create "$TAG" \
             --draft \
             --title "BabaChess $V" \
