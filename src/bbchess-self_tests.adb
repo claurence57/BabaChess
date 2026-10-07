@@ -49,6 +49,9 @@ use BBChess.See;
 with BBChess.Search;
 use BBChess.Search;
 
+with BBChess.Syzygy;
+use BBChess.Syzygy;
+
 with BBChess.Clocks;
 use BBChess.Clocks;
 
@@ -497,6 +500,16 @@ package body BBChess.Self_Tests is
          Check_Symmetry ("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
          Check_Symmetry ("r1bq1rk1/pp3ppp/2n1pn2/2pp4/3P1B2/2NBPN2/PPPQ1PPP/2KR3R w - - 0 1");
          Check_Symmetry ("4k3/6R1/8/8/8/8/6r1/4K3 w - - 0 1");
+         -- Doubled / blocked passers and king proximity, connected and
+         -- backward pawns, hanging pieces, rook on queen, scaled endgames
+         -- (opposite bishops, pawnless), and the king-safety phase ramp.
+         Check_Symmetry ("8/2k5/2P5/2P3p1/3n4/1p6/5PPP/6K1 w - - 0 1");
+         Check_Symmetry ("r3k2r/1p3ppp/p1n1b3/2pPp3/2P1P1n1/2N5/PP2BPPP/R3K2R w - - 0 1");
+         Check_Symmetry ("3q2k1/5ppp/8/3R4/2b5/5N2/5PPP/6K1 w - - 0 1");
+         Check_Symmetry ("8/5k2/2b5/5p2/3B1P2/6K1/8/8 w - - 0 1");
+         Check_Symmetry ("8/8/3k4/8/2R5/8/3KB3/5r2 w - - 0 1");
+         Check_Symmetry ("2r3k1/1q3pp1/p3p2p/1p6/3Q4/P4N2/1P3PPP/2R3K1 w - - 0 1");
+         Check_Symmetry ("6k1/5ppp/8/8/3q4/8/5PPP/3R2K1 w - - 0 1");
       end;
 
       Ada.Text_IO.Put_Line ("evaluation OK");
@@ -919,6 +932,26 @@ package body BBChess.Self_Tests is
       Ada.Text_IO.Put_Line ("TT data round-trip OK");
    end Test_TT_Data;
 
+   -----------------------
+   --  Syzygy DTZ root  --
+   -----------------------
+
+   procedure Test_Syzygy_Root is
+      P : Position_Type;
+      M : Move_Type;
+      W : Integer;
+   begin
+      -- Without tablebases loaded (the selftest never opens one), the DTZ root
+      -- probe must decline cleanly: no crash, no move, and the caller falls
+      -- back to the search. This pins the "no degraded behaviour" contract
+      -- independent of the machine's tablebases.
+      Load (P, "8/8/8/3k4/8/8/8/KQ6 w - - 95 1");
+      Assert (not Probe_Root_Move (P, M, W),
+              "DTZ root probe must fail without tablebases");
+      Assert (M = Empty_Move, "a failed DTZ probe must not set a move");
+      Ada.Text_IO.Put_Line ("syzygy DTZ root OK");
+   end Test_Syzygy_Root;
+
    -------------
    --  SMP     --
    -------------
@@ -1152,6 +1185,7 @@ package body BBChess.Self_Tests is
       Test_See;
       Test_Polyglot;
       Test_TT_Data;
+      Test_Syzygy_Root;
       Test_Smp;
       Test_Text_Handling;
       Test_Thread_Arguments;

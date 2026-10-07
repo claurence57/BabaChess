@@ -104,7 +104,9 @@ Si `Popcount (Pieces (Color, Bishop)) = 2`, un bonus tapered est ajouté
 
 Pour chaque cavalier, fou, tour et dame, `Piece_Attacks` produit les cases
 atteignables selon l'occupation et on compte
-`Popcount (Piece_Attacks and Free)` où `Free = not Own`. La mobilité est
+`Popcount (Piece_Attacks and Free)` où `Free` exclut les cases occupées par
+ses propres pièces **et les cases attaquées par un pion adverse** (zone de
+mobilité, `P_MOB_AREA`, activée depuis §73 de `DEVELOPMENT.md`). La mobilité est
 **pondérée par phase** : les poids d'ouverture valent `Mobility_N` (4),
 `Mobility_B` (4), `Mobility_R` (2), `Mobility_Q` (1), et les poids de finale
 `Mobility_N_Eg`, `Mobility_B_Eg`, `Mobility_R_Eg`, `Mobility_Q_Eg` (défaut
@@ -151,6 +153,20 @@ Cette partie est entièrement bitboard :
   bonus passé (`Protected_Passed_Opening` / `Protected_Passed_Endgame`) ;
 - **éloigné** : un pion passé à `Outside_Passed_Distance` (2) colonnes ou plus
   du roi ennemi touche `Outside_Passed_Opening` / `Outside_Passed_Endgame`.
+- **pion arrière d'un doublé** (`P_Passed_Rear`) : un pion qui a un pion ami
+  devant lui sur sa colonne n'est pas compté comme passé ;
+- **bloqué** (`P_Passed_Blocked`, 56 % après réglage Texel, §72) : si la case d'arrêt (devant le pion)
+  est occupée, seule cette fraction du bonus par rangée est gardée ;
+- **proximité des rois** (finale, rangée propre ≥ 3) : avec la distance de roi
+  `D` à la case d'arrêt plafonnée à 5 et le poids `W = 5·Row − 13`, la finale
+  reçoit `(D_ennemi × P_PKing_Them − D_ami × P_PKing_Us) × W / 8`
+  (29 et 16 par défaut depuis le réglage Texel, §72).
+
+Les autres termes ajoutés au §70 de `DEVELOPMENT.md` (réduction des finales
+nulles, pièces en prise, pions connectés/arriérés, rampe de sécurité du roi)
+existent sous forme de paramètres mais sont **désactivés** par défaut : mesurés
+sans gain, y compris après réglage de leurs poids (§73). La zone de mobilité,
+elle, est activée (§73).
 
 ### 4.4 Activité du roi en finale
 

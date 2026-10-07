@@ -1287,73 +1287,439 @@ vérifié) est **octet pour octet** identique au livre construit localement :
 régénération est donc déterministe (l'épinglage de `python-chess==1.11.2` dans
 le workflow y contribue).
 
-## 70. Écart vs GNU Chess — étape 1 (recherche) : tous lots rejetés
+## 70. Évaluation : six termes de connaissance, un seul retenu (pions passés)
 
-Campagne « réduire l'écart avec GNU Chess » (prompt `prompt-etapes-1-3.md`),
-**étape 1 (recherche)**. Instrumentation d'abord, puis quatre lots, chacun
-**mesuré** et **rejeté** faute d'un gain ≥ +15 Elo sur le juge GNU. La force du
-moteur reste donc celle de la 1.0.0 (aucun arbre modifié).
+Branche `claude_cloud`. Hypothèse de départ : le tuning (Texel §21, SPSA §20)
+a échoué parce que les **paramètres** sont à un optimum local ; le levier
+restant est d'ajouter de la **connaissance** absente de l'évaluation. Six termes
+ont été implémentés, chacun piloté par des paramètres (`--params`) afin de les
+mesurer **séparément** avec un seul binaire.
 
-### 70.1 Protocole de mesure
+### 70.1 Les termes
 
-- `scripts/gauntlet_gnu.sh` : 400 parties appariées contre GNU Chess 6.2.7
-  (Fruit 2.1), 10+0.1, graine 7, `openings/openings.epd`, livre désactivé des
-  deux côtés, `-recover` obligatoire (GNU s'interrompt seul). Les abandons de
-  GNU sont comptés à part et exclus. Elo **relatif** à la référence (jamais
-  absolu).
-- `scripts/sym_check.py` : `Static(miroir(p)) = -Static(p)` sur ≥ 3 000
-  positions (ouvertures + parties aléatoires), **0 écart** toléré.
-- **Point zéro** mesuré (main @ 3a1997e) : `--bench 9/11/12 = 518 612 /
-  1 286 807 / 2 358 722` ; gauntlet : **59-86-255 = 25,5 %**, **−186,2 Elo**
-  (IC 95 % −219,4 … −153,1), 0 crash.
-  > Le prompt citait +4=10−46 (15 %, ≈ −300 Elo). Ce nombre **n'est pas
-  > reproduit** ici : sur les mêmes ouvertures cette machine mesure 25,5 %.
-  > Le point zéro honnête est celui mesuré. Un gauntlet de 400 parties ne
-  > résout qu'environ ±34 Elo.
+| # | Terme | Paramètres |
+|---|---|---|
+| F1 | Pions passés : le pion arrière d'un doublé n'est plus passé ; case d'arrêt occupée → 60 % du bonus ; proximité des rois à la case d'arrêt en finale (`(min(D_eux,5)·19 − min(D_nous,5)·8)·(5·Row−13)/8`, rangée ≥ 3) | `P_PASSED_REAR`, `P_PASSED_BLOCKED`, `P_PKING_THEM`, `P_PKING_US` |
+| F2 | Réduction des finales nulles (sur 64) : fous de couleurs opposées seuls → 32 ; camp fort sans pion et avance ≤ un fou → 0 / 4 / 14 | `P_SCALE_OCB`, `P_SCALE_NOPAWN` |
+| F3 | Zone de mobilité : cases attaquées par un pion adverse exclues | `P_MOB_AREA` |
+| F4 | Pièces (C..D) adverses attaquées et non défendues (30/18) ; tour attaquant une dame (20) | `P_HANGING_OP/EG`, `P_THREAT_RQ` |
+| F5 | Pions connectés (soutenus / phalange, table type Stockfish classique ÷ 2) et arriérés (6/10) | `P_CONNECTED`, `P_BACKWARD_OP/EG` |
+| F6 | Sécurité du roi : rampe linéaire de phase 10 à 30 au lieu du seuil sec à 20 | `P_KS_LO`, `P_KS_HI` |
 
-### 70.2 Lots mesurés
+Paramètres neutres (`P_PASSED_REAR 0`, `P_PASSED_BLOCKED 100`, poids à 0,
+`P_SCALE_OCB 64`, `P_KS_LO = P_KS_HI = 20`) ⇒ **arbre identique** à la base :
+`--bench 9` = 518 612 nœuds. Symétrie : sept positions ajoutées au self-test
+(doublés/bloqués, connectés/arriérés, pièces en prise, fous opposés, finale
+sans pion, rampe du roi) → **143 contrôles**. `debug` sans avertissement.
 
-Chaque lot est un commit sur sa branche, avec son verdict. Tous **rejetés**.
+### 70.2 Protocole
 
-| Lot | Contenu | `--bench 9/11/12` | GNU (W-D-L, %) | Δ Elo / point zéro | Verdict |
+`cutechess-cli` n'étant pas disponible dans l'environnement, les matchs ont
+utilisé **fastchess** (UCI), 4+0.04, 4 parties simultanées, SPRT [0, 5]
+plafonnée à **1000 parties**, chaque ouverture jouée dans les deux couleurs.
+Ouvertures : **763 positions** dérivées des 65 de `openings/openings.epd`
+(deux demi-coups aléatoires, |éval| ≤ 70 cp à profondeur 7) pour limiter la
+répétition des mêmes parties. Livre absent des deux côtés. Chaque terme seul
+(`--params`) contre le binaire de base.
+
+### 70.3 Résultats (1000 parties chacun)
+
+| Terme | Elo | LOS | Coût nps | Verdict |
+|---|---|---|---|---|
+| F1 pions passés | **+32,4 ± 17,4** | 99,99 % | ≈ 0 | **retenu** |
+| F2 finales nulles | −10,8 ± 17,1 | 10,8 % | ≈ 0 | rejeté |
+| F3 zone de mobilité | −0,7 ± 16,7 | 46,8 % | ≈ 0 | rejeté (neutre) |
+| F4 menaces | −8,3 ± 17,0 | 16,8 % | faible | rejeté |
+| F5 connectés/arriérés | −23,3 ± 17,2 | 0,4 % | **≈ −13 %** | rejeté |
+| F6 rampe sécurité roi | −8,3 ± 16,2 | 15,6 % | ≈ 0 | rejeté |
+
+**Confirmation** du binaire final (F1 seul, défauts compilés, sans
+`--params`) contre la base, graine différente (13) : **+30,7 ± 16,7 Elo,
+LOS 99,99 %**, 1000 parties (382-294-324). Le gain de F1 est reproduit.
+
+La LLR de fastchess reste sous 2,94 au plafond (bornes en Elo normalisé, plus
+exigeantes) : verdict formel « inconclusif au plafond », mais deux mesures
+indépendantes excluent 0 de plusieurs écarts-types.
+
+### 70.4 Lecture
+
+- F1 vise la faiblesse mesurée en finale (§68.3, conversions KRPvKR variables) :
+  c'est le seul terme qui apporte une information que la recherche ne trouve
+  pas seule à faible profondeur (course roi/pion).
+- F5 perd surtout par la vitesse (boucle par pion) ; F2/F4/F6 sont dans le
+  bruit côté négatif. Comme pour §65.5, les cinq termes rejetés restent dans
+  le code **avec des défauts neutres** (arbre identique) : infrastructure
+  réutilisable pour un essai futur (autres valeurs, version plus rapide de F5).
+- Nouveaux nœuds de référence : `--bench 9/10/11/12` = 555 169 / 767 045 /
+  1 610 806 / 2 745 245.
+
+## 71. Recherche : quatre gains cumulés (+93 Elo, SPRT PASS)
+
+Branche `claude_search`. Même méthode que §70 : chaque idée derrière un
+paramètre `S_*` (défaut neutre ⇒ arbre identique à `main`, `--bench 9/11` =
+555 169 / 1 610 806), puis SPRT de 1000 parties **contre le binaire `main`**
+(fastchess, 4+0.04, 763 ouvertures, livre absent).
+
+### 71.1 Idées et résultats individuels
+
+| Id | Idée | Paramètres testés | Elo | Verdict |
+|---|---|---|---|---|
+| S5 | Captures perdantes (attaquant > victime et SEE < 0) ordonnées **après** les coups tranquilles | `S_BAD_CAPTURE 1` | **+49,0 ± 16,7** | retenu |
+| S7 | Fenêtre d'aspiration élargie progressivement (×2 sur la borne franchie) au lieu d'un saut en fenêtre pleine | `S_ASP_GROW 1` | +16,3 ± 16,4 | retenu |
+| S2 | Table de transposition en quiescence (sonde + écriture en profondeur 0) | `S_QS_TT 1` | +14,6 ± 16,3 | retenu |
+| S1b | Reverse futility jusqu'à la profondeur 6, marge `180 + 80·(d−1)` | `S_RFP_DEPTH 6`, `S_RFP_STEP 80` | +13,6 ± 16,2 | retenu |
+| S3 | Temps « soft » modulé par la stabilité du meilleur coup (70 %-140 %, +30 % si le score chute) | `S_TM_STABLE 1` | +7,3 ± 15,4 | non prouvé |
+| S6 | LMR modulé par l'history (±2 plis) | `S_LMR_HIST 8192` | +2,8 ± 16,8 | rejeté |
+| S4 | IIR (−1 pli sans coup TT, profondeur ≥ 4) | `S_IIR_DEPTH 4` | +0,7 ± 16,5 | rejeté |
+| S1a | Null move seulement si l'éval statique ≥ β | `S_NMP_EVAL 1` | −1,4 ± 16,5 | rejeté |
+
+Au bench, S1a et S1b se contrarient (`--bench 11` : S1b −16 % de nœuds, S1a
++6 %, les deux ensemble +38 %) : d'où leur test séparé.
+
+S5 corrige un vrai défaut : MVV-LVA plaçait « dame prend pion défendu » devant
+les killers et l'history. Le tri SEE avait été rejeté en §9.3 de `DEVELOPMENT_HISTORY.md`, mais dans
+un lot mélangé, jugé sur 30 parties contre GNU et avec un SEE calculé pour toute
+capture ; ici le SEE n'est calculé que si l'attaquant vaut plus que la victime.
+
+### 71.2 Test combiné (S5 + S7 + S2 + S1b)
+
+SPRT contre `main`, graine 21 : **+93,4 ± 20,7 Elo, LOS 100 %, LLR 2,97 →
+PASS** après 674 parties (309-132-233, 63,1 %). Premier PASS formel du banc
+fastchess : les quatre gains se cumulent (somme individuelle ≈ +93).
+
+### 71.3 État livré
+
+- Défauts : `S_RFP_DEPTH 6`, `S_RFP_STEP 80`, `S_QS_TT 1`, `S_BAD_CAPTURE 1`,
+  `S_ASP_GROW 1` ; `S_NMP_EVAL`, `S_TM_STABLE`, `S_IIR_DEPTH`, `S_LMR_HIST`
+  restent à 0 (infrastructure conservée, réactivable par `--params`).
+- `--bench 9/11/12` = **460 479 / 1 442 602 / 2 692 597** nœuds.
+- `--selftest` 143/143, `debug` sans avertissement.
+- S3 (temps) reste à mesurer à cadence plus longue (≥ 10+0.1) : 4+0.04
+  sous-estime l'effet d'une meilleure répartition du temps.
+
+## 72. Réglage Texel sur parties d'auto-jeu : +104 Elo (SPRT PASS)
+
+Branche `claude_texel`. Le tuning Texel de §21 (`DEVELOPMENT_HISTORY.md`) avait
+échoué (−38 Elo) sur des **parties humaines** Lichess et sur les seuls
+paramètres scalaires. Refait ici avec les deux corrections classiques :
+données d'**auto-jeu** et réglage des **tables**.
+
+### 72.1 Données
+
+- **Ouvertures** : 120 000 positions après 6-9 demi-coups aléatoires depuis la
+  position initiale, filtrées par éval statique (|éval| ≤ 60) puis par une
+  recherche de profondeur 5 (|score| ≤ 80) → **28 288** ouvertures équilibrées.
+- **Auto-jeu** : fastchess, BabaChess (`main` après §71) contre lui-même à
+  nœuds fixes, une passe à 10 000 et une à 16 000 nœuds par coup (le moteur
+  étant déterministe à nœuds fixes, pas de `-repeat`), adjudication nulle au
+  coup 60 (|score| ≤ 5 sur 8 coups) et abandon à 1000 cp → **56 576 parties**
+  (~2 h sur 4 cœurs).
+- **Extraction** (`scripts/texel_extract.py`) : jusqu'à 12 positions par
+  partie, hors 8 premiers et 6 derniers demi-coups, camp au trait pas en
+  échec, et **coup joué calme** (ni capture, ni promotion, ni échec), sans
+  doublon → **670 679 positions** (37 % gains blancs, 25 % nulles, 38 % gains
+  noirs).
+
+### 72.2 Paramètres réglés
+
+Les tables pièce-case et les tables de pions passés étaient des constantes ;
+elles passent par `--dump-params` / `--params` : `P_PST_<T>_<rangée>_<colonne>`
+(T ∈ P N B R Q K KE, colonnes 0-3, la colonne miroir 7−c prend la même valeur)
+et `P_PASSED_{OP,EG}_<rangée>`. Avec les scalaires (hors interrupteurs, termes
+désactivés de §70 et `P_PAWN` qui fixe l'échelle) : **274 paramètres**.
+
+La table de la dame avait deux entrées asymétriques ; elle devient symétrique
+(c'est la seule différence d'un aller-retour dump → load).
+
+### 72.3 Réglage (`scripts/texel.py`)
+
+Erreur quadratique entre le résultat et `sigmoïde(K·Static/400)`, K ajusté
+une fois (0,956). Descente coordonnée : pour chaque paramètre, ±pas et ±2·pas
+évalués en parallèle par le moteur lui-même (`--eval-fens`, 670 k positions en
+~2 s), meilleur candidat gardé s'il baisse l'erreur d'entraînement ; 10 % des
+positions en validation.
+
+| Tour | Entraînement | Validation | Modifiés |
+|---|---|---|---|
+| départ | 0,117432 | 0,117976 | – |
+| 1 | 0,114876 | 0,115367 | 244 |
+| 2 | 0,114181 | 0,114697 | 194 |
+| 3 | 0,113918 | 0,114405 | 155 |
+| 4 | 0,113792 | 0,114287 | 114 |
+| 5 | 0,113733 | 0,114217 | 88 |
+| 6 | 0,113687 | 0,114187 | 79 |
+
+Arrêté après le tour 6 (gain marginal < 0,00003 par tour), la validation
+baissant encore : pas de sur-apprentissage.
+
+Principaux mouvements : dame 900 → 996, tour 500 → 484 ; pions passés en 7ᵉ
+30/130 → 62/162 ; proximité des rois aux passés 19/8 → 29/16 ; roi de finale
+poussé vers l'avant (+20 à +44 en rangées 4-6) plutôt que simplement centré ;
+cavaliers de bord plus pénalisés ; mobilité plus forte pour fous et tours.
+La table du roi de milieu de partie garde du bruit sur les cases rares (roi
+avancé), faute d'échantillons : sans effet pratique observé.
+
+### 72.4 Validation
+
+- SPRT réglé (`--params`) contre `main`, graine 31 : **+104,2 ± 23,2 Elo,
+  LOS 100 %, LLR 2,96 → PASS** après 608 parties (317-140-151, 64,6 %).
+- Valeurs intégrées comme défauts (arbre identique au test : `--bench 9` =
+  520 079 avec et sans `--params`), confirmation contre `main`, graine 41 :
+  **+131,3 ± 26,3 Elo, LOS 100 %, LLR 2,96 → PASS** après 546 parties
+  (309-112-125, 68,0 %). Les deux séries indépendantes concordent
+  (≈ +104 et +131) : gain retenu d'environ **+100 Elo ou plus**.
+- `--selftest` 143/143 avec les nouveaux paramètres (symétrie comprise),
+  `debug` sans avertissement.
+- Nouveaux nœuds de référence : `--bench 9/11/12` = 520 079 / 1 467 094 /
+  3 020 821.
+
+### 72.5 Leçon
+
+§21 concluait « la MSE est déconnectée de la force ». C'était vrai pour des
+parties humaines : leurs résultats reflètent des fautes que le moteur ne
+commettrait pas, et leurs positions ne ressemblent pas à celles que le moteur
+rencontre. Sur ses propres parties, la même méthode rapporte plus de 100 Elo.
+
+## 73. Termes rejetés de §70 retestés après le réglage Texel : la zone de mobilité gagne
+
+Branche `claude_eval2`. Hypothèse : les termes de §70 avaient peut-être perdu
+à cause de poids non réglés. Chacun est réactivé, ses propres poids (et ceux
+des termes voisins) sont réglés par Texel (`scripts/texel.py --only`, mêmes
+670 679 positions que §72, le reste de l'éval figé), puis mesuré par SPRT de
+1000 parties contre `main`.
+
+### 73.1 Réglage par terme (erreur de validation, référence 0,114182)
+
+| Terme | Paramètres réglés | Validation | Résultat du réglage |
+|---|---|---|---|
+| F2 réduction des finales nulles | `P_SCALE_OCB` | **0,113362** | OCB ≈ 32, inchangé |
+| F4 pièces en prise, tour sur dame | `P_HANGING_*`, `P_THREAT_*` | 0,114035 | Hanging 26/26, Threat_RQ 44, menaces pion/mineure 7/4 |
+| F3 zone de mobilité | `P_MOBILITY_*` | 0,114105 | poids inchangés (l'activation seule baisse l'erreur) |
+| F6 rampe de sécurité du roi | `P_KS_LO/HI`, `P_ATK_*`, `P_EXPOSED` | 0,114114 | rampe 22 → 54, `P_EXPOSED` 24 → 2 |
+| F5 pions connectés / arriérés | `P_CONNECTED`, `P_BACKWARD_*`, `P_ISOLATED_*`, `P_DOUBLED_*` | 0,114125 | gain trop faible pour son coût (−13 % nps) : pas de match |
+
+### 73.2 Matchs (fastchess, 4+0.04, 1000 parties, contre `main`)
+
+| Terme | Elo | Verdict |
+|---|---|---|
+| F3 zone de mobilité (graine 7) | **+18,1 ± 16,2** | – |
+| F3 zone de mobilité (graine 51, confirmation) | **+31,4 ± 17,1** | **retenu** |
+| F3 + F6 (graine 51) | +17,7 ± 16,3 | F6 n'ajoute rien |
+| F6 rampe de sécurité du roi | +9,0 ± 16,0 | non prouvé |
+| F2 finales nulles | −2,4 ± 15,5 | rejeté |
+| F4 pièces en prise | −7,0 ± 16,3 | rejeté |
+
+### 73.3 Lecture
+
+- La **zone de mobilité** (cases attaquées par un pion adverse exclues du
+  comptage de mobilité) était neutre en §70 (−0,7) avec l'ancienne éval ; avec
+  l'éval réglée elle rapporte +18 et +31 sur deux séries indépendantes.
+- F2 confirme que la baisse d'erreur ne prédit pas la force : c'est le terme qui
+  baisse le plus l'erreur (−0,00082) et il reste neutre en match, probablement
+  parce que ces finales sont rares et déjà bien jouées par la recherche.
+- F4 reste négatif : la quiescence et le SEE traitent déjà ces menaces.
+
+### 73.4 État livré
+
+- Défaut : `P_MOB_AREA 1` ; les autres termes restent désactivés (valeurs
+  essayées notées dans le code).
+- `--bench 9/11/12` = **546 046 / 1 343 555 / 2 646 747** nœuds.
+- `--selftest` 143/143, `debug` sans avertissement.
+- `scripts/texel.py` accepte `--only REGEX` pour régler un sous-ensemble.
+
+## 74. Second passage Texel (auto-jeu du moteur réglé) — neutre, non retenu
+
+Branche `claude_texel2`. Même protocole que §72, avec des parties jouées par le
+moteur de `main` après §72-§73 (éval réglée, zone de mobilité) :
+
+- **Auto-jeu** : 56 576 parties sur les mêmes 28 288 ouvertures, à 12 000 puis
+  20 000 nœuds par coup (le conteneur a redémarré pendant la première passe ;
+  elle a été reprise à l'ouverture 19 894, sans perte).
+- **Données** : 672 888 positions calmes ; K = 1,0095 (contre 0,956 en §72 :
+  l'éval réglée est mieux calibrée).
+- **Réglage** des mêmes 274 paramètres : validation 0,118357 → **0,117729**
+  (arrêt au tour 6, la validation ne baissant plus), soit −0,0006 contre
+  −0,0026 au premier passage.
+- **SPRT** contre `main`, graine 61 : **+3,5 ± 17,9 Elo**, LOS 64,9 %, 1000
+  parties (337-327-336) → **neutre, non retenu**.
+
+Lecture : le premier passage a récolté l'essentiel. Un second passage sur les
+mêmes termes ne fait que déplacer les poids autour du même optimum. Un nouveau
+gain par réglage demanderait de nouveaux termes d'évaluation, pas un nouveau
+passage.
+
+## 75. Temps modulé par la stabilité du meilleur coup (S3) à 10+0.1 — non prouvé
+
+Suite de §71 (S3 : +7,3 ± 15,4 Elo à 4+0.04, cadence jugée trop courte pour
+mesurer la gestion du temps). Même binaire `main` avec `S_TM_STABLE 1` contre
+`main`, fastchess **10+0.1**, graine 71, 1000 parties : **+7,3 ± 15,6 Elo**,
+LOS 82 %, LLR 0,31 (295-274-431), aucune perte au temps.
+
+Les deux séries indépendantes donnent la même estimation ; cumulées (2000
+parties) : ≈ **+7 ± 11 Elo**. Tendance positive mais sous le seuil de preuve :
+`S_TM_STABLE` reste à 0 par défaut (règle du projet : un non-PASS n'est pas
+adopté). Pistes si l'on y revient : des facteurs plus marqués (arrêt plus tôt
+quand le coup est stable depuis longtemps) ou un critère fondé sur la part des
+nœuds passés sous le meilleur coup à la racine.
+
+## 76. Match de référence contre GNU Chess 6.2.7 : égalité
+
+Mesure de force externe après §70-§73 (aucun changement de code). BabaChess
+`main` (`--bench 9` = 546 046) contre GNU Chess 6.2.7 en UCI
+(`gnuchess --uci`, `OwnBook=false`), fastchess, **60+1**, 50 ouvertures
+équilibrées tirées de la suite de 763 positions, chacune jouée dans les deux
+couleurs (100 parties), 2 parties en parallèle, livre absent des deux côtés.
+
+| | Valeur |
+|---|---|
+| Score BabaChess | **48,5 / 100** (23 victoires, 26 défaites, 51 nulles) |
+| Écart Elo estimé | **−10,4 ± 49,9** (LOS 34 %) |
+| Pentanomial (0-2) | [3, 14, 21, 7, 5] |
+| Plantages | GNU : 4 (« disconnects ») ; BabaChess : 0, aucune perte au temps |
+
+Les 4 plantages de GNU (instabilité déjà notée en §26 de
+`DEVELOPMENT_HISTORY.md`) sont comptés comme des victoires de BabaChess par
+fastchess. Les positions finales ont été vérifiées une à une : BabaChess y était
+chaque fois **gagnant sur l'échiquier** (fou + 4 pions contre 1 pion ; tour +
+fou + 2 pions contre 2 pions ; dame + fou contre roi seul ; dame contre pions),
+donc le score n'est pas gonflé.
+
+Un mini-match exploratoire de 10 parties (même cadence, avant le réglage Texel
+de §72) avait donné 5-5 sur l'échiquier.
+
+Historique contre le même GNU Chess 6.2.7 :
+
+| Moment | Score BabaChess | Ordre de grandeur |
+|---|---|---|
+| Avant l'élagage moderne (§9 de l'historique) | 0-8-2 | ≈ −380 Elo |
+| Après l'élagage (§9 de l'historique) | 1-13-6 | ≈ −240 Elo |
+| Après §70-§73 | 23-26-51 | ≈ −10 Elo : égalité |
+
+Cohérent avec les gains mesurés en auto-jeu sur la même période : pions passés
+(+30), recherche (+93), réglage Texel (+104 / +131), zone de mobilité
+(+18 / +31).
+
+## 77. Correction history — neutre, non retenue
+
+Branche `claude_corrhist`. Technique popularisée par Stockfish : l'éval statique
+servant aux élagages (RFP, futility, razoring) et au stand pat de quiescence est
+corrigée par la moyenne mobile de (score de recherche − éval statique), indexée
+par le camp au trait et une empreinte de la structure de pions (multiplication
+des deux bitboards de pions, 2¹⁴ entrées). Mise à jour à chaque écriture TT d'un
+nœud hors échec, sans coup tactique, sans score de mat, borne informative
+uniquement, pondération `min(profondeur + 1, 16) / 256`, valeur bornée à ±96 cp.
+
+Paramètres (sur la branche) : `S_CORR_PCT` (force en %, 0 = désactivé, arbre identique à `main`)
+et `S_CORR_KEEP` (1 = table conservée d'un coup à l'autre de la partie, remise
+à zéro par `Reset_Search`).
+
+Matchs contre `main` (fastchess, 4+0.04, 1000 parties, graine 81) :
+
+| Variante | Elo |
+|---|---|
+| `S_CORR_PCT 100` | −4,2 ± 17,3 |
+| `S_CORR_PCT 50` | +6,6 ± 17,0 |
+| `S_CORR_PCT 100`, `S_CORR_KEEP 1` | −5,2 ± 16,9 |
+
+Aucune variante ne gagne. Lecture probable : depuis le réglage Texel (§72), l'éval
+est bien calibrée sur les positions que le moteur rencontre et les biais
+systématiques résiduels par structure de pions sont faibles.
+
+Le code n'est **pas fusionné dans `main`** (trois variantes sans signal
+positif : la complexité ne se justifie pas). L'implémentation reste disponible
+sur la branche `claude_corrhist` (commits `99716f5` et `7e8cf19`) pour un essai
+futur.
+
+## 78. Syzygy DTZ à la racine (`S_Syzygy_Root`) — infrastructure, gain ciblé démontré
+
+Branche `syzygy-dtz-root`. Le moteur ne sonde que le **WDL** ; la limite
+« pas de DTZ à la racine » est documentée (§68.3, `README.md`) : dans certaines
+finales gagnées, la recherche ne trouve pas le chemin le plus court et laisse
+filtrer la nulle par la règle des 50 coups. Ce lot ajoute une sonde **DTZ au
+root**, derrière un paramètre **désactivé par défaut**.
+
+### 78.1 Implémentation
+
+- **Fathom** : `baba_tb_probe_root` et `baba_tb_has_dtz` ajoutés au wrapper C
+  (`tb_probe_root` exige les tables **DTZ**, distinctes des WDL).
+- **`BBChess.Syzygy.Probe_Root_Move`** : convertit le `TB_RESULT` empaqueté de
+  Fathom en `Move_Type`. Les indices de cases sont **identiques** (a1 = 0) ;
+  promotions (0/1/2/3/4 → dame/tour/fou/cavalier) et prise en passant décodées ;
+  les positions avec droits de roque sont rejetées (Fathom renvoie `FAILED`).
+- **Recherche** : `S_Syzygy_Root` (défaut **0**), `S_Syzygy_Root_Max_Pieces`
+  (défaut 7), `S_Syzygy_Root_Min_Hm` (défaut 80), réglables par `--params`.
+  Le probe n'est appelé que sur le **thread rapporteur** (Fathom n'est pas
+  thread-safe), et n'est retenu que si le probe réussit **et** que le WDL est
+  une **victoire réelle** (`TB_WIN`) : un coup DTZ en position nulle/perdante
+  est documenté par Fathom comme « non naturel ». Tout échec retombe sur la
+  recherche normale (aucune dégradation).
+
+### 78.2 Vérification d'exactitude (le point fragile)
+
+Contre le lecteur Syzygy **indépendant** de `python-chess` (`chess.syzygy`), le
+coup retourné doit être **DTZ-optimal**, c'est-à-dire que le DTZ de l'enfant
+vaut `-(DTZ(parent) - 1)` :
+
+| Finale | DTZ parent | coup | DTZ enfant | attendu | |
 |---|---|---|---|---|---|
-| S1.1 | échecs calmes au 1er ply de quiescence | 665 293 / 1 828 185 / 3 057 328 | 46-77-277, 21,1 % | **−42,7** | rejeté |
-| S1.2 | LMP + futilité conscients des échecs | 607 956 / 1 890 641 / 3 096 806 | 68-68-264, 25,5 % | **+0,0** (+31 % nœuds) | rejeté |
-| S1.3 | SEE dans le tri des prises (prises perdantes sous les killers) | 527 307 / 1 571 301 / 2 900 270 | 63-72-265, 24,8 % | **−7,0** | rejeté |
-| S1.4a+c | null move : condition `Eval ≥ β` + borne de score de mat | 535 543 / 1 411 122 / 2 467 829 | 50-62-288, 20,2 % | **−51,9** | rejeté |
-| S1.4b | null move : vérification (zone de zugzwang) | 518 810 / 1 272 470 / 2 508 450 | 78-64-258, 27,5 % | **+17,8** (GNU) mais **−5,9 ± 11,0, LOS 14,7 %, INCONCLUSIVE** (M2 auto-match, 2 000 parties) | rejeté |
+| KQvK | 17 | a1b2 | −16 | −16 | ✓ |
+| KQvK | 13 | b1f5 | −12 | −12 | ✓ |
+| KRvK | 29 | a1b2 | −28 | −28 | ✓ |
+| KBBvK | 32 | a1a2 | −31 | −31 | ✓ |
+| KBNvK | 58 | a1b2 | −57 | −57 | ✓ |
+| KRvK | 29 | b2e2 | −28 | −28 | ✓ |
 
-- **S1.1** : le mécanisme fonctionne (la sonde `r4rk1/2p2p2/p5pQ/8/2R5/pP6/
-  q5PP/3R2K1` rapporte `mate 3` à la profondeur 6 — `Rh4 … Qh8#` — au lieu de
-  la manquer), mais le surcoût de quiescence (−18 % nps, +28…42 % nœuds) coûte
-  plus au milieu de partie que les mats de frontière ne rapportent.
-- **S1.2** : strictement neutre (+0,0) pour +31 % de nœuds → aucun intérêt.
-- **S1.3** : −7 Elo, sous la barre.
-- **S1.4a+c** : la condition `Eval ≥ β` est **trop restrictive** pour ce moteur
-  (elle supprime des coupures utiles) → −52 Elo.
-- **S1.4b** : le juge GNU suggérait +17,8 Elo, mais le juge **secondaire**
-  (auto-match SPRT, bornes [−5, 0], 2 000 parties) donne −5,9 Elo, LOS 14,7 %,
-  **INCONCLUSIVE** : le « gain » GNU est dans le bruit (±34 Elo). Règle de
-  décision : un lot de connaissance n'est adopté que si GNU ≥ +15 **ET** M2
-  PASS. Non adopté.
+**6/6 exacts**, y compris via le moteur complet (`bestmove` réel). Les tables
+DTZ 3-4-5 proviennent de `tablebase.lichess.ovh/tables/standard/3-4-5-dtz/`
+(145 fichiers, 561 Mo) ; elles doivent être dans le **même répertoire** que les
+WDL (Fathom n'associe pas deux chemins séparés).
 
-### 70.3 Conservé (infrastructure, iso-comportement)
+### 78.3 Effet mesuré sur la conversion
 
-- `Gives_Check` (`BBChess.Movegen`) : test « ce coup donne-t-il échec ? » sans
-  mutation (échec direct depuis l'occupation vidée de l'origine, échec à la
-  découverte par différence de rayons, cas spéciaux par make/unmake). Vérifié
-  contre la référence make/unmake sur **733 130** coups légaux (selftest).
-- `Static_Exchange_Value` étendue aux coups calmes (victime = 0) : permet de
-  filtrer un échec calme dont la pièce serait perdue.
-- Ces deux ajouts ne changent **pas** l'arbre : `--bench 9/11/12 = 518 612 /
-  1 286 807 / 2 358 722`, `--selftest` vert. Ils restent disponibles pour un
-  futur lot.
+`scripts/syzygy_dtz_test.py` joue des finales gagnées critiques (KBNvK, KQvKR,
+KRPvKR + contrôles KQvK/KRvK/KBBvK), feature **off puis on**, et classe
+mat / nulle / plafond. `movetime` 50 ms, plafond 150 coups :
 
-### 70.4 Leçon
+| Position | off | on |
+|---|---|---|
+| KQvK | mat | mat |
+| KRvK | mat | mat |
+| **KBNvK** | **nulle** | **mat** |
+| KBBvK | mat | mat |
+| KRPvKR | mat | mat |
 
-Sur ce moteur, les quatre axes de recherche proposés sont **neutres ou
-négatifs** contre GNU à 10+0.1 : le gain manquant n'est pas dans ces coups de
-recherche, ou il est masqué par leur coût en nœuds. Le juge GNU à 400 parties
-(±34 Elo) ne suffit pas à confirmer un petit gain : S1.4b l'illustre (GNU +18,
-auto-match −6). Conclusion honnête : **aucun de ces lots n'est conservé** ;
-l'écart vs GNU à cette cadence reste ≈ −186 Elo.
+À `halfmove = 0`, **KBNvK est une nulle sans le lot et un mat avec** : le lot
+convertit une finale que la recherche seule laisse filer. C'est exactement le
+défaut visé (§68.3).
+
+### 78.4 Pourquoi la SPRT est INCONCLUSIVE (et non un échec)
+
+La SPRT demandée (ON vs OFF, 2000 parties) donne **−3,6 ± 9,2 Elo, LOS 21,9 %,
+INCONCLUSIVE** — et c'est **attendu** : le filtre ne déclenche que dans **0,29 %
+des racines** (mesuré sur 6 791 racines d'un match de 100 parties), soit
+**2 parties sur 100**, et uniquement avec des tables DTZ chargées. Une SPRT
+ON/OFF généraliste n'a donc **aucune puissance** pour ce changement : elle
+mesure le bruit. Le lot a été validé par le **test de conversion ciblé**
+(§77.3), pas par l'Elo global — c'est le seul instrument adapté.
+
+### 78.5 État livré
+
+- Défaut `S_Syzygy_Root = 0` : comportement **inchangé** (arbre identique,
+  `--bench 9/11/12` identiques), donc adoptable sans risque de régression.
+- `--selftest` **145/145** (2 contrôles ajoutés : le probe échoue proprement
+  sans tables et ne pose pas de coup).
+- L'outil `scripts/syzygy_dtz_test.py` documente la mesure.
+- **Décision humaine requise** : activer `S_Syzygy_Root` par défaut n'a de sens
+  que si les archives de release embarquent des tables DTZ (les WDL seuls ne
+  suffisent pas). Sinon laisser à 0 (recommandé).
+
+## 79. Release 1.2.0
+
+Version `1.2.0` (`BBChess.Text.BabaChess_Version`), notes `RELEASE_NOTES_1.2.0.md`,
+entrée `CHANGELOG.md`. Contenu : §70-§73 (pions passés, recherche, Texel, zone
+de mobilité) et l'infrastructure DTZ de §78 (désactivée par défaut). Les essais
+sans gain (§70-§77) sont documentés et laissés désactivés ou non fusionnés.
+`--selftest` 145/145, `--bench 9` = 546 046 nœuds (identique à `main` avant la
+release : seule la chaîne de version change). La release est publiée en
+**brouillon** par `.github/workflows/release.yml` sur le tag `v1.2.0` ; la
+publication reste une décision humaine.

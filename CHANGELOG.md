@@ -6,6 +6,95 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## 1.2.0 (2026-10-07)
+
+**Gain de force majeur.** Quatre campagnes mesurées par SPRT (fastchess,
+1000 parties par test) ; chaque gain retenu a été confirmé sur une seconde
+série indépendante ou par un SPRT PASS.
+
+### Résumé de haut niveau (1.2.0)
+
+- **Évaluation réglée par Texel sur parties d'auto-jeu** : +104 / +131 Elo.
+- **Recherche** : captures perdantes après les coups tranquilles, fenêtre
+  d'aspiration progressive, table de transposition en quiescence, reverse
+  futility jusqu'à la profondeur 6 : +93 Elo.
+- **Évaluation** : pions passés (proximité des rois, pion bloqué, doublé
+  arrière) +30 Elo ; zone de mobilité +18 / +31 Elo.
+- **Contre GNU Chess 6.2.7** (60+1, 100 parties) : **48,5 / 100**, égalité
+  (contre 0-8-2 puis 1-13-6 historiquement). Détail : `DEVELOPMENT.md` §76.
+- **Sonde Syzygy DTZ à la racine** (`S_Syzygy_Root`), désactivée par défaut.
+- Self-test : **145 contrôles**. `--bench 9` = 546 046 nœuds.
+- Version : `BabaChess 1.2.0` (UCI, XBoard, `--version`).
+- Mesuré sans gain et laissé désactivé ou non fusionné (voir `DEVELOPMENT.md`
+  §70-§77) : réduction des finales nulles, pièces en prise, pions
+  connectés/arriérés, rampe de sécurité du roi, IIR, LMR guidé par l'history,
+  null move conditionné par l'éval, gestion du temps par stabilité, second
+  passage Texel, correction history.
+
+### Évaluation : zone de mobilité (+18 à +31 Elo)
+
+- La mobilité ne compte plus les cases attaquées par un pion adverse.
+  Neutre avec l'ancienne évaluation, ce terme gagne une fois l'évaluation
+  réglée par Texel : **+18,1 ± 16,2** puis **+31,4 ± 17,1 Elo** (deux séries
+  de 1000 parties).
+- Les autres termes rejetés en §70 ont été retestés avec des poids réglés
+  (finales nulles, pièces en prise, pions connectés, rampe de sécurité du
+  roi) : toujours sans gain, ils restent désactivés. Détail :
+  `DEVELOPMENT.md` §73.
+- `scripts/texel.py --only REGEX` règle un sous-ensemble de paramètres.
+- `--bench 9/11/12` = 546 046 / 1 343 555 / 2 646 747 nœuds.
+
+### Évaluation : réglage Texel sur parties d'auto-jeu (+100 Elo et plus)
+
+- **274 paramètres d'évaluation réglés** (valeurs scalaires, tables
+  pièce-case, tables de pions passés) sur 670 679 positions calmes extraites
+  de 56 576 parties du moteur contre lui-même.
+- Mesure : **+104,2 ± 23,2 Elo** (SPRT PASS, 608 parties), confirmé par
+  **+131,3 ± 26,3 Elo** (SPRT PASS, 546 parties, graine différente).
+- Les tables pièce-case et de pions passés sont désormais réglables par
+  `--params` (`P_PST_*`, `P_PASSED_OP_*`, `P_PASSED_EG_*`).
+- Nouveaux outils : `scripts/texel_extract.py` (jeu de données depuis des PGN
+  d'auto-jeu) et `scripts/texel.py` (réglage). Détail : `DEVELOPMENT.md` §72.
+- `--bench 9/11/12` = 520 079 / 1 467 094 / 3 020 821 nœuds.
+
+### Recherche : quatre améliorations cumulées (+93 Elo)
+
+- **Captures perdantes** (SEE < 0) jouées après les coups tranquilles au lieu
+  d'avant les killers : +49 Elo à elles seules.
+- **Fenêtre d'aspiration** élargie progressivement au lieu d'une relance en
+  fenêtre pleine.
+- **Table de transposition en quiescence**.
+- **Reverse futility** étendu jusqu'à la profondeur 6.
+- Test combiné contre la version précédente : **+93,4 ± 20,7 Elo, SPRT PASS**.
+- Quatre autres idées mesurées et laissées désactivées (null move conditionné
+  par l'éval, IIR, LMR guidé par l'history, temps selon la stabilité du
+  meilleur coup). Détail : `DEVELOPMENT.md` §71.
+- `--bench 9/11/12` = 460 479 / 1 442 602 / 2 692 597 nœuds.
+
+### Évaluation : connaissance des pions passés (+30 Elo)
+
+- **Pions passés** : le pion arrière d'un doublé ne reçoit plus le bonus de
+  pion passé ; un passé dont la case d'arrêt est occupée garde 60 % de son
+  bonus ; en finale, bonus de **proximité des rois** à la case d'arrêt (roi
+  adverse loin, roi ami près), pondéré par la rangée.
+- Mesure : **+32,4 ± 17,4 Elo** (1000 parties, 4+0.04), confirmée par
+  **+30,7 ± 16,7 Elo** sur une seconde série (graine différente).
+- Cinq autres termes testés et **non retenus** (défauts neutres, arbre
+  identique, pilotables par `--params`) : réduction des finales nulles,
+  zone de mobilité, pièces en prise, pions connectés/arriérés, rampe de phase
+  de la sécurité du roi. Détail : `DEVELOPMENT.md` §70.
+- Self-test : 143 contrôles (sept positions de symétrie ajoutées).
+- `--bench 9/11/12` = 555 169 / 1 610 806 / 2 745 245 nœuds.
+
+### Syzygy : sonde DTZ à la racine (infrastructure, désactivée par défaut)
+
+Nouveau paramètre `S_Syzygy_Root` (défaut 0) + `S_Syzygy_Root_Max_Pieces` (7) et
+`S_Syzygy_Root_Min_Hm` (80) : dans la zone des 50 coups, avec peu de pièces et
+une victoire DTZ, le moteur joue le coup DTZ-optimal au lieu de chercher.
+Conversion vérifiée DTZ-optimale 6/6 contre `python-chess` ; KBNvK converti
+(nulle → mat) là où la recherche seule échouait. Désactivé par défaut : aucune
+régression possible. Détail : `DEVELOPMENT.md` §78.
+
 ## 1.0.0 (2026-09-29)
 
 **Première release publique de BabaChess.** Moteur d'échecs bitboard en Ada 2012

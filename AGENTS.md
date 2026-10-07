@@ -52,7 +52,7 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
 ## Test & verify (no test framework; CI runs in GitHub Actions)
 
 ```bash
-./bin/babachess --selftest    # 136 checks: perft 1-5, Zobrist, packed moves,
+./bin/babachess --selftest    # 145 checks: perft 1-5, Zobrist, packed moves,
                                  # FEN validation, search, repetition, SEE,
                                  # Polyglot key, book hardening, protocol.
                                  # Pass/fail counter; exit non-zero on failure.
@@ -113,9 +113,13 @@ The XBoard search path is synchronous.
   `BBChess.See` → `bbchess-see.adb`.
 - Generated/ignored (never commit): `obj/`, `bin/`, `babachess`,
   `adachess`, `*.o`, `*.ali`, `*.pgn`, `*.txt`.
-- `scripts/tune.py` (Texel tuner) requires `python-chess`; `scripts/gen_dataset.py`
-  builds `FEN;result` datasets from PGN. Eval tuning was a **negative result** —
-  default parameters were kept on purpose (see `DEVELOPMENT_HISTORY.md` §21).
+- Eval tuning: `scripts/texel_extract.py` (needs `python-chess`) builds a
+  quiet-position `FEN;result` dataset from **self-play** PGN, and
+  `scripts/texel.py` (needs `numpy`) tunes every `P_*` value, the piece-square
+  tables and the passed-pawn tables through the engine's own `--eval-fens`.
+  The current defaults come from that tuning (`DEVELOPMENT.md` §72, +104 Elo).
+  The older `scripts/tune.py` on human Lichess games was a negative result
+  (`DEVELOPMENT_HISTORY.md` §21): never tune on human games.
 - Opening book: Polyglot `.bin` (`BBChess.Polyglot`), probed before the search
   (16-ply limit, legal-move checked). Fetch a CC0 book with
   `scripts/fetch_book.sh` → `books/book.bin` (gitignored). Override with
