@@ -990,3 +990,12 @@ désormais comme **référence** pour les A/B de développement.
 ## Lignes précédentes (développement, non taguées)
 
 Historique complet des chantiers dans `DEVELOPMENT.md` (§ 1 à 6).
+
+### Syzygy : sonde DTZ à la racine (infrastructure, désactivée par défaut)
+
+Nouveau paramètre `S_Syzygy_Root` (défaut 0) + `S_Syzygy_Root_Max_Pieces` (7) et
+`S_Syzygy_Root_Min_Hm` (80) : dans la zone des 50 coups, avec peu de pièces et
+une victoire DTZ, le moteur joue le coup DTZ-optimal au lieu de chercher.
+Conversion vérifiée DTZ-optimale 6/6 contre `python-chess` ; KBNvK converti
+(nulle → mat) là où la recherche seule échouait. Désactivé par défaut : aucune
+régression possible. Détail : `DEVELOPMENT.md` §77.

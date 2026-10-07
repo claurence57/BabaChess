@@ -1598,3 +1598,86 @@ Historique contre le même GNU Chess 6.2.7 :
 Cohérent avec les gains mesurés en auto-jeu sur la même période : pions passés
 (+30), recherche (+93), réglage Texel (+104 / +131), zone de mobilité
 (+18 / +31).
+
+## 77. Syzygy DTZ à la racine (`S_Syzygy_Root`) — infrastructure, gain ciblé démontré
+
+Branche `syzygy-dtz-root`. Le moteur ne sonde que le **WDL** ; la limite
+« pas de DTZ à la racine » est documentée (§68.3, `README.md`) : dans certaines
+finales gagnées, la recherche ne trouve pas le chemin le plus court et laisse
+filtrer la nulle par la règle des 50 coups. Ce lot ajoute une sonde **DTZ au
+root**, derrière un paramètre **désactivé par défaut**.
+
+### 77.1 Implémentation
+
+- **Fathom** : `baba_tb_probe_root` et `baba_tb_has_dtz` ajoutés au wrapper C
+  (`tb_probe_root` exige les tables **DTZ**, distinctes des WDL).
+- **`BBChess.Syzygy.Probe_Root_Move`** : convertit le `TB_RESULT` empaqueté de
+  Fathom en `Move_Type`. Les indices de cases sont **identiques** (a1 = 0) ;
+  promotions (0/1/2/3/4 → dame/tour/fou/cavalier) et prise en passant décodées ;
+  les positions avec droits de roque sont rejetées (Fathom renvoie `FAILED`).
+- **Recherche** : `S_Syzygy_Root` (défaut **0**), `S_Syzygy_Root_Max_Pieces`
+  (défaut 7), `S_Syzygy_Root_Min_Hm` (défaut 80), réglables par `--params`.
+  Le probe n'est appelé que sur le **thread rapporteur** (Fathom n'est pas
+  thread-safe), et n'est retenu que si le probe réussit **et** que le WDL est
+  une **victoire réelle** (`TB_WIN`) : un coup DTZ en position nulle/perdante
+  est documenté par Fathom comme « non naturel ». Tout échec retombe sur la
+  recherche normale (aucune dégradation).
+
+### 77.2 Vérification d'exactitude (le point fragile)
+
+Contre le lecteur Syzygy **indépendant** de `python-chess` (`chess.syzygy`), le
+coup retourné doit être **DTZ-optimal**, c'est-à-dire que le DTZ de l'enfant
+vaut `-(DTZ(parent) - 1)` :
+
+| Finale | DTZ parent | coup | DTZ enfant | attendu | |
+|---|---|---|---|---|---|
+| KQvK | 17 | a1b2 | −16 | −16 | ✓ |
+| KQvK | 13 | b1f5 | −12 | −12 | ✓ |
+| KRvK | 29 | a1b2 | −28 | −28 | ✓ |
+| KBBvK | 32 | a1a2 | −31 | −31 | ✓ |
+| KBNvK | 58 | a1b2 | −57 | −57 | ✓ |
+| KRvK | 29 | b2e2 | −28 | −28 | ✓ |
+
+**6/6 exacts**, y compris via le moteur complet (`bestmove` réel). Les tables
+DTZ 3-4-5 proviennent de `tablebase.lichess.ovh/tables/standard/3-4-5-dtz/`
+(145 fichiers, 561 Mo) ; elles doivent être dans le **même répertoire** que les
+WDL (Fathom n'associe pas deux chemins séparés).
+
+### 77.3 Effet mesuré sur la conversion
+
+`scripts/syzygy_dtz_test.py` joue des finales gagnées critiques (KBNvK, KQvKR,
+KRPvKR + contrôles KQvK/KRvK/KBBvK), feature **off puis on**, et classe
+mat / nulle / plafond. `movetime` 50 ms, plafond 150 coups :
+
+| Position | off | on |
+|---|---|---|
+| KQvK | mat | mat |
+| KRvK | mat | mat |
+| **KBNvK** | **nulle** | **mat** |
+| KBBvK | mat | mat |
+| KRPvKR | mat | mat |
+
+À `halfmove = 0`, **KBNvK est une nulle sans le lot et un mat avec** : le lot
+convertit une finale que la recherche seule laisse filer. C'est exactement le
+défaut visé (§68.3).
+
+### 77.4 Pourquoi la SPRT est INCONCLUSIVE (et non un échec)
+
+La SPRT demandée (ON vs OFF, 2000 parties) donne **−3,6 ± 9,2 Elo, LOS 21,9 %,
+INCONCLUSIVE** — et c'est **attendu** : le filtre ne déclenche que dans **0,29 %
+des racines** (mesuré sur 6 791 racines d'un match de 100 parties), soit
+**2 parties sur 100**, et uniquement avec des tables DTZ chargées. Une SPRT
+ON/OFF généraliste n'a donc **aucune puissance** pour ce changement : elle
+mesure le bruit. Le lot a été validé par le **test de conversion ciblé**
+(§77.3), pas par l'Elo global — c'est le seul instrument adapté.
+
+### 77.5 État livré
+
+- Défaut `S_Syzygy_Root = 0` : comportement **inchangé** (arbre identique,
+  `--bench 9/11/12` identiques), donc adoptable sans risque de régression.
+- `--selftest` **145/145** (2 contrôles ajoutés : le probe échoue proprement
+  sans tables et ne pose pas de coup).
+- L'outil `scripts/syzygy_dtz_test.py` documente la mesure.
+- **Décision humaine requise** : activer `S_Syzygy_Root` par défaut n'a de sens
+  que si les archives de release embarquent des tables DTZ (les WDL seuls ne
+  suffisent pas). Sinon laisser à 0 (recommandé).
