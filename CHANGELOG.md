@@ -1039,3 +1039,17 @@ vérification suggérait +17,8 Elo contre GNU mais l'auto-match donne −5,9
 
 Seule l'infrastructure iso-comportement est conservée : `Gives_Check` (vérifié
 sur 733 130 coups) et SEE sur les coups calmes. Détail : `DEVELOPMENT.md` §70.
+### Recherche : régime LMR, aging de l'history, flag PV, TT 64 MiB (+15 Elo, deux graines)
+
+Quatre changements mesurés ensemble par SPRT (1+0.1, livre neutralisé, 1 000
+parties, bornes `[0, 5]`) : table de transposition portée à **64 MiB** (16 MiB
+avant), **flag PV** (`Beta − Alpha > 1`) propagé au régime LMR, **aging** de
+`History`/`Cont_History` (halvés à chaque itération), et **régime LMR complet**
+(PV −1 ply, nœuds cut +1, killers jamais réduits, coups donnant échec −1,
+`S_Lmr_Hist` réactivé à 8 192). Deux graines indépendantes donnent le même
+résultat : **+16,0 ± 14,1** (graine 7) et **+14,3 ± 14,1** (graine 11), soit
+**+15,1 ± 10,0 Elo sur 2 000 parties** (score 0,522, LOS ~98 %). Les deux runs
+s'arrêtent au plafond (LLR ~1,2 < 2,94) : tendance **reproductible mais non
+prouvée** au sens SPRT strict, adoptée par défaut selon la convention du projet.
+`--selftest` 145/145 ; `--bench 9/11/12` = 492 444 / 1 176 310 / 2 467 856.
+Détail : `DEVELOPMENT.md` §80.

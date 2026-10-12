@@ -97,7 +97,7 @@ package body BBChess.Search is
       S_Tm_Stable            => 0,
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
-      S_Lmr_Hist             => 0,
+      S_Lmr_Hist             => 8_192,
       S_Asp_Grow             => 1,
       --  Syzygy DTZ root: off by default (strict SPRT baseline).
       S_Syzygy_Root          => 0,
@@ -252,7 +252,10 @@ package body BBChess.Search is
    Data_Age_Shift   : constant := 49;
    Empty_Depth      : constant := 255;
 
-   TT_Size   : constant := 1_048_576;
+   --  4_194_304 entries x 16 bytes = 64 MiB. A power of two, so the
+   --  two-entry bucket index below stays even (TT_Mask - 1 clears bit 0)
+   --  and the "Bk + 1" slot never runs past the table. Was 2**20 = 16 MiB.
+   TT_Size   : constant := 4_194_304;
    TT_Mask   : constant := TT_Size - 1;
    type TT_Table is array (0 .. TT_Size - 1) of TT_Entry;
    --  Cache-line aligned so a 16-byte bucket (two entries) never straddles a
@@ -1583,6 +1586,10 @@ package body BBChess.Search is
       Depth       : Natural := Depth_In;
       A           : Score_Type := Alpha;
       B           : Score_Type := Beta;
+      --  A full-window node lies on the principal variation; a zero-window
+      --  (scout) node does not. Derived from the incoming window, captured
+      --  here before the mate-distance clamp below narrows A / B.
+      Is_PV       : constant Boolean := (Beta - Alpha) > 1;
       Moves       : Move_List;
       Count       : Natural;
       Hash_Move   : Move_Type := Empty_Move;
@@ -1938,12 +1945,38 @@ package body BBChess.Search is
                            (Integer'Max (0, Integer (Reduction) - Adj));
                       end;
                    end if;
+                   --  A PV node lies on the principal variation: reduce it
+                   --  one ply less; a zero-window (cut) node in turn reduces
+                   --  one ply more (its result only has to prove a cutoff).
+                   if Is_PV then
+                      if Reduction > 0 then
+                         Reduction := Reduction - 1;
+                      end if;
+                   else
+                      Reduction := Reduction + 1;
+                   end if;
+                   --  Killers are known-good quiet moves: never reduce them.
+                   if Ply <= Max_Ply
+                     and then (Moves (I) = Ctx.Killers (1, Ply)
+                               or else Moves (I) = Ctx.Killers (2, Ply))
+                   then
+                      Reduction := 0;
+                   end if;
                    if Reduction >= Child_Depth then
                       Reduction := Child_Depth - 1;
                    end if;
                 end if;
 
                Make_Move (Position, Moves (I), Undo);
+
+               --  A move that gives check leaves the opponent a forced,
+               --  constrained reply: reduce it one ply less. Tested after the
+               --  move is made, so Position.Side is now the opponent.
+               if Reduction > 0
+                 and then King_In_Check (Position, Position.Side)
+               then
+                  Reduction := Reduction - 1;
+               end if;
 
                -- Record the move for the child's previous-move lookup. The
                -- parent rewrites its own slot on every iteration and the child
@@ -2255,6 +2288,23 @@ package body BBChess.Search is
             then
                exit;
             end if;
+
+            --  Age the history heuristics between iterations: halve every
+            --  entry so the previous iteration's cutoffs keep a decreasing
+            --  influence and the ordering tracks the current tree instead of
+            --  saturating. A no-op on the (still zero) first iteration.
+            for S in Color_Type loop
+               for F in Square_Type loop
+                  for T in Square_Type loop
+                     Ctx.History (S, F, T) := Ctx.History (S, F, T) / 2;
+                  end loop;
+               end loop;
+            end loop;
+            for K in 0 .. 767 loop
+               for J in 0 .. 767 loop
+                  Ctx.Cont_History (K, J) := Ctx.Cont_History (K, J) / 2;
+               end loop;
+            end loop;
 
             if D = 1 then
                Alpha := -Infinity;
