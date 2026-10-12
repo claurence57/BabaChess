@@ -1065,3 +1065,14 @@ profondeur sur `--bench` (−32 ± 16 Elo). SPRT `1+0.1` contre le lot ci-dessus
 Comme la variante naïve historique (+49 % de temps), l'idée est **abandonnée** ;
 le paramètre reste, désactivé. `--selftest` 145/145 ; `S_QChecks = 0` est
 byte-identique (492 444 nœuds). Détail : `DEVELOPMENT.md` §81.
+
+### Recherche : continuation history 2-ply (`S_Cont_History2_Weight`) — non retenu
+
+Ajout d'une seconde table de continuation history (le *follow-up*), indexée sur
+le coup deux plis plus haut, en plus de la 1-ply, à l'ordonnancement des coups
+calmes. Coût structurel : `Search_Context` ~1,2 → ~2,3 Mio/thread et **KNpS
+−5 à −7 %** (`--bench 11` : 2,19 → 2,04 Mnps). SPRT `1+0.1` contre le lot
+ci-dessus (poids 4) : **INCONCLUSIVE**, **−9,0 ± 13,6 Elo** (LOS 9,7 %, score
+0,487, LLR −1,19) ; poids 2 : même tendance. **Aucun gain** → implémentation
+**retirée** (une table allouée/halvée même à poids 0 serait un coût à vide).
+Détail : `DEVELOPMENT.md` §83.

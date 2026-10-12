@@ -1876,3 +1876,49 @@ doute sur la métrologie :
 est **confirmé** — ce n'est pas un artefact de nettoyage d'`obj/`, c'est un vrai
 recul sur cette base (`-O3 -gnatN` déjà agressif, agencement dégradé par le
 profil). **Aucune cible PGO n'est ajoutée** au Makefile.
+
+---
+
+## 83. Recherche : continuation history 2-ply (`S_Cont_History2_Weight`) — neutre-négatif, non retenu
+
+Branche `feat/search-lmr-history`. Idée de la feuille de route « force
+classique » (P2.3) : ajouter à l'ordonnancement une **continuation history
+2-ply** (le *follow-up*) en plus de la 1-ply existante. Implémenté puis
+**retiré** (voir §83.4), sur mesure.
+
+### 83.1 Implémentation
+
+- Deuxième table `Cont_History_2` (même forme que `Cont_History` :
+  768 × 768 × 2 octets = **1,13 Mio**), indexée sur le coup **deux plis plus
+  haut** (`Move_Path (Ply - 2)`), plus le paramètre `S_Cont_History2_Weight`.
+- `Bump_Cont_History_2` sur les mêmes événements que la 1-ply (cutoff bêta et
+  fail-low), et le terme ajouté dans `Order` :
+  `History + W1·Cont1 + W2·Cont2`.
+- `Search_Context` passe de ~1,2 à ~**2,3 Mio** par thread.
+
+### 83.2 Coût (`--bench`)
+
+Nœuds (poids 4) : `--bench 9/11/12` = 447 717 / 1 321 311 / 2 211 911 (vs
+492 444 / 1 176 310 / 2 467 856 pour le lot §80). La **KNpS baisse de ~5–7 %**
+(`--bench 11` : 2,19 → 2,04 Mnps) : la seconde table de 1,13 Mio pèse sur le
+cache. Le coût est donc structurel, pas seulement de l'ordonnancement.
+
+### 83.3 Mesure de force (SPRT vs binaire §80)
+
+| Poids 2-ply | Run | W–L–D | Score | Élo | LOS | Verdict |
+|---|---|---|---|---|---|---|
+| 4 | graine 7 (1000) | 188–214–598 | 0,487 | **−9,0 ± 13,6** | 9,7 % | INCONCL. (LLR −1,19) |
+| 2 | graine 7 (arrêt à 328) | 59–63–206 | 0,494 | ~−3 | — | même tendance |
+
+Deux poids donnent la même conclusion : **aucun gain**, tendance légèrement
+négative. Le gain d'ordonnancement attendu (+5–15) ne compense pas le surcoût
+nps du cache.
+
+### 83.4 État
+
+Implémentation **retirée** (`src/bbchess-search.{ads,adb}` restaurés au lot
+§80 ; `--bench 9` = 492 444, `--selftest` 145/145). Raison du retrait plutôt
+que du simple « désactivé » : la table de 1,13 Mio serait **allouée et halvée à
+chaque itération même à poids 0**, donc un coût à vide. Re-tentative éventuelle
+avec une table **plus petite** (clé sur `To` seul, ou élément 8 bits) et/ou un
+réglage **conjoint** `Cont_History_Weight` / `Cont_History2_Weight` par SPSA.
