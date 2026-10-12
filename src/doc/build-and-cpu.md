@@ -51,6 +51,24 @@ les cas ; c'est du levier de **vitesse**, pas de force directement.
 > essayée (faisable avec `-cargs`/`-largs`), mais mesurée **plus lente**
 > (0,4955 s contre 0,4441 s en `--bench 11`) et fragile avec `-flto` : elle
 > n'est **pas** proposée par le Makefile.
+>
+> **Reproduction (2026-10-12)** — le dépôt n'offrant pas de cible, l'essai a été
+> refait à la main avec un **répertoire de profil explicite**
+> (`-fprofile-generate/use=DIR`, pour que le `rm -rf obj/` ne perde pas les
+> `.gcda`) et un profil pris sur `--bench` 9/11/12, dix répétitions, min (même
+> CPU de dev : Xeon E3-1270 v6). Toujours **plus lent**, avec *et* sans LTO :
+>
+> | Variante | bench 9 | bench 11 | bench 12 |
+> |---|---|---|---|
+> | `release` (LTO) | 0,247 | 0,538 | 1,103 |
+> | `release` `-fno-lto` | 0,236 | 0,539 | 1,108 |
+> | `release` **+ PGO** | 0,259 | 0,581 | 1,165 |
+> | `-fno-lto` **+ PGO** | 0,266 | 0,575 | 1,138 |
+>
+> Soit **+3 à +12 %** de temps selon la profondeur ; nœuds **identiques**
+> (`--selftest` 145/145). `-O3 -gnatN` est déjà agressif pour ce code et le PGO
+> dégrade l'agencement des blocs, donc **PGO reste écarté** : ce n'est pas un
+> problème de métrologie mais un vrai recul sur cette base.
 
 ## Modes de construction
 
