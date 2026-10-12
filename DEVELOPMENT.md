@@ -1848,3 +1848,31 @@ désactivé, comme `S_Nmp_Eval` / `S_Iir_Depth` / `S_Tm_Stable`) : aucune
 régression possible, et le paramètre permet un re-test — p. ex. avec une
 génération d'échecs **dédiée** dans le movegen (test direct par tables
 d'attaque, sans `Make_Move` par coup calme), ou à une autre cadence.
+
+---
+
+## 82. Build : PGO re-mesuré (répertoire de profil explicite) — toujours plus lent
+
+PGO (Profile-Guided Optimization) était déjà documenté comme écarté
+(`src/doc/build-and-cpu.md` : « mesurée plus lente, fragile avec `-flto` »). Sur
+proposition d'en refaire l'essai, il a été **reproduit proprement** pour lever le
+doute sur la métrologie :
+
+- **Répertoire de profil explicite** `-fprofile-generate=DIR` /
+  `-fprofile-use=DIR` : le `rm -rf obj/` du Makefile n'efface plus les `.gcda`
+  (cause probable de la mesure d'origine). Profil pris sur `--bench` 9/11/12.
+- Deux configurations testées : `release` (avec `-flto`) **et** `-fno-lto`.
+- Même CPU de dev (Xeon E3-1270 v6), dix répétitions, min.
+
+| Variante | `--bench 9` | `--bench 11` | `--bench 12` |
+|---|---|---|---|
+| `release` (LTO) | 0,247 | 0,538 | 1,103 |
+| `release` `-fno-lto` | 0,236 | 0,539 | 1,108 |
+| `release` **+ PGO** | 0,259 | 0,581 | 1,165 |
+| `-fno-lto` **+ PGO** | 0,266 | 0,575 | 1,138 |
+
+**Conclusion :** PGO reste **+3 à +12 % plus lent** avec *et* sans LTO ; nœuds
+**identiques** (`--bench 9` = 492 444, `--selftest` 145/145). Le rejet documenté
+est **confirmé** — ce n'est pas un artefact de nettoyage d'`obj/`, c'est un vrai
+recul sur cette base (`-O3 -gnatN` déjà agressif, agencement dégradé par le
+profil). **Aucune cible PGO n'est ajoutée** au Makefile.
