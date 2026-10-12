@@ -134,8 +134,8 @@ paie pas le hachage.
 
 ### Entrée et buckets
 
-La table `Transposition_Table` fait `TT_Size = 1_048_576` entrées. Chaque
-`TT_Entry` contient :
+La table `Transposition_Table` fait `TT_Size = 4_194_304` entrées (4 194 304 ×
+16 octets = **64 Mio**). Chaque `TT_Entry` contient :
 
 | Champ      | Rôle |
 |------------|------|
@@ -182,7 +182,9 @@ trie la liste par sélection. Du plus prioritaire au moins prioritaire :
    `Ctx.History (couleur, From, To)`. `History_Bonus` vaut `depth²` plafonné à
    `1024` et `Bump_History` le borne à `History_Max = 16_384` ; un coup qui
    n'améliore pas `Alpha` reçoit un **malus**, pour apprendre aussi les mauvais
-   coups.
+   coups. À chaque itération d'approfondissement, `History` et `Cont_History`
+   sont **halvés** (aging) pour que les cutoffs de l'itération précédente perdent
+   leur poids au lieu de saturer `History_Max`.
 
 En quiescence, l'ordonnancement est réduit : coups tactiques en tête, triés par
 valeur de la victime (MVV), sans killers ni history.
@@ -240,9 +242,12 @@ qu'on n'est ni en échec ni dans une position de mat.
   n'améliorent presque jamais la fenêtre.
 - **Late move reduction (LMR)** : à `Depth >= 3`, dès le 4ᵉ coup et hors échec,
   un coup tranquille reçoit la réduction de `LMR_Table` (`Compute_LMR`,
-  `R = 0.75 + ln (depth) × ln (move) / 2.25`). Un fail-high de la recherche
-  réduite est **toujours re-vérifié à profondeur pleine** (correction de la
-  Phase 0).
+  `R = 0.75 + ln (depth) × ln (move) / 2.25`), ajustée par le **régime** : −1 ply
+  aux nœuds **PV** (`Beta − Alpha > 1`), +1 ply aux nœuds **cut** (zéro-fenêtre),
+  et **jamais** de réduction pour un **killer** ni pour un coup qui **donne
+  échec** (testé après `Make_Move`, sur la position adverse). Un fail-high de la
+  recherche réduite est **toujours re-vérifié à profondeur pleine** (correction
+  de la Phase 0).
 - **ProbCut** : voir la section « en cours d'expérimentation ».
 
 ## Extension en échec
@@ -306,6 +311,9 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
 - **Iterative deepening, PVS, aspiration windows** (itération 1 en fenêtre
   pleine puis ± 40 cp), table à deux voies avec aging, ordonnancement hash /
   promotions / MVV-LVA / killers / history.
+- **TT 64 Mio**, **aging de l'history** et **régime LMR** (PV −1 / cut +1,
+  killers et coups donnant échec jamais réduits) : lot mesuré à **+15 Elo** sur
+  deux graines indépendantes (`DEVELOPMENT.md` §80).
 - **Null-move pruning** (`Null_Reduction = 2`) et **reverse futility** à
   profondeur 1.
 - **Phase 0 (correction)** : re-recherche pleine de tout fail-high LMR, history

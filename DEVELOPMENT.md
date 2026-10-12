@@ -1723,3 +1723,70 @@ sans gain (§70-§77) sont documentés et laissés désactivés ou non fusionné
 release : seule la chaîne de version change). La release est publiée en
 **brouillon** par `.github/workflows/release.yml` sur le tag `v1.2.0` ; la
 publication reste une décision humaine.
+
+---
+
+## 80. Recherche : régime LMR, aging de l'history, flag PV, TT 64 MiB — lot mesuré
+
+Branche `feat/search-lmr-history`. Quatre changements de recherche issus de la
+feuille de route « force classique », mesurés **ensemble** par SPRT : ils
+touchent la même zone (l'arbre de recherche) et ont été validés comme un lot.
+
+### 80.1 Contenu
+
+- **TT 64 MiB** (`TT_Size` 2²⁰ → 2²², `src/bbchess-search.adb`) : 4 194 304
+  entrées × 16 octets = 64 MiB (au lieu de 16 MiB). Puissance de deux, donc
+  l'index de bucket à deux entrées reste pair (`TT_Mask − 1` efface le bit 0) et
+  le slot « Bk + 1 » ne déborde jamais.
+- **Flag PV** : `Is_PV := (Beta − Alpha) > 1`, capturé à l'entrée du nœud avant
+  le clamp de distance-au-mat. Un nœud pleine fenêtre est sur la PV, un nœud
+  zéro-fenêtre (scout) ne l'est pas.
+- **Aging de l'history** : à chaque itération d'approfondissement, `History` et
+  `Cont_History` sont **halvés**, pour que les cutoffs de l'itération précédente
+  gardent une influence décroissante au lieu de saturer à `History_Max`. No-op à
+  la 1ʳᵉ itération (tables nulles).
+- **Régime LMR complet** :
+  - PV : réduction **−1** ply (la PV est vérifiée plus profond) ;
+  - cut (zéro-fenêtre) : **+1** ply (un scout n'a qu'un cutoff à prouver) ;
+  - **killers** : jamais réduits (`Reduction := 0`) ;
+  - coup donnant **échec** : **−1** ply, testé **après** `Make_Move` via
+    `King_In_Check (Position, Position.Side)` — donc sans coût sur les coups non
+    réduits ;
+  - `S_Lmr_Hist` réactivé : défaut `0` → **8 192**.
+
+### 80.2 Mesure (SPRT vs binaire précédent)
+
+SPRT `1+0.1`, `openings/openings.epd`, livre neutralisé, 4 instances (8 cœurs),
+plafond 1 000 parties, bornes `[0, 5]`. **Deux graines indépendantes** :
+
+| Graine | W–L–D | Score | Élo | LOS | LLR | Verdict |
+|---|---|---|---|---|---|---|
+| 7 | 237–191–572 | 0,523 | +16,0 ± 14,1 | 98,7 % | 1,31 | INCONCL. (cap) |
+| 11 | 234–193–573 | 0,520 | +14,3 ± 14,1 | 97,6 % | 1,14 | INCONCL. (cap) |
+| **Pooled (2 000)** | 471–384–1145 | **0,522** | **+15,1 ± 10,0** | — | — | — |
+
+Les deux graines donnent **le même signe et la même amplitude** (+14 à +16 Elo,
+~98 % LOS) : l'effet (~+15 Elo) est **reproductible**. Le SPRT ne franchit pas
+2,94 au plafond parce qu'à 1 000 parties (57 % de nulles, variance pentanomiale)
+la résolution est ~±14 Elo — un effet de +15 ne peut pas être *prouvé* par un
+seul run, seulement **confirmé comme tendance reproductible**.
+
+### 80.3 Adoption
+
+Le lot est **adopté par défaut** au titre de la convention du projet (tendance
+positive reproductible sur deux graines indépendantes ; cf. §73/§74 : un résultat
+favorable non conclusif se reporte « neutre, pas négatif, tendance positive » →
+à garder). Le lot **combine quatre changements** : le gain ne peut pas être
+attribué à l'un d'eux. Le point le plus incertain est le couple `cut +1` /
+`PV −1` (écart de 2 plis) et la nouvelle valeur de `S_Lmr_Hist` ; ce sont les
+premiers candidats à re-régler par SPSA. Le coût de l'aging (`Cont_History` =
+589 824 entrées halvées par itération) ne fait pas chuter le nps : `--bench 12`
+reste stable (~2,2 Mnps).
+
+### 80.4 Vérifications
+
+- `make` (release) OK ; `gprbuild -XMode=debug -cargs:ada -gnatwe` : **0 warning**.
+- `--selftest` : **145/145**, dont le contrôle MT↔ST de reproductibilité (les
+  contextes par thread restent déterministes après l'aging et le régime LMR).
+- `--bench 9` : 546 046 (avant) → **492 444** ; `--bench 11` : 1 343 555 →
+  **1 176 310** ; `--bench 12` : 2 646 747 → **2 467 856**.
