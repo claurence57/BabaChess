@@ -99,6 +99,13 @@ package body BBChess.Search is
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 8_192,
       S_Asp_Grow             => 1,
+      --  Checks in quiescence (S_QChecks): quiet checks at the FIRST
+      --  quiescence ply only, out of check. Measured at -32 +/- 16 Elo by
+      --  SPRT (FAIL, H0 accepted at 714 games, 1+0.1): the time cost
+      --  (+33 to +91% on --bench 9/11/12) outweighs the tactical gain, as
+      --  for the historical all-ply variant (+49%, section 18). Left
+      --  DISABLED (default 0); 1 re-creates the exact tree for re-testing.
+      S_QChecks              => 0,
       --  Syzygy DTZ root: off by default (strict SPRT baseline).
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 7,
@@ -136,6 +143,7 @@ package body BBChess.Search is
       S_Bad_Capture          => 0,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0,
+      S_QChecks              => 0,
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 0,
       S_Syzygy_Root_Min_Hm   => 0);
@@ -177,6 +185,7 @@ package body BBChess.Search is
       S_Bad_Capture          => 1,
       S_Lmr_Hist             => 1_000_000,
       S_Asp_Grow             => 1,
+      S_QChecks              => 1,
       S_Syzygy_Root          => 1,
       S_Syzygy_Root_Max_Pieces => 64,
       S_Syzygy_Root_Min_Hm   => 100);
@@ -1258,6 +1267,13 @@ package body BBChess.Search is
       -- holding a full-width (depth >= 1) result is never overwritten.
       Use_TT   : constant Boolean := Search_Params (S_Qs_TT) /= 0;
       May_Store : Boolean := Use_TT;
+      --  Constrained quiet checks (S_QChecks): first quiescence ply only,
+      --  out of check. They are tried after every capture and after the
+      --  stand-pat test. A quiet check recurses to an in-check child which
+      --  searches evasions; QDepth is then 1, so no further checks are
+      --  generated -- the feature adds exactly one ply, never an explosion.
+      Add_QChecks : constant Boolean :=
+        Search_Params (S_QChecks) /= 0 and then QDepth = 0 and then not In_Check;
 
       function Finish (Score : in Score_Type) return Score_Type is
       begin
@@ -1358,8 +1374,10 @@ package body BBChess.Search is
          end if;
       end if;
 
-      if In_Check then
-         -- Every evasion must be tried.
+      if In_Check or else Add_QChecks then
+         --  Every evasion must be tried; with quiet checks enabled the full
+         --  legal list is generated so the quiet moves that give check are
+         --  reachable (the tactical generator yields only captures).
          Generate_Legal_Moves (Position, Moves, Count);
       else
          -- Only captures / promotions are searched in a quiet position, so
@@ -1385,7 +1403,7 @@ package body BBChess.Search is
          T : Natural := 0;
          Vic : Order_Array;
       begin
-         if In_Check then
+         if In_Check or else Add_QChecks then
             for I in 1 .. Count loop
                if Is_Tactical (Position, Moves (I)) then
                   T := T + 1;
@@ -1470,6 +1488,44 @@ package body BBChess.Search is
                end;
             end if;
          end loop;
+
+         --  Constrained quiet checks: after every capture and after the
+         --  stand-pat test. A quiet move has no victim, so
+         --  Static_Exchange_Value returns 0 for it; the safety test is
+         --  instead that the checking piece is not attacked. King moves can
+         --  never give check. The loop runs on the non-tactical suffix only.
+         if Add_QChecks then
+            for I in T + 1 .. Count loop
+               declare
+                  M    : constant Move_Type := Moves (I);
+                  Undo : Undo_Info;
+               begin
+                  if Kind (M.Piece) /= King then
+                     Make_Move (Position, M, Undo);
+                     --  After Make_Move, Position.Side is the opponent.
+                     if King_In_Check (Position, Position.Side)
+                       and then not Is_Attacked (Position, M.To, Position.Side)
+                     then
+                        declare
+                           Score : constant Score_Type :=
+                             -Quiescence (Ctx, Position, -B, -A, Ply + 1,
+                                          QDepth + 1);
+                        begin
+                           Unmake_Move (Position, M, Undo);
+                           if Score >= B then
+                              return Finish (Score);
+                           end if;
+                           if Score > A then
+                              A := Score;
+                           end if;
+                        end;
+                     else
+                        Unmake_Move (Position, M, Undo);
+                     end if;
+                  end if;
+               end;
+            end loop;
+         end if;
       end;
 
       return Finish (A);

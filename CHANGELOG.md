@@ -1053,3 +1053,15 @@ s'arrêtent au plafond (LLR ~1,2 < 2,94) : tendance **reproductible mais non
 prouvée** au sens SPRT strict, adoptée par défaut selon la convention du projet.
 `--selftest` 145/145 ; `--bench 9/11/12` = 492 444 / 1 176 310 / 2 467 856.
 Détail : `DEVELOPMENT.md` §80.
+
+### Recherche : échecs en quiescence (`S_QChecks`) — négatif, désactivé
+
+Échecs tranquilles cherchés au **premier pli de quiescence seulement** (hors
+échec), après les captures et le stand-pat, derrière `S_QChecks` (défaut 0). Le
+test de sûreté est `not Is_Attacked` (SEE renvoie 0 sur un coup calme), et la
+génération est bornée à un pli. Coût mesuré : **+33 à +91 % de temps** selon la
+profondeur sur `--bench` (−32 ± 16 Elo). SPRT `1+0.1` contre le lot ci-dessus :
+**FAIL**, H0 accepté à 714 parties, **−34,7 ± 15,6 Elo** (LOS 0 %, score 0,450).
+Comme la variante naïve historique (+49 % de temps), l'idée est **abandonnée** ;
+le paramètre reste, désactivé. `--selftest` 145/145 ; `S_QChecks = 0` est
+byte-identique (492 444 nœuds). Détail : `DEVELOPMENT.md` §81.

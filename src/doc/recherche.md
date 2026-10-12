@@ -349,6 +349,10 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
   **neutre** (`+6,9 ± 32,5` Elo). **Non retenue.**
 - **Échecs tranquilles en quiescence** : corrigeaient une position diagnostique
   mais coûtaient **+49 % de temps** à nœuds quasi égaux. **Écartés.**
+- **Échecs tranquilles en quiescence, variante contrainte** (`S_QChecks`, premier
+  pli seul, test de sûreté `not Is_Attacked`) : **+33 à +91 % de temps** sur
+  `--bench`, SPRT `1+0.1` **FAIL** (**−34,7 ± 15,6** Elo, H0 accepté à 714
+  parties). Laissée **désactivée** (défaut 0). Détail : `DEVELOPMENT.md` §81.
 
 ### En cours d'expérimentation
 

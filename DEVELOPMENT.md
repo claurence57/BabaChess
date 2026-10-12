@@ -1790,3 +1790,61 @@ reste stable (~2,2 Mnps).
   contextes par thread restent déterministes après l'aging et le régime LMR).
 - `--bench 9` : 546 046 (avant) → **492 444** ; `--bench 11` : 1 343 555 →
   **1 176 310** ; `--bench 12` : 2 646 747 → **2 467 856**.
+
+---
+
+## 81. Recherche : échecs en quiescence (`S_QChecks`) — mesuré négatif, désactivé
+
+Branche `feat/search-lmr-history`. Idée de la feuille de route « force
+classique » (P3.3) : au **premier pli de quiescence seulement** (hors échec),
+chercher aussi les **coups tranquilles qui donnent échec**, après les captures
+et le stand-pat. Implémenté derrière `S_QChecks` (0/1, défaut **0**).
+
+### 81.1 Implémentation
+
+- `Add_QChecks := Search_Params (S_QChecks) /= 0 and then QDepth = 0 and then
+  not In_Check`.
+- Au premier pli d'un nœud hors échec : génération légale **complète** (au lieu
+  des seuls tactiques), partition tactiques/calmes, puis une **boucle séparée**
+  sur les coups calmes. Un coup calme n'a pas de victime, donc
+  `Static_Exchange_Value` renvoie 0 : le test de sûreté retenu est
+  `not Is_Attacked (Position, Move.To, Position.Side)` après `Make_Move`.
+- Auto-limitation : un échec calme récurse sur un nœud **en échec** (QDepth 1),
+  qui cherche ses évasions ; comme les échecs ne sont générés qu'à QDepth 0, le
+  gain est borné à **un pli**, sans explosion récursive.
+- `S_QChecks = 0` est **byte-identique** à l'arbre d'avant : `--bench 9` reste
+  492 444 nœuds, perft et `--selftest` inchangés.
+
+### 81.2 Coût (`--bench`, S_QChecks 0 → 1)
+
+| Profondeur | Nœuds | Temps |
+|---|---|---|
+| 9 | 492 444 → 522 859 (**+6 %**) | +33 % |
+| 11 | 1 176 310 → 1 804 284 (**+53 %**) | +91 % |
+| 12 | 2 467 856 → 2 794 477 (**+13 %**) | +39 % |
+
+Le surcoût (un `Make_Move` + `King_In_Check` par coup **calme** au premier pli,
+plus les sous-arbres d'échecs) est bien plus lourd que l'estimation initiale
+(~+5–20 %).
+
+### 81.3 Mesure de force (SPRT)
+
+SPRT `1+0.1`, `openings/openings.epd`, livre neutralisé, 4 instances, bornes
+`[0, 5]`, contre le binaire du lot §80 :
+
+| Run | W–L–D | Score | Élo | LOS | Verdict |
+|---|---|---|---|---|---|
+| graine 7 | 100–171–443 | 0,450 | **−34,7 ± 15,6** | 0 % | **FAIL** (H0 accepté à 714 parties, LLR −2,96) |
+
+NEW jouait 0,475 avec les Blancs et 0,426 avec les Noirs : le recul est des deux
+côtés. Le verdict est **net** — le coût temps écrase le gain tactique. Comme la
+version naïve historique (tous plis, +49 % de temps, §18), la variante contrainte
+est **abandonnée**.
+
+### 81.4 État
+
+`S_QChecks` reste dans le code, **défaut 0** (essai documenté et laissé
+désactivé, comme `S_Nmp_Eval` / `S_Iir_Depth` / `S_Tm_Stable`) : aucune
+régression possible, et le paramètre permet un re-test — p. ex. avec une
+génération d'échecs **dédiée** dans le movegen (test direct par tables
+d'attaque, sans `Make_Move` par coup calme), ou à une autre cadence.

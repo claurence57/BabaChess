@@ -168,6 +168,7 @@ package BBChess.Search is
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
       S_Asp_Grow,         -- 1 = aspiration window widened gradually
+      S_QChecks,          -- 1 = quiet checks at the first quiescence ply
       --  Syzygy DTZ root (0 = off): when on, a root position in the 50-move
       --  zone (halfmove >= S_Syzygy_Root_Min_Hm) with at most
       --  S_Syzygy_Root_Max_Pieces men is played by the DTZ-optimal move.
