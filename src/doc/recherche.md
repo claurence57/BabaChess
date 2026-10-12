@@ -353,6 +353,10 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
   pli seul, test de sûreté `not Is_Attacked`) : **+33 à +91 % de temps** sur
   `--bench`, SPRT `1+0.1` **FAIL** (**−34,7 ± 15,6** Elo, H0 accepté à 714
   parties). Laissée **désactivée** (défaut 0). Détail : `DEVELOPMENT.md` §81.
+- **Continuation history 2-ply** (*follow-up*, seconde table keyée sur le coup
+  deux plis plus haut) : **KNpS −5 à −7 %** et SPRT `1+0.1` **INCONCLUSIVE**
+  (**−9,0 ± 13,6** Elo, score 0,487), poids 2 idem → **retirée**. Détail :
+  `DEVELOPMENT.md` §83.
 
 ### En cours d'expérimentation
 
