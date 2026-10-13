@@ -357,6 +357,11 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
   deux plis plus haut) : **KNpS −5 à −7 %** et SPRT `1+0.1` **INCONCLUSIVE**
   (**−9,0 ± 13,6** Elo, score 0,487), poids 2 idem → **retirée**. Détail :
   `DEVELOPMENT.md` §83.
+- **Flag « improving »** (éval maintenant vs 2 plis avant, pour gater
+  razor/RFP/futility/LMP, `S_Improving`) : variante proposée **neutre** (0,501
+  sur 669 parties), variante « relâcher si improving » **+53 % d'arbre**,
+  variante « élaguer si non-improving » **non inerte** flag off → **retirée**.
+  Détail : `DEVELOPMENT.md` §84.
 
 ### En cours d'expérimentation
 

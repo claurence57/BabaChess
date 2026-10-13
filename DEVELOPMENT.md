@@ -1922,3 +1922,48 @@ que du simple « désactivé » : la table de 1,13 Mio serait **allouée et halv
 chaque itération même à poids 0**, donc un coût à vide. Re-tentative éventuelle
 avec une table **plus petite** (clé sur `To` seul, ou élément 8 bits) et/ou un
 réglage **conjoint** `Cont_History_Weight` / `Cont_History2_Weight` par SPSA.
+
+---
+
+## 84. Recherche : flag « improving » (`S_Improving`) — trois variantes, aucun gain, non retenu
+
+Branche `feat/search-lmr-history`. Idée de la feuille de route « force classique »
+(P3.2) : comparer l'éval statique à celle de **deux plis avant** (même camp to
+move) et moduler l'élagage superficiel (razor, RFP, futility, LMP). Implémenté,
+mesuré, puis **retiré**.
+
+### 84.1 Mécanique (pour mémoire)
+
+- **Cache par ply** : `Eval_Path` (valeur), `Eval_Path_Valid` (valide — mis à
+  `False` à l'entrée du nœud, armé seulement si l'éval est réellement calculée),
+  `Eval_Path_Side` (camp au moment de l'éval). Ce troisième tableau est
+  indispensable : une **null move ne change pas de camp**, donc « deux plis
+  avant » n'est le même camp to move que s'il n'y a pas de null entre les deux ;
+  le camp enregistré rend le test exact (le seul `Prev = Empty_Move` ne couvre
+  que le nœud immédiatement après la null).
+- `Improving := S_Improving /= 0 and then Ply >= 2 and then valid (Ply-2) and
+  then side (Ply-2) = Position.Side and then Eval_Now > Eval_Path (Ply-2)`.
+- **Inertie** : `S_Improving = 0` doit rendre le test faux (court-circuit) et
+  laisser les prédicats d'élagage exactement inchangés.
+- Grille d'éval élargie de **2 plis** quand le flag est actif (le grand-parent
+  d'un nœud RFP est à profondeur 7–8, au-delà de la grille par défaut).
+
+### 84.2 Trois variantes mesurées
+
+| Variante | Effet sur l'arbre | Mesure |
+|---|---|---|
+| Schéma proposé tel quel (signes par site) | quasi stable | SPRT `1+0.1` **neutre** : 128–127–414 (0,501) sur 669 parties, ≈ 0 Elo, LLR −0,14 |
+| Cohérent « relâcher quand improving » | **+53 %** (`--bench 11`) | non poursuivi (surcoût temps net) |
+| Cohérent « élaguer plus quand non-improving » | flag off **non inerte** (682 515 ≠ 492 444) ; `--bench 9` +39 % | non poursuivi |
+
+### 84.3 Leçon et état
+
+Aucune variante n'apporte de gain, et les variantes 2–3 exposent les **pièges**
+du levier : (a) un delta formulé `(if Improving then 0 else X)` **n'est pas
+inerte** quand le flag est à 0 (il s'applique sur la majorité des nœuds) — le
+delta doit être gaté par le paramètre lui-même ; (b) le **signe par site** dépend
+de la position du terme dans l'inégalité (razor/futility l'ont en `+`, RFP en
+`−`, LMP dans un seuil), et une erreur de signe inverse la politique sans que
+l'arbre plante. L'implémentation est **retirée** (`--bench 9` = 492 444,
+`--selftest` 145/145). Re-tentative seulement à partir d'une base de référence
+dont les signes par site sont validés, et avec un gate d'inertie explicite.
