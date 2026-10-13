@@ -1076,3 +1076,14 @@ ci-dessus (poids 4) : **INCONCLUSIVE**, **−9,0 ± 13,6 Elo** (LOS 9,7 %, score
 0,487, LLR −1,19) ; poids 2 : même tendance. **Aucun gain** → implémentation
 **retirée** (une table allouée/halvée même à poids 0 serait un coût à vide).
 Détail : `DEVELOPMENT.md` §83.
+
+### Recherche : flag « improving » (`S_Improving`) — non retenu
+
+Comparaison de l'éval statique à celle de deux plis avant (même camp) pour
+moduler razor, RFP, futility et LMP, derrière `S_Improving`. Trois variantes
+testées : le schéma proposé est **neutre** (SPRT `1+0.1` : 0,501 sur 669 parties,
+≈ 0 Elo, LLR −0,14) ; la version cohérente « relâcher quand improving » gonfle
+l'arbre (**+53 %** en `--bench 11`) ; la version « élaguer plus quand
+non-improving » n'est **pas inerte** flag off (682 515 ≠ 492 444 nœuds). Aucun
+gain et pièges de signe/inertie → implémentation **retirée**. Détail :
+`DEVELOPMENT.md` §84.
