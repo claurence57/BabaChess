@@ -308,6 +308,11 @@ Plusieurs décisions sont **délibérées** :
 - **Phase non incrémentale.** Une phase maintenue par `Make`/`Unmake` a été
   implémentée puis revertée (§ 12) : les 8 `Popcount` de `Game_Phase` pèsent
   ~0,2 % du temps et le champ ajouté alourdissait les copies de `Position`.
+- **Imbalance matérielle (Kaufman) éteinte.** Un terme
+  `(fous − cavaliers) × pions manquants` par camp (`P_Imb_KBNB`, défaut 0) a été
+  ajouté puis mesuré **−8,3 ± 13,5 Elo** (SPRT inconclusive, `DEVELOPMENT.md`
+  § 85) : non retenu, laissé en interrupteur neutre comme `P_Hanging_*` /
+  `P_Connected`.
 
 En résumé, l'évaluation de BB est volontairement **simple, sûre et symétrique** :
 matériel + PST interpolés par phase, plus des termes positionnels classiques

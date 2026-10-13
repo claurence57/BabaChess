@@ -285,7 +285,8 @@ package body BBChess.Eval is
       P_Mob_Area,
       P_Hanging_Op, P_Hanging_Eg, P_Threat_RQ,
       P_Connected, P_Backward_Op, P_Backward_Eg,
-      P_KS_Lo, P_KS_Hi);
+      P_KS_Lo, P_KS_Hi,
+      P_Imb_KBNB);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -370,8 +371,14 @@ package body BBChess.Eval is
      P_Backward_Eg     => 0,
      --  King safety phase gate: full above Hi, none at or below Lo, linear
      --  in between. Hi <= Lo is the historical hard gate at Lo.
-     P_KS_Lo           => 20,
-     P_KS_Hi           => 20);
+      P_KS_Lo           => 20,
+      P_KS_Hi           => 20,
+      --  Kaufman minor-piece imbalance: cp per missing pawn, per surplus
+      --  (bishop - knight) of a side (0 = off). Measured -8,3 +/- 13,5 Elo
+      --  (SPRT inconclusive, 1000 games, section 85) -> left OFF, like the
+      --  other rejected eval terms. It vanishes at a full eight pawns (no
+      --  phase taper needed) and is exactly antisymmetric.
+      P_Imb_KBNB        => 0);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -717,6 +724,8 @@ package body BBChess.Eval is
    Connected_Pct         : Score_Type renames Params (P_Connected);
    Backward_Opening      : Score_Type renames Params (P_Backward_Op);
    Backward_Endgame      : Score_Type renames Params (P_Backward_Eg);
+   --  Kaufman minor-piece imbalance slope (see Minor_Imbalance in Static).
+   Imbalance_KB_Pawn     : Score_Type renames Params (P_Imb_KBNB);
 
    -- Connected pawn base bonus by own row (supported or phalanx pawn).
    Connected_Seed : constant array (Natural range 0 .. 7) of Score_Type :=
@@ -1368,6 +1377,21 @@ package body BBChess.Eval is
          end if;
          return 64;
       end Scale_Factor;
+
+      --  Kaufman minor-piece imbalance (see section 85): a bishop is worth
+      --  relatively more than a knight as pawns disappear. Depends only on
+      --  Color's own counts, so Imb(White) - Imb(Black) is exactly
+      --  antisymmetric, and it vanishes at a full eight pawns (no taper).
+      function Minor_Imbalance (Color : in Color_Type) return Score_Type is
+         B : constant Integer :=
+           Integer (Popcount (Position.Pieces (Make (Color, Bishop))));
+         N : constant Integer :=
+           Integer (Popcount (Position.Pieces (Make (Color, Knight))));
+         P : constant Integer :=
+           Integer (Popcount (Position.Pieces (Make (Color, Pawn))));
+      begin
+         return Score_Type ((B - N) * Imbalance_KB_Pawn * (8 - P));
+      end Minor_Imbalance;
    begin
       -- Material + piece-square tables: maintained incrementally by
       -- Make_Move / Unmake_Move (White-positive).
@@ -1436,6 +1460,11 @@ package body BBChess.Eval is
       then
          Result := Result * Scale_Factor (Result) / 64;
       end if;
+
+      --  Material imbalance, recomputed each call (it depends on both
+      --  colours' counts, so it is deliberately not incremental). Added after
+      --  Scale_Factor so the drawish-endgame scaler cannot absorb it.
+      Result := Result + Minor_Imbalance (White) - Minor_Imbalance (Black);
 
       return Result;
    end Static;

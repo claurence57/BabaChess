@@ -1967,3 +1967,54 @@ de la position du terme dans l'inégalité (razor/futility l'ont en `+`, RFP en
 l'arbre plante. L'implémentation est **retirée** (`--bench 9` = 492 444,
 `--selftest` 145/145). Re-tentative seulement à partir d'une base de référence
 dont les signes par site sont validés, et avec un gate d'inertie explicite.
+
+---
+
+## 85. Évaluation : imbalance matérielle (`P_Imb_KBNB`) — neutre-négatif, non retenu
+
+Branche `feat/eval-imbalance`. Idée de la feuille de route « force classique »
+(P4.2) : ajouter un terme d'**imbalance matérielle** à la Kaufman (il n'y en
+avait aucun). Implémenté, mesuré, laissé **désactivé** (défaut 0).
+
+### 85.1 Terme
+
+Un fou vaut relativement plus qu'un cavalier à mesure que les pions
+disparaissent (Kaufman). Pour chaque camp, à partir de **ses propres** comptes :
+
+```
+Imb(c) = (fous(c) − cavaliers(c)) × P_Imb_KBNB × (8 − pions(c))
+```
+
+- **Symétrie** : `Imb(c)` ne dépend que des pièces du camp `c` ; un miroir
+  (retournement + échange des couleurs) échange les comptes Blancs/Noirs, donc
+  `Imb'(Blanc) − Imb'(Noir) = −(Imb(Blanc) − Imb(Noir))`. Ajouté au reste de
+  `Static` (déjà antisymétrique), le total reste antisymétrique — `scripts/
+  sym_check.py` : **3000 positions, 0 écart** ; `--selftest` 146/146.
+- **Pas de taper** : le facteur `(8 − pions)` s'annule à huit pions ; le terme
+  s'éteint donc de lui-même à l'ouverture.
+- Ajouté **après** `Scale_Factor` (le scaler de finales nulles touche justement
+  la zone des configurations de fous) et **hors du chemin incrémental** :
+  recalculé à chaque `Static` (6 `Popcount`), jamais stocké dans `Position.Material`.
+- Nouveau paramètre `P_Imb_KBNB` (défaut **0**), exposé automatiquement à
+  `--params`/`--dump-params` (le mécanisme est générique sur l'enum).
+
+### 85.2 Mesure (SPRT vs `main`)
+
+Candidat `P_Imb_KBNB = 2` (≈ +16 cp pour une composition 2F vs 2C à 6 pions
+chacun) : `--bench 9/11/12` = 503 916 / 1 455 849 / 2 216 062. SPRT `1+0.1` :
+
+| Run | W–L–D | Score | Élo | LOS | Verdict |
+|---|---|---|---|---|---|
+| graine 7 (1000) | 185–209–606 | 0,488 | **−8,3 ± 13,5** | 11,3 % | INCONCL. (LLR −1,14) |
+
+Léger recul, comme la plupart des termes d'éval testés sur ce moteur. Le gain
+Kaufman historique suppose une éval qui n'a **ni** paire de fous **ni** PST
+réglés ; ici le terme recoupe `P_Bishop_Pair_*` et le `P_Bishop − P_Knight` plat
+(+10).
+
+### 85.3 État
+
+Le terme reste dans le code, **défaut 0** (interrupteur d'infrastructure neutre,
+comme `P_Hanging_*`, `P_Connected`, `P_Backward_*`) : `--bench 9` = 492 444,
+identique à `main` quand il est éteint, et le tuner (`scripts/spsa.py`, qui
+borne à ≥ 0) peut le réveiller. Non retenu faute de gain.

@@ -1087,3 +1087,13 @@ l'arbre (**+53 %** en `--bench 11`) ; la version « élaguer plus quand
 non-improving » n'est **pas inerte** flag off (682 515 ≠ 492 444 nœuds). Aucun
 gain et pièges de signe/inertie → implémentation **retirée**. Détail :
 `DEVELOPMENT.md` §84.
+
+### Évaluation : imbalance matérielle (`P_Imb_KBNB`) — non retenu
+
+Terme d'imbalance à la Kaufman, absent jusqu'ici : pour chaque camp,
+`(fous − cavaliers) × P_Imb_KBNB × (8 − pions)`. Antisymétrique par
+construction (fonction des seuls comptes du camp, soustraite entre camps) :
+`scripts/sym_check.py` **0 écart sur 3000 positions**, `--selftest` 146/146.
+SPRT `1+0.1` contre `main` (valeur 2) : **INCONCLUSIVE**, **−8,3 ± 13,5 Elo**
+(LOS 11,3 %, score 0,488). Non retenu ; laissé **éteint** (défaut 0, inerte :
+`--bench 9` = 492 444). Détail : `DEVELOPMENT.md` §85.
