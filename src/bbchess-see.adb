@@ -39,6 +39,10 @@ package body BBChess.See is
          All_Occ   : Bitboard := 0;
          Color_Occ : Color_Board_Array := (others => 0);
       end record;
+   --  The only object of this type (in Static_Exchange_Value) is fully
+   --  assigned before any read, so the default zero-fill would be pure
+   --  overhead on the SEE hot path.
+   pragma Suppress_Initialization (See_Board);
 
    procedure See_Put (B : in out See_Board; Piece : in Piece_Type;
                       Square : in Square_Type) is
@@ -115,21 +119,27 @@ package body BBChess.See is
          Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Knight); return;
       end if;
 
-      Cand := (Bishop_Attacks (To, Occ) and B.Pieces (Make (Side, Bishop))) and not Pinned;
-      if Cand /= 0 then
-         Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Bishop); return;
-      end if;
+      --  The slider attack sets feed the bishop, rook and queen tests: compute
+      --  each PEXT/table lookup once instead of up to four times.
+      declare
+         B_Att : constant Bitboard := Bishop_Attacks (To, Occ);
+         R_Att : constant Bitboard := Rook_Attacks (To, Occ);
+      begin
+         Cand := (B_Att and B.Pieces (Make (Side, Bishop))) and not Pinned;
+         if Cand /= 0 then
+            Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Bishop); return;
+         end if;
 
-      Cand := (Rook_Attacks (To, Occ) and B.Pieces (Make (Side, Rook))) and not Pinned;
-      if Cand /= 0 then
-         Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Rook); return;
-      end if;
+         Cand := (R_Att and B.Pieces (Make (Side, Rook))) and not Pinned;
+         if Cand /= 0 then
+            Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Rook); return;
+         end if;
 
-      Cand := ((Bishop_Attacks (To, Occ) or Rook_Attacks (To, Occ))
-                 and B.Pieces (Make (Side, Queen))) and not Pinned;
-      if Cand /= 0 then
-         Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Queen); return;
-      end if;
+         Cand := ((B_Att or R_Att) and B.Pieces (Make (Side, Queen))) and not Pinned;
+         if Cand /= 0 then
+            Found := True; From := Lowest_Bit (Cand); Piece := Make (Side, Queen); return;
+         end if;
+      end;
 
       Cand := King_Attacks (To) and B.Pieces (Make (Side, King));
       if Cand /= 0 then
