@@ -130,15 +130,6 @@ package body BBChess.Board is
       return Intrin_Popcount (Board);
    end Popcount;
 
-   ----------------------
-   -- Clear_Lowest_Bit --
-   ----------------------
-
-   procedure Clear_Lowest_Bit (Board : in out Bitboard) is
-   begin
-      Board := Board and (Board - 1);
-   end Clear_Lowest_Bit;
-
 begin
    for Square in Square_Type loop
       Bit (Square) := 2 ** Square;

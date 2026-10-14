@@ -70,11 +70,8 @@ package BBChess.Board is
          Material    : Integer := 0;   -- White-positive material + PST
       end record;
 
-   function Piece_Board (Position : in Position_Type; Piece : in Piece_Type)
-     return Bitboard is (Position.Pieces (Piece));
-
    function Piece_At
-     (Position : in Position_Type;
+      (Position : in Position_Type;
       Square   : in Square_Type;
       Piece    : out Piece_Type) return Boolean;
    -- Look up the piece standing on Square. Returns True (and fills Piece)
@@ -113,20 +110,15 @@ package BBChess.Board is
    function Popcount (Board : in Bitboard) return Natural;
    -- Number of set bits (population count).
 
-   procedure Clear_Lowest_Bit (Board : in out Bitboard);
-   -- Clear the least significant set bit.
-
    --  Hot cross-unit primitives: inlined into the search / move generation /
    --  evaluation callers under the release build's -gnatN (semantics
    --  unchanged, the call overhead disappears).
-   pragma Inline (Piece_Board);
    pragma Inline (Piece_At);
    pragma Inline (Color_Board);
    pragma Inline (Occupancy);
    pragma Inline (Is_Empty);
    pragma Inline (Lowest_Bit);
    pragma Inline (Popcount);
-   pragma Inline (Clear_Lowest_Bit);
    pragma Inline (Put_Piece);
    pragma Inline (Remove_Piece);
    pragma Inline (Move_Piece);
