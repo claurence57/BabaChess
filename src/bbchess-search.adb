@@ -1465,8 +1465,8 @@ package body BBChess.Search is
             -- victim value is already in Vic.
             if (not In_Check)
               and then Moves (I).Flag /= Promotion
-              and then (Static_Exchange_Value (Position, Moves (I)) < 0
-                        or else Stand + Vic (I) + Delta_Margin <= A)
+              and then (Stand + Vic (I) + Delta_Margin <= A
+                        or else Static_Exchange_Value (Position, Moves (I)) < 0)
             then
                null;
             else

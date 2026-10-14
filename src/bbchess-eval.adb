@@ -1463,8 +1463,11 @@ package body BBChess.Eval is
 
       --  Material imbalance, recomputed each call (it depends on both
       --  colours' counts, so it is deliberately not incremental). Added after
-      --  Scale_Factor so the drawish-endgame scaler cannot absorb it.
-      Result := Result + Minor_Imbalance (White) - Minor_Imbalance (Black);
+      --  Scale_Factor so the drawish-endgame scaler cannot absorb it. Skipped
+      --  entirely at the default weight 0 (the popcounts would be wasted).
+      if Imbalance_KB_Pawn /= 0 then
+         Result := Result + Minor_Imbalance (White) - Minor_Imbalance (Black);
+      end if;
 
       return Result;
    end Static;
