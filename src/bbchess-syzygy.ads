@@ -19,15 +19,8 @@ package BBChess.Syzygy is
    -- Scores returned by the search for a tablebase win/loss (below mate,
    -- above any normal evaluation), adjusted by the ply for distance.
    TB_Win  : constant Integer := 20_000;
-   TB_Draw : constant Integer := 0;
-   TB_Loss : constant Integer := -20_000;
 
    -- Fathom WDL values.
-   TB_Result_Loss         : constant Interfaces.C.unsigned := 0;
-   TB_Result_Blessed_Loss : constant Interfaces.C.unsigned := 1;
-   TB_Result_Draw         : constant Interfaces.C.unsigned := 2;
-   TB_Result_Cursed_Win   : constant Interfaces.C.unsigned := 3;
-   TB_Result_Win          : constant Interfaces.C.unsigned := 4;
    TB_Result_Failed       : constant Interfaces.C.unsigned := 16#FFFF_FFFF#;
 
    procedure Init (Path : in String; Ok : out Boolean);

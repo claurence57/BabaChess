@@ -26,12 +26,10 @@
 --
 
 with BBChess.Board;
-with BBChess.Pieces;
 
 package BBChess.Protocol is
 
    use BBChess.Board;
-   use BBChess.Pieces;
 
    --  Where every protocol output line goes. Installed once by the caller.
    type Line_Writer is access procedure (S : in String);
@@ -67,7 +65,6 @@ package BBChess.Protocol is
 
    function Position_Of return Position_Type;
    function Key_Of return Bitboard;
-   function Engine_Side_Of return Color_Type;
    function Is_UCI return Boolean;
    function Busy return Boolean;
 

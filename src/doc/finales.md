@@ -20,12 +20,11 @@ livrés avec le moteur : sans eux, l'intégration reste totalement inerte.
 
 Syzygy propose plusieurs mesures ; BB n'utilise que le **WDL** (*Win / Draw /
 Loss*), le résultat théorique vu du trait, en ignorant la règle des 50 coups.
-Fathom renvoie cinq codes, reflétés dans `bbchess-syzygy.ads` :
-`TB_Result_Loss` (0), `TB_Result_Blessed_Loss` (1), `TB_Result_Draw` (2),
-`TB_Result_Cursed_Win` (3), `TB_Result_Win` (4), plus `TB_Result_Failed`
-(`16#FFFF_FFFF#`, sonde impossible). La distinction *blessed loss* / *cursed
-win* vient de ce que le WDL suppose `rule50 = 0` ; BB traite ces deux cas comme
-des nulles, approximation prudente et non jeu parfait.
+Fathom renvoie cinq codes WDL — `0` (perte), `1` (blessed loss), `2` (nulle),
+`3` (cursed win), `4` (gain) — plus `16#FFFF_FFFF#` (sonde impossible). La
+distinction *blessed loss* / *cursed win* vient de ce que le WDL suppose
+`rule50 = 0` ; BB traite ces deux cas comme des nulles, approximation prudente
+et non jeu parfait.
 
 ## 2. Intégration dans la recherche
 
@@ -51,8 +50,8 @@ Le code WDL est ensuite converti : `4` (TB_WIN) devient
 `-(BBChess.Syzygy.TB_Win - Ply)` ; `1 | 2 | 3` (nulle / blessed / cursed)
 devient `0` ; tout autre code laisse la recherche continuer normalement.
 
-`TB_Win = 20_000`, `TB_Loss = -20_000` et `TB_Draw = 0` : ces bornes sont sous
-le score de mat et au-dessus de toute évaluation normale. Le retrait du pli fait
+`TB_Win = 20_000` : cette borne (opposés `-20_000` / `0`) est sous le score de
+mat et au-dessus de toute évaluation normale. Le retrait du pli fait
 préférer les gains proches et retarde les pertes. La boucle s'arrête dès que
 `Abs (Best_Score)` atteint `TB_Win - 100`.
 

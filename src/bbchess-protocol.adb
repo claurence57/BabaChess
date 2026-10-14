@@ -822,11 +822,6 @@ package body BBChess.Protocol is
       return Pos.Key;
    end Key_Of;
 
-   function Engine_Side_Of return Color_Type is
-   begin
-      return Engine_Side;
-   end Engine_Side_Of;
-
    function Is_UCI return Boolean is
    begin
       return UCI_Mode;

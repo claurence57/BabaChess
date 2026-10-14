@@ -67,14 +67,14 @@ ces deux procédures, les occupations restent cohérentes.
 
 ## 3. Opérations setwise de base
 
-Trois primitives parcourent un bitboard sans boucler sur les 64 cases :
-`Lowest_Bit (Board)` (index du bit de poids faible, prérequis `Board /= 0`),
-`Popcount (Board)` (nombre de bits) et `Clear_Lowest_Bit (Board : in out
-Bitboard)`. Les deux premières sont importées du shim C `bbchess-bits.c`
-(`__builtin_ctzll`, `__builtin_popcountll`), exposées via `C_Ctz` et
-`C_Popcount`. La troisième se passe d'intrinsèque : `Board and (Board - 1)`
-efface le bit de poids faible. D'où le motif d'itération de la génération de
-coups : `while Set /= 0 loop Sq := Lowest_Bit (Set); ...; Set := Set and (Set - 1); end loop;`.
+Deux primitives parcourent un bitboard sans boucler sur les 64 cases :
+`Lowest_Bit (Board)` (index du bit de poids faible, prérequis `Board /= 0`) et
+`Popcount (Board)` (nombre de bits). Elles sont importées du shim C
+`bbchess-bits.c` (`__builtin_ctzll`, `__builtin_popcountll`), exposées via
+`C_Ctz` et `C_Popcount`. L'effacement du bit de poids faible se fait
+directement, sans intrinsèque : `Board and (Board - 1)`. D'où le motif
+d'itération de la génération de coups : `while Set /= 0 loop Sq := Lowest_Bit
+(Set); ...; Set := Set and (Set - 1); end loop;`.
 
 ```mermaid
 flowchart LR
