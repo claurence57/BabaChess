@@ -866,6 +866,8 @@ package body BBChess.Eval is
    function Positional_Score (Position : in Position_Type;
                                Color    : in Color_Type;
                                Occ      : in Bitboard;
+                               Own_Pawn_Att   : in Bitboard;
+                               Enemy_Pawn_Att : in Bitboard;
                                Near_Danger : out Score_Type;
                                Far_Danger  : out Score_Type;
                                Attackers   : out Natural;
@@ -882,7 +884,7 @@ package body BBChess.Eval is
       -- not attacked by an enemy pawn.
       Free     : constant Bitboard :=
         (if Mobility_Area /= 0
-         then not (Own or Pawn_Attack_Set (Enemy_Pawns, Enemy))
+         then not (Own or Enemy_Pawn_Att)
          else not Own);
       Enemy_Queens : constant Bitboard :=
         Position.Pieces (Make (Enemy, Queen));
@@ -1026,8 +1028,7 @@ package body BBChess.Eval is
          Near_Danger := 0;
          Far_Danger  := 0;
          Attackers   := 0;
-         All_Attacks := Pawn_Attack_Set (Own_Pawns, Color)
-                        or King_Attacks (Own_King);
+         All_Attacks := Own_Pawn_Att or King_Attacks (Own_King);
          Mobility_Of (Knight, Mobility_N, Mobility_N_Eg, King_Attack_Knight);
          Mobility_Of (Bishop, Mobility_B, Mobility_B_Eg, King_Attack_Bishop);
          Mobility_Of (Rook,   Mobility_R, Mobility_R_Eg, King_Attack_Rook);
@@ -1261,7 +1262,7 @@ package body BBChess.Eval is
       --  The pawn attack set is the union of the attack squares of all the
       --  side's pawns: one bulk pair of shifts instead of a per-pawn loop.
       function Pawn_Threats_Term return Tapered_Score_Type is
-         P_Att : constant Bitboard := Pawn_Attack_Set (Own_Pawns, Color);
+         P_Att : constant Bitboard := Own_Pawn_Att;
          Hit : Bitboard := P_Att and Enemy_Non_Pawn;
          Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
       begin
@@ -1399,12 +1400,20 @@ package body BBChess.Eval is
 
       -- Positional terms, tapered by the game phase.
       declare
+         --  Each colour's pawn attack set is the other colour's "enemy pawn
+         --  attacks" (mobility area) and its own (pawn threats, All_Attacks):
+         --  compute the two sets once for the whole evaluation instead of
+         --  three times each.
+         W_Pawn_Att : constant Bitboard :=
+           Pawn_Attack_Set (Position.Pieces (Make (White, Pawn)), White);
+         B_Pawn_Att : constant Bitboard :=
+           Pawn_Attack_Set (Position.Pieces (Make (Black, Pawn)), Black);
          White_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, White, Occ, W_Near, W_Far, W_Att,
-                             W_All);
+           Positional_Score (Position, White, Occ, W_Pawn_Att, B_Pawn_Att,
+                             W_Near, W_Far, W_Att, W_All);
          Black_Positional : Tapered_Score_Type :=
-           Positional_Score (Position, Black, Occ, B_Near, B_Far, B_Att,
-                             B_All);
+           Positional_Score (Position, Black, Occ, B_Pawn_Att, W_Pawn_Att,
+                             B_Near, B_Far, B_Att, B_All);
          Diff : Tapered_Score_Type;
       begin
          -- King safety (middlegame only), per color. It must be folded into
