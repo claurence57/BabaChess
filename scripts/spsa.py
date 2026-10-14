@@ -97,7 +97,7 @@ def score_of_a(output: str) -> float:
 
 
 def play_match(binary: Path, params_a: Path, params_b: Path, games: int,
-               tc: str, work: Path, seed: int) -> float:
+               tc: str, work: Path, seed: int, conc: int = 1) -> float:
     wrap_a = work / "wrap_a.sh"
     wrap_b = work / "wrap_b.sh"
     make_wrapper(wrap_a, binary, params_a)
@@ -113,6 +113,7 @@ def play_match(binary: Path, params_a: Path, params_b: Path, games: int,
         "-openings", f"file={OPENINGS}", "format=epd", "order=random",
         "policy=default",
         "-pgnout", str(pgn),
+        "-concurrency", str(conc),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     return score_of_a(res.stdout + res.stderr)
@@ -126,6 +127,8 @@ def main() -> int:
     ap.add_argument("--binary", default=str(ROOT / "bin" / "babachess"))
     ap.add_argument("--out", default="/tmp/opencode/spsa")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--concurrency", type=int, default=4,
+                    help="cutechess-cli -concurrency (parallel games per match)")
     ap.add_argument("--a", type=float, default=0.3,
                     help="SPSA gain (fraction of each parameter's own step size)")
     ap.add_argument("--a-offset", type=float, default=10.0,
@@ -198,7 +201,7 @@ def main() -> int:
             write_params(params_a, plus)
             write_params(params_b, minus)
             r = play_match(binary, params_a, params_b, args.games, args.tc,
-                           work, args.seed + k)
+                           work, args.seed + k, args.concurrency)
             moved = 0.0
             for p in theta:
                 grad = (r - 0.5) * delta[p] * c0[p]
