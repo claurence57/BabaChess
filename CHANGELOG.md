@@ -6,6 +6,54 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## 1.3.0 (2026-10-15)
+
+**Gain de force modéré + nettoyage.** Un lot de recherche mesuré par SPRT, plus
+de la vitesse iso-comportement et la suppression de code mort. Détail :
+`DEVELOPMENT.md` §80-§85.
+
+### Résumé de haut niveau (1.3.0)
+
+- **Recherche** : régime LMR (PV −1 ply, nœuds cut +1, killers et coups donnant
+  échec jamais réduits), aging de l'history, flag PV, table de transposition
+  portée de 16 à **64 MiB** → **+15 Elo** (deux graines de 1 000 parties).
+- **Propreté** : code mort supprimé ; `Gives_Check` + SEE sur les coups calmes
+  (infrastructure iso-comportement, §S1.1).
+- **Vitesse** : optimisations iso-comportement (SEE, quiescence, éval), nœuds
+  `--bench` **identiques**.
+- **Outillage** : juge de gauntlet GNU, vérificateur de symétrie, SPSA parallèle.
+- **Mesuré et non retenu** (§81-§85) : échecs en quiescence (désactivé), PGO,
+  continuation history 2-ply, flag `improving`, imbalance matérielle (désactivée).
+- Self-test : **146 contrôles**. `--bench 9/11/12` = 492 444 / 1 176 310 / 2 467 856.
+- Version : `BabaChess 1.3.0` (UCI, XBoard, `--version`).
+
+### Recherche : régime LMR, aging de l'history, flag PV, TT 64 MiB (+15 Elo)
+
+- Table de transposition portée de 16 à **64 MiB** (4 194 304 entrées).
+- **Flag PV** (`Beta − Alpha > 1`) propagé au régime LMR.
+- **Aging** de `History`/`Cont_History` (halvés à chaque itération).
+- **Régime LMR** : PV −1 ply, nœuds cut +1, killers jamais réduits, coups donnant
+  échec −1 (testé après `Make_Move`), `S_Lmr_Hist` réactivé à 8 192.
+- Deux graines indépendantes : **+16,0 ± 14,1** (graine 7) et **+14,3 ± 14,1**
+  (graine 11), soit **+15,1 ± 10,0 Elo sur 2 000 parties**. Détail :
+  `DEVELOPMENT.md` §80.
+
+### Propreté et vitesse
+
+- Suppression de code mort : `Piece_Board`, `Clear_Lowest_Bit`, `From_Color`,
+  `Engine_Side_Of` et 7 constantes Syzygy inutilisées.
+- Optimisations de vitesse sans changer l'arbre ni l'évaluation : SEE (`Weakest`,
+  `See_Board`), quiescence (delta avant SEE), éval (pawn-attack sets par couleur
+  calculés une fois). `--bench` nœuds **identiques**, gain mesuré **+1 à +3,6 %**.
+
+### Mesuré et non retenu (§81-§85)
+
+- **Échecs en quiescence** (`S_QChecks`, 1ᵉʳ pli) : **−35 Elo**, laissé désactivé.
+- **PGO** : re-mesuré plus lent ; jamais proposé.
+- **Continuation history 2-ply** : −9 Elo, retirée.
+- **Flag `improving`** : neutre, retiré.
+- **Imbalance matérielle** (`P_Imb_KBNB`) : −8 Elo, laissée désactivée.
+
 ## 1.2.0 (2026-10-07)
 
 **Gain de force majeur.** Quatre campagnes mesurées par SPRT (fastchess,

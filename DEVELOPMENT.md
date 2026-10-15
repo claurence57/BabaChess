@@ -2018,3 +2018,34 @@ Le terme reste dans le code, **défaut 0** (interrupteur d'infrastructure neutre
 comme `P_Hanging_*`, `P_Connected`, `P_Backward_*`) : `--bench 9` = 492 444,
 identique à `main` quand il est éteint, et le tuner (`scripts/spsa.py`, qui
 borne à ≥ 0) peut le réveiller. Non retenu faute de gain.
+
+---
+
+## 86. Release 1.3.0
+
+Version `1.3.0` (`BBChess.Text.BabaChess_Version`), notes
+`RELEASE_NOTES_1.3.0.md`, entrée `CHANGELOG.md`. Contenu depuis 1.2.0 :
+
+- le **lot recherche §80** (**+15 Elo**) : régime LMR, aging de l'history, flag
+  PV, TT portée de 16 à 64 MiB ;
+- la **propreté** : code mort supprimé (`Piece_Board`, `Clear_Lowest_Bit`,
+  `From_Color`, `Engine_Side_Of`, constantes Syzygy inutilisées) ;
+- la **vitesse iso-comportement** (SEE, quiescence, éval) — nœuds `--bench`
+  identiques ;
+- l'**infrastructure S1.1** (`Gives_Check` + SEE sur les coups calmes, sans
+  effet sur la force) et l'**outillage** (juge gauntlet GNU, `scripts/sym_check.py`,
+  `spsa.py --concurrency`).
+
+Les essais sans gain (§81-§85) sont documentés et laissés désactivés ou non
+fusionnés. `--selftest` **146/146**, `--bench 9/11/12` = **492 444 / 1 176 310 /
+2 467 856** (nœuds du lot recherche ; la propreté/vitesse ne change pas l'arbre).
+La release est publiée en **brouillon** par `.github/workflows/release.yml` sur
+le tag `v1.3.0` ; la publication reste une décision humaine.
+
+**Contexte.** Depuis 1.2.0, de nombreux leviers ont été testés et **écartés par
+la mesure** : échecs en quiescence, PGO, continuation history 2-ply, flag
+`improving`, imbalance matérielle, refonte de la sécurité du roi (modèle
+d'anneau, 2 graines ≈ −6 Elo), élagage SEE des captures perdantes, TT 256 Mio
+(plus lent), SPSA court (sans signal). Le moteur est à un **optimum local
+ferme** sur vitesse/recherche ; le seul gain démontré reste le lot recherche
+(+15 Elo).
