@@ -1,7 +1,7 @@
 # Bundled opening book — `book.bin`
 
 `book.bin` is a generic Polyglot opening book shipped inside the BabaChess
-1.0.0 release archives at `books/book.bin` (the location the engine probes by
+release archives at `books/book.bin` (the location the engine probes by
 default; see `BBChess.Protocol.Load_Default_Book`).
 
 It is **not committed to git** — it is large and fully regenerable from a

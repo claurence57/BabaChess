@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml/badge.svg)](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml)
 
+**Français : [README-fr.md](README-fr.md).** General bilingual guide *How to build a chess engine*: [docs/README-en.md](docs/README-en.md).
+
 > **BabaChess is a fork of [AdaChess](https://github.com/adachess/AdaChess).**
 > It was born from the fork of the AdaChess project, then from the conversion of
 > the board representation from **mailbox** to **bitboard**. After many
