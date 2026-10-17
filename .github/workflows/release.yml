@@ -13,11 +13,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version for the archive names (e.g. 1.3.1)'
+        description: 'Version for the archive names (e.g. 1.3.2)'
         required: true
-        default: '1.3.1'
+        default: '1.3.2'
       release_tag:
-        description: 'Existing tag to attach the notes and archives to (e.g. v1.3.1); empty = build only'
+        description: 'Existing tag to attach the notes and archives to (e.g. v1.3.2); empty = build only'
         required: false
         default: ''
 
@@ -102,7 +102,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.3.1"
+          [[ "$V" =~ ^[0-9] ]] || V="1.3.2"
           scripts/package_release.sh --binary bin/babachess --os linux \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -172,7 +172,7 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.3.1"
+          [[ "$V" =~ ^[0-9] ]] || V="1.3.2"
           scripts/package_release.sh --binary bin/babachess.exe --os windows \
             --build ${{ matrix.label }} --version "$V" --book books/book.bin
 
@@ -216,7 +216,7 @@ jobs:
           TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           V="${VERSION#v}"
-          [[ "$V" =~ ^[0-9] ]] || V="1.3.1"
+          [[ "$V" =~ ^[0-9] ]] || V="1.3.2"
           if gh release view "$TAG" > /dev/null 2>&1; then
             # A release already exists for this tag (e.g. created from the
             # GitHub web UI): set its title and notes, attach the archives.

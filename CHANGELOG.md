@@ -6,6 +6,20 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## 1.3.2 (2026-10-17)
+
+**Release de documentation (bilingue).** Même moteur que 1.3.1 ; aligne les
+archives sur la documentation désormais **bilingue**.
+
+- Référence technique `src/doc/` en **français (`*-fr.md`) et anglais
+  (`*-en.md`)** ; toutes les références mises à jour selon la langue du fichier.
+- **`CONTRIBUTING-fr.md`** (contrepartie française de `CONTRIBUTING.md`).
+- **Vérification CI de la documentation** (`scripts/check_docs.py`) : parité des
+  titres FR/EN et validité des liens internes, sur `docs/` et `src/doc/`.
+- Les archives embarquent donc la documentation dans **les deux langues**.
+- Aucun changement de moteur : `--selftest` 146/146, `--bench 9/11/12` =
+  492 444 / 1 176 310 / 2 467 856. Version : `BabaChess 1.3.2`.
+
 ## 1.3.1 (2026-10-17)
 
 **Release de documentation.** Même moteur que 1.3.0 ; cette version embarque la

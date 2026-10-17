@@ -2073,3 +2073,25 @@ moteur **inchangé** par rapport à 1.3.0. Objet :
 (identiques à 1.3.0 : aucun changement de moteur). Release publiée en brouillon
 par `.github/workflows/release.yml` sur le tag `v1.3.1` ; la publication reste
 une décision humaine.
+
+---
+
+## 88. Release 1.3.2 — documentation bilingue
+
+Version `1.3.2` (`BBChess.Text.BabaChess_Version`) : **release de documentation**,
+moteur **inchangé** par rapport à 1.3.1. Objet : rendre la documentation
+**entièrement bilingue** et aligner les archives dessus.
+
+- **`src/doc/` bilingue** : les 8 documents techniques + l'index sont en
+  `*-fr.md` et `*-en.md` ; **toutes** les références `src/doc/X.md` ont été
+  réécrites vers `-fr`/`-en` selon la langue du fichier porteur.
+- **`CONTRIBUTING-fr.md`** : contrepartie française de `CONTRIBUTING.md`.
+- **Vérification CI de la documentation** : `scripts/check_docs.py` impose la
+  **parité des titres FR/EN** (mêmes sections de part et d'autre) et la
+  **validité des liens internes** sur `docs/` et `src/doc/` ; exécuté à chaque
+  push par `.github/workflows/ci.yml`.
+- **Relecture linguistique** FR et EN de l'ensemble de la documentation.
+
+`--selftest` **146/146**, `--bench 9/11/12` = **492 444 / 1 176 310 / 2 467 856**
+(identiques : aucun changement de moteur). Release publiée en brouillon par
+`.github/workflows/release.yml` sur le tag `v1.3.2`.
