@@ -3,7 +3,7 @@
 Evaluation scores a frozen position, without anticipating any moves: "who is
 better, and by how much?". The search calls it at every leaf, so its quality
 steers the whole game. This chapter starts from material and adds the ingredients
-of the positional: scale, values, piece-square tables, phase, terms, drawishness
+of positional evaluation: scale, values, piece-square tables, phase, terms, drawishness
 scaling, symmetry, lazy evaluation and automatic tuning. BabaChess, a bitboard
 engine in Ada 2012, is the example: handcrafted evaluation, no NNUE, tuned by
 Texel.
@@ -46,8 +46,8 @@ duplication. BabaChess names them `Pawn_PST`, `Knight_PST`, `Bishop_PST`,
 ## 3.5 Game phase and tapered evaluation
 
 Not all terms weigh the same depending on how far the game has advanced: a rook
-on an open file is useful in the middlegame and decisive in the endgame, a central
-king is dangerous there then excellent. **Tapered evaluation** therefore scores
+on an open file is useful in the middlegame and decisive in the endgame; a central
+king is dangerous in the middlegame but excellent in the endgame. **Tapered evaluation** therefore scores
 each term **twice**, opening and endgame, then **interpolates** according to the
 phase. The phase comes from the remaining material (4 per knight, 4 per bishop, 9
 per rook, 16 per queen, capped at 100): 100 at the start, 0 in a kings-and-pawns
@@ -116,8 +116,8 @@ computed with a generic colour and then subtracted; `Static` adds nothing that
 depends on the side to move. The property is written `Static (M) = -Static (P)`
 when `M` mirrors `P`. Because `Evaluate` adds a **tempo bonus**, the exact
 symmetry holds on `Static`. It is tested through invariants (`Static` of the start
-= 0, `Evaluate` = tempo, mirror opposite), which `Check_Symmetry` does on varied
-FEN. Any new evaluation must stay symmetric: it is the golden rule.
+= 0, `Evaluate` = tempo, mirror opposite), which `Check_Symmetry` does on various
+FENs. Any new evaluation must stay symmetric: it is the golden rule.
 
 ## 3.9 Lazy evaluation
 
@@ -154,9 +154,9 @@ makes tuning possible without rebuilding the engine. The evaluation stays
 
 ## See also
 
-- `src/doc/evaluation.md`: technical reference (phase, terms, parameters, negative
+- `src/doc/evaluation-en.md`: technical reference (phase, terms, parameters, negative
   results).
-- `src/doc/bitboards.md`: representation that makes the pawn and mobility terms
+- `src/doc/bitboards-en.md`: representation that makes the pawn and mobility terms
   natural.
 - `src/bbchess-eval.adb`: `Positional_Score`, `Game_Phase`, `Blend`,
   `King_Safety`, `Scale_Factor`.

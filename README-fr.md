@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml/badge.svg)](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml)
 
-**English: [README.md](README.md).** Guide bilingue *Construire un moteur d'échecs* : [docs/README-fr.md](docs/README-fr.md).
+**English: [README-fr.md](README-fr.md).** Guide bilingue *Construire un moteur d'échecs* : [docs/README-fr.md](docs/README-fr.md).
 
 > **BabaChess est un fork d'[AdaChess](https://github.com/adachess/AdaChess).**
 > Il est né du fork du projet AdaChess, puis de la conversion de la
@@ -71,7 +71,7 @@ gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess  (assertions + wa
 
 `release` est le mode à distribuer ; `checked` est le mode avec lequel valider.
 
-Voir `src/doc/build-and-cpu.md` pour les commutateurs de compilation exacts et
+Voir `src/doc/build-and-cpu-fr.md` pour les commutateurs de compilation exacts et
 l'historique d'optimisation CPU.
 
 ## Tests
@@ -99,7 +99,7 @@ x86-64, PEXT logiciel, ~25 % plus lent). Choisir **une** :
 | AMD Zen 1 / Zen 2 (PEXT microcodé) | essayez les deux ; `portable` est souvent plus rapide |
 
 Vérifiez l'intégrité par rapport au fichier `SHA256SUMS` publié. Chaque archive
-contient le binaire, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README.md`,
+contient le binaire, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README-fr.md`,
 `RELEASE_NOTES_<version>.md` et le livre intégré à `books/book.bin`.
 
 > **Remarque.** Les étiquettes historiques `bb-1.0` / `bb-2.0` appartiennent à
@@ -123,7 +123,7 @@ moteur externe dans une interface graphique.
   `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1`.
 
 Le moteur **trouve `books/book.bin` tout seul** (à côté de l'exécutable, un
-répertoire au-dessus, `./books/`, `~/ .babachess/book.bin`) ; remplacez-le avec
+répertoire au-dessus, `./books/`, `~/ .babachess/book.bin`) ; remplacez-le par
 `--book <file>` ou l'option UCI `BookFile`.
 
 Vérification de bon fonctionnement :

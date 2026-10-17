@@ -132,7 +132,7 @@ because knowing what fails stops you from retrying it later.
 BabaChess is a classical handcrafted engine, roughly at the level of GNU Chess
 6.2.7. Its gains came in the order above: correctness from perft and 146
 self-tests, speed from bitboards with PEXT attacks, then move ordering, then a
-search lot, then a Texel-tuned evaluation.
+search work, then a Texel-tuned evaluation.
 
 The kept gains survived long SPRT runs. Counter-move and history ordering and time
 management came first; a Texel tuning on self-play added more than a hundred Elo,
@@ -144,8 +144,8 @@ The rest is a long list of measured and rejected ideas, kept behind neutral
 parameters so the tree is unchanged when off: king-safety rework, phase mobility,
 several knowledge terms, quiescence checks, a two-ply continuation history, an
 improving flag, a material-imbalance term, incremental evaluation and a
-transposition-table rewrite. The pawn hash table was dropped as the pawn is
-already cheap, and profile-guided optimisation measured slower. On this engine
+transposition-table rewrite. The pawn hash table was dropped as pawn
+evaluation is already cheap, and profile-guided optimisation measured slower. On this engine
 they met a **local optimum**, and the honest response was to record the
 measurement and move on.
 
@@ -161,7 +161,7 @@ is a property of the model, not a failure of its author.
 - `05-opening-book-en.md` and `06-endgame-tablebases-en.md`: the book and the
   tablebases, cheap strength at both ends of the game.
 - `07-testing-en.md`: perft, self-tests, SPRT, Texel and SPSA.
-- `src/doc/outils-et-tests.md`, `src/doc/evaluation.md`, `src/doc/recherche.md`:
+- `src/doc/outils-et-tests-en.md`, `src/doc/evaluation-en.md`, `src/doc/recherche-en.md`:
   measurements, evaluation and search in detail.
-- `src/doc/README.md` and `DEVELOPMENT.md`: the technical index and the internal
+- `src/doc/README-en.md` and `DEVELOPMENT.md`: the technical index and the internal
   logs behind these measurements.

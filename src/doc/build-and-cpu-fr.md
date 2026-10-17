@@ -45,7 +45,7 @@ positifs. D'où le choix : détecter le meilleur niveau supporté et le passer e
 
 Les jeux d'instructions ajoutés (`AVX2`, `FMA`, `LZCNT`, `ADX` en v3) **ne
 changent pas l'arbre de recherche** : `--bench 9` = **518 612 nœuds** dans tous
-les cas ; c'est du levier de **vitesse**, pas de force directement.
+les cas ; c'est un levier de **vitesse**, pas de force directement.
 
 > **PGO non retenu.** Une passe `-fprofile-generate`/`-fprofile-use` a été
 > essayée (faisable avec `-cargs`/`-largs`), mais mesurée **plus lente**
@@ -116,7 +116,7 @@ le Makefile utilise pour ajouter le commutateur ISA du CPU (`-march=x86-64-v3`,
 - **portable** retire `-mpopcnt/-mbmi/-mbmi2/-flto` et laisse `REL` indéfini :
   tourne sur **tout x86-64**, avec le repli logiciel PEXT de `bbchess-bits.c`
   (≈ 25 % plus lent). C'est le mode à distribuer pour un CPU ancien.
-- **Gotcha** : tous les modes partagent `obj/`. Après une construction d'un
+- **Piège** : tous les modes partagent `obj/`. Après une construction d'un
   autre mode, faire `rm -rf obj` avant de rebâtir (et ne jamais comparer
   `--bench` entre deux modes sans rebuild propre).
 

@@ -142,11 +142,11 @@ The workflow is a loop: change the code, build `release`, run `./bin/babachess
 previous binary as the baseline. The supporting files are `BBChess.Self_Tests`
 (`src/bbchess-self_tests.adb`), `scripts/perft_suite.sh`, `scripts/sym_check.py`,
 `scripts/sprt.sh`, `scripts/texel.py` and `scripts/spsa.py`. Each instrument is
-described in `src/doc/outils-et-tests.md`.
+described in `src/doc/outils-et-tests-en.md`.
 
 ## See also
 
-- `src/doc/outils-et-tests.md`: reference documentation of the test and
+- `src/doc/outils-et-tests-en.md`: reference documentation of the test and
   measurement tools (`--selftest`, perft, `--bench`, `--eval-fens`, `--params`,
   SPRT, tuners).
 - `src/bbchess-self_tests.adb`: the internal battery (`BBChess.Self_Tests`), run

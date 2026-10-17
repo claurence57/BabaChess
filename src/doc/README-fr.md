@@ -167,7 +167,7 @@ flowchart LR
 | `--book <fichier>` | Ouvre un livre d'ouvertures Polyglot `.bin`. Sans option, BB tente des emplacements conventionnels (`books/book.bin`, dossier de l'exécutable, `~/.babachess/book.bin`). |
 | `--syzygy <dossier>` | Initialise les tablebases Syzygy via `BBChess.Syzygy.Init`. Inerte sans fichiers `.rtbw`/`.rtbz`. |
 | `--dump-params` | Affiche les paramètres scalaires de l'évaluation (`BBChess.Eval.Dump_Params`). |
-| `--eval-fens <fichier>` | Lit un FEN par ligne (`FEN` ou `FEN;resultat`) et imprime l'évaluation statique blanche-positive, un entier par ligne. |
+| `--eval-fens <fichier>` | Lit un FEN par ligne (`FEN` ou `FEN;résultat`) et imprime l'évaluation statique blanche-positive, un entier par ligne. |
 | `--params <fichier>` | Charge un fichier de paramètres d'évaluation ; s'applique à **tous** les modes. |
 
 `--params` s'applique à tous les modes. `--threads` ne concerne que la recherche
@@ -211,21 +211,21 @@ binaire `release` sans `rm -rf obj`.
 
 ## Index de la documentation
 
-- [bitboards.md](bitboards.md) : représentation du plateau, pièces, attaques,
+- [bitboards-fr.md](bitboards-fr.md) : représentation du plateau, pièces, attaques,
   hachage Zobrist et lecture FEN (`BBChess.Board`, `BBChess.Pieces`,
   `BBChess.Attacks`, `BBChess.Hash`, `BBChess.Fen`).
-- [evaluation.md](evaluation.md) : évaluation statique, phase, termes
+- [evaluation-fr.md](evaluation-fr.md) : évaluation statique, phase, termes
   positionnels et paramètres ajustables (`BBChess.Eval`).
-- [recherche.md](recherche.md) : génération de coups, make/unmake, SEE,
+- [recherche-fr.md](recherche-fr.md) : génération de coups, make/unmake, SEE,
   alpha-bêta, table de transposition et Lazy SMP (`BBChess.Movegen`,
   `BBChess.Moves`, `BBChess.See`, `BBChess.Search`).
-- [finales.md](finales.md) : tablebases Syzygy via Fathom, sondage WDL
+- [finales-fr.md](finales-fr.md) : tablebases Syzygy via Fathom, sondage WDL
   (`BBChess.Syzygy`, `src/fathom/`).
-- [ouvertures.md](ouvertures.md) : livre d'ouvertures Polyglot, clé compatible
+- [ouvertures-fr.md](ouvertures-fr.md) : livre d'ouvertures Polyglot, clé compatible
   et sondage pondéré (`BBChess.Polyglot`).
-- [outils-et-tests.md](outils-et-tests.md) : `--selftest`, perft, `--bench`,
+- [outils-et-tests-fr.md](outils-et-tests-fr.md) : `--selftest`, perft, `--bench`,
   `--eval-fens`, `--params`, scripts de mesure et SPRT.
-- [build-and-cpu.md](build-and-cpu.md) : modes de construction (`release`,
+- [build-and-cpu-fr.md](build-and-cpu-fr.md) : modes de construction (`release`,
   `checked`, `portable`, `debug`), commutateurs GNAT/C exacts, alias
   `-T#`/`--thread=#` et historique des optimisations CPU.
 - `CHANGELOG_TECHNIQUE.md` (racine) : chantier solidité / propreté / performance

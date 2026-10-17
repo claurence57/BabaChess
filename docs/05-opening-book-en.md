@@ -3,7 +3,7 @@
 An engine left to its own devices sometimes commits, in the first moves, to weak
 lines that its static evaluation does not penalise early enough. The opening
 book corrects that bias: it does not think, it plays a known move and hands back
-to the search. It is a side component, queried **before** the search takes over,
+to the search. It is an auxiliary component, queried **before** the search takes over,
 in the same way as endgame tablebases. This chapter explains what a book is for,
 how it is represented, how it is probed and how to build one. BabaChess is the
 example.
@@ -47,7 +47,7 @@ compatibility lets you reuse a public book with no conversion.
 
 ## 5.3 How probing works
 
-Probing a book means finding a position to pull a move from it. First you compute
+Probing a book means looking up a position and pulling a move from it. First you compute
 the **Polyglot Zobrist key** of the position. This is not the transposition-table
 key: the format fixes its own convention, with a table of frozen constants and a
 particular rule for en passant captures, because the book must match byte for
@@ -134,19 +134,19 @@ because it is reproducible. `scripts/make_book.py` builds it and
 `scripts/fetch_book.sh` fetches a ready-made CC0 book.
 
 One notable point: `--selftest` does **not** load the book; validation checks the
-**Polyglot Zobrist key**, confronted with reference values produced by an
+**Polyglot Zobrist key**, compared against reference values produced by an
 external implementation.
 
 ## See also
 
-- `src/doc/ouvertures.md`: the reference documentation of the BabaChess book
+- `src/doc/ouvertures-en.md`: the reference documentation of the BabaChess book
   (format, Polyglot key, probing, configuration, validation).
-- `books/README.md`: provenance of the bundled book (Lichess CC0), settings,
+- `books/README-en.md`: provenance of the bundled book (Lichess CC0), settings,
   regeneration and validation.
 - `scripts/make_book.py`: building a Polyglot book from Lichess, with the filters
   and the validation.
 - `scripts/fetch_book.sh`: downloading a ready-made CC0 book.
 - Code: `src/bbchess-polyglot.adb` and `src/bbchess-polyglot.ads` (Polyglot key,
   loading the `.bin`, weighted probe).
-- `src/doc/README.md`: the index of the technical documentation.
+- `src/doc/README-en.md`: the index of the technical documentation.
 - Neighbouring chapter: `04-search-en.md`; the other chapters are in `docs/`.

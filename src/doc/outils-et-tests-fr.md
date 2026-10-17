@@ -211,7 +211,7 @@ scripts/vs_gnuchess.sh 30+1 12 7   # vs GNU Chess (UCI), tc, parties, graine
 `ab.sh` oppose `~/bin/adachess_bb` (référence figée) à `bin/babachess`,
 livre neutralisé lui aussi. `vs_gnuchess.sh` affronte GNU Chess (~2400-2500
 Elo) via le wrapper `~/bin/gnuchess_uci.sh`, GNU Chess 6.2.7 n'émettant jamais
-`feature done=1` en mode XBoard. Ces deux scripts sont **machine-locaux** et
+`feature done=1` en mode XBoard. Ces deux scripts sont **propres à la machine** et
 leur score sur 20 à 60 parties vaut ±65-80 Elo de bruit : une intuition, jamais
 une décision.
 

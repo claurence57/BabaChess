@@ -9,7 +9,7 @@ C'est un composant latéral, au même titre que les tablebases Syzygy, consulté
 
 Le module s'appelle `BBChess.Polyglot` et vit dans `bbchess-polyglot.ads` /
 `bbchess-polyglot.adb`. Il implémente le format standard **Polyglot `.bin`**,
-compatible avec l'écosystème des moteurs et des GUIs, ce qui permet de réutiliser
+compatible avec l'écosystème des moteurs et des GUI, ce qui permet de réutiliser
 des livres publics sans conversion.
 
 ## Le format Polyglot `.bin`
@@ -23,7 +23,7 @@ gros-boutiste (*big-endian*), et **triées par clé croissante** :
 | 0 | 8 | `key` | clé Zobrist Polyglot de la position |
 | 8 | 2 | `move` | coup encodé (départ, arrivée, promotion) |
 | 10 | 2 | `weight` | fréquence relative du coup |
-| 12 | 2 | `learn` | réservé, ignore par BB |
+| 12 | 2 | `learn` | réservé, ignoré par BB |
 
 `Open_Book` lit le fichier entrée par entrée et remplit un tableau en mémoire
 (`Book_Array`). Le tri par clé est la propriété centrale : il autorise une
@@ -80,7 +80,7 @@ code teste le masque d'attaques (`South_1`/`West_1` pour les Blancs, `North_1`
 pour les Noirs) contre les pions du trait, et n'applique le XOR que si
 l'intersection est non vide. La légalité de la capture n'entre pas en jeu, seule
 la possibilité géométrique compte : c'est la définition de référence. Une FEN
-avec case `ep` mais sans pion attaquant produit donc une autre clé que la même
+avec une case `ep` mais sans pion attaquant produit donc une autre clé que la même
 position sans case `ep`, ce que vérifie le test.
 
 **Trait.** Un unique XOR final (`Polyglot_Random (780)`) n'est appliqué que
@@ -232,7 +232,7 @@ exclut `books/*`.
 
 Le livre n'est pas chargé par `--selftest`, `--bench` ni `--eval-fens` : ces modes
 retournent avant `Load_Default_Book`. BB vérifie donc la partie réellement
-faillible en isolation, la **clé Zobrist**, et la confronte à des valeurs de
+faillible de façon isolée, la **clé Zobrist**, et la confronte à des valeurs de
 référence.
 
 `BBChess.Self_Tests.Run` contient un bloc dédié qui charge une FEN, appelle
@@ -251,8 +251,8 @@ Ces cinq cas couvrent précisément les points délicats du format : le placemen
 initial, les quatre droits de roque, la distinction conditionnelle sur la prise
 en passant, et une position quelconque de milieu de partie. Toute régression sur
 la convention de couleur, sur les index de la table ou sur la condition
-d'en passant fait échouer `--selftest`. Le test de la position « en passant non
-capturable » est le plus révélateur : il ne diffère d'une position à l'autre que
+de prise en passant fait échouer `--selftest`. Le test de la position « en passant non
+capturable » est le plus révélateur : il ne diffère de l'autre position que
 par l'absence du pion capable de capturer, ce qui isole exactement la règle
 conditionnelle.
 

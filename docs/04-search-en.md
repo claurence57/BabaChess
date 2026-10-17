@@ -6,7 +6,7 @@ returns the move whose line leads to the best position. BabaChess implements thi
 in `BBChess.Search` (`src/bbchess-search.adb`), with `BBChess.See`
 (`src/bbchess-see.adb`) for quiescence: a **negamax alpha-beta** shrunk by move
 ordering, the transposition table and a family of prunings. This chapter
-describes the ideas; `src/doc/recherche.md` keeps the details of the choices.
+describes the ideas; `src/doc/recherche-en.md` keeps the details of the choices.
 
 ## 4.1 The game tree and negamax
 
@@ -64,7 +64,7 @@ hence deeper in equal time. The heuristics are retried in this order:
   move that cut earns a bonus, a fruitless move gets a penalty.
 
 These tables learn as the search runs and are aged (history is halved each
-iteration). The circle is virtuous: ordering better produces more cutoffs, hence
+iteration). It is a virtuous circle: ordering better produces more cutoffs, hence
 more depth, hence better table entries. All of this lives in `Order`.
 
 ## 4.4 Iterative deepening and aspiration windows
@@ -101,7 +101,7 @@ ordering. `Root_Search` applies the same strategy at the root.
 Many paths lead to the same position (e4 then Nf3, or Nf3 then e4). The
 **transposition table** remembers the result of a position already seen, indexed
 by its **Zobrist key** (a 64-bit digest kept incrementally, see
-`src/doc/bitboards.md`), and avoids recomputing it.
+`src/doc/bitboards-en.md`), and avoids recomputing it.
 
 Each entry holds the full key, the remaining depth, the **bound** of the result
 (`Exact`, `Lower_Bound` or `Upper_Bound`), the score (mate scores normalized by
@@ -180,12 +180,12 @@ in match play, adjustable through `--params`.
 
 ## See also
 
-- `src/doc/recherche.md`: the reference documentation of the search.
+- `src/doc/recherche-en.md`: the reference documentation of the search.
 - Code: `src/bbchess-search.adb` and `src/bbchess-search.ads` (negamax, PVS,
   ordering, pruning, Lazy SMP), `src/bbchess-see.adb` (static exchange).
-- `src/doc/bitboards.md`: the Zobrist key, the basis of the transposition table.
-- `src/doc/evaluation.md`: the evaluation called at the leaves.
-- `src/doc/finales.md`: the Syzygy WDL probe, which short-circuits the search.
-- `src/doc/outils-et-tests.md`: `--selftest`, `--bench`, `--params`, SPRT/SPSA.
-- `src/doc/README.md`: the index of the technical documentation.
+- `src/doc/bitboards-en.md`: the Zobrist key, the basis of the transposition table.
+- `src/doc/evaluation-en.md`: the evaluation called at the leaves.
+- `src/doc/finales-en.md`: the Syzygy WDL probe, which short-circuits the search.
+- `src/doc/outils-et-tests-en.md`: `--selftest`, `--bench`, `--params`, SPRT/SPSA.
+- `src/doc/README-en.md`: the index of the technical documentation.
 - The other chapters of the guide are in the `docs/` directory.

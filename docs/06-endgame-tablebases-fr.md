@@ -141,9 +141,9 @@ tables. `--selftest` et `--bench` ne les sondent jamais.
 
 ## Voir aussi
 
-- `src/doc/finales.md` : la documentation de référence de la couche tablebases.
+- `src/doc/finales-fr.md` : la documentation de référence de la couche tablebases.
 - `src/bbchess-syzygy.adb`, `src/bbchess-syzygy.ads` : la liaison Ada.
 - `src/fathom/` : la sonde Fathom vendorée (MIT) ; voir `src/fathom/LICENSE`.
 - Syzygy Bases : <https://www.chessprogramming.org/Syzygy_Bases>.
-- `src/doc/README.md` : l'index de la documentation technique.
+- `src/doc/README-fr.md` : l'index de la documentation technique.
 - Chapitre voisin : `05-opening-book-fr.md` ; les autres sont dans `docs/`.

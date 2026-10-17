@@ -66,7 +66,7 @@ gprbuild -P babachess.gpr -XMode=debug      # -> bin/babachess  (assertions + wa
 
 `release` is the mode to distribute; `checked` is the mode to validate with.
 
-See `src/doc/build-and-cpu.md` for the exact compiler switches and the CPU
+See `src/doc/build-and-cpu-en.md` for the exact compiler switches and the CPU
 optimization history.
 
 ## Testing
@@ -94,7 +94,7 @@ software PEXT, ~25% slower). Pick **one**:
 | AMD Zen 1 / Zen 2 (microcoded PEXT) | try both; `portable` is often faster |
 
 Verify integrity against the published `SHA256SUMS`. Each archive contains the
-binary, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README.md`,
+binary, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README-en.md`,
 `RELEASE_NOTES_<version>.md` and the bundled book at `books/book.bin`.
 
 > **Note.** The historical `bb-1.0` / `bb-2.0` tags belong to AdaChess-BB
@@ -117,7 +117,7 @@ engine in a GUI.
   `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1`.
 
 The engine **locates `books/book.bin` by itself** (next to the executable, one
-directory up, `./books/`, `~/ .babachess/book.bin`); override with `--book
+directory up, `./books/`, `~/.babachess/book.bin`); override with `--book
 <file>` or the UCI option `BookFile`.
 
 Sanity check:

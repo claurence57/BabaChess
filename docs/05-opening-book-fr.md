@@ -146,14 +146,14 @@ la **clé Zobrist Polyglot**, confrontée à des valeurs de référence externes
 
 ## Voir aussi
 
-- `src/doc/ouvertures.md` : la documentation de référence du livre BabaChess
+- `src/doc/ouvertures-fr.md` : la documentation de référence du livre BabaChess
   (format, clé Polyglot, sondage, configuration, vérification).
-- `books/README.md` : provenance du livre embarqué (Lichess CC0), réglages,
+- `books/README-fr.md` : provenance du livre embarqué (Lichess CC0), réglages,
   régénération et validation.
 - `scripts/make_book.py` : construction d'un livre Polyglot depuis Lichess, avec
   les filtres et la validation.
 - `scripts/fetch_book.sh` : téléchargement d'un livre CC0 déjà généré.
 - Code : `src/bbchess-polyglot.adb` et `src/bbchess-polyglot.ads` (clé Polyglot,
   chargement du `.bin`, sondage pondéré).
-- `src/doc/README.md` : l'index de la documentation technique.
+- `src/doc/README-fr.md` : l'index de la documentation technique.
 - Chapitre voisin : `04-search-fr.md` ; les autres chapitres sont dans `docs/`.

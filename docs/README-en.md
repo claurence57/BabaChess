@@ -37,6 +37,6 @@ Index français : [README-fr.md](README-fr.md).
 ## Technical documentation
 
 The details of **this engine** (data structures, evaluation terms, search
-thresholds, implementation choices) live in `src/doc/` (in French): `README.md`,
-`bitboards.md`, `evaluation.md`, `recherche.md`, `finales.md`, `ouvertures.md`,
-`outils-et-tests.md`, `build-and-cpu.md`.
+thresholds, implementation choices) live in `src/doc/` (in English): `README-en.md`,
+`bitboards-en.md`, `evaluation-en.md`, `recherche-en.md`, `finales-en.md`, `ouvertures-en.md`,
+`outils-et-tests-en.md`, `build-and-cpu-en.md`.

@@ -14,7 +14,7 @@ Chaque chapitre existe en **français** (`*-fr.md`) et en **anglais** (`*-en.md`
 
 1. [Introduction](01-introduction-fr.md) — ce qu'est un moteur, ses composants, les protocoles.
 2. [Plateau et génération de coups](02-board-and-movegen-fr.md) — représentations, bitboards, légalité, perft.
-3. [Évaluation](03-evaluation-fr.md) — matériel, tables piece-square, phase, termes positionnels, réglage.
+3. [Évaluation](03-evaluation-fr.md) — matériel, tables pièce-case, phase, termes positionnels, réglage.
 4. [Recherche](04-search-fr.md) — négamax/alpha-bêta, ordonnancement, élagages, quiescence.
 5. [Livre d'ouvertures](05-opening-book-fr.md) — format Polyglot, sondage, sources libres.
 6. [Tables de finales](06-endgame-tablebases-fr.md) — Syzygy WDL/DTZ, règle des 50 coups.
@@ -37,6 +37,6 @@ English index: [README-en.md](README-en.md).
 ## Documentation technique
 
 Les détails de **ce moteur** (structures, termes, seuils, choix d'implémentation)
-sont dans `src/doc/` (en français) : `README.md`, `bitboards.md`, `evaluation.md`,
-`recherche.md`, `finales.md`, `ouvertures.md`, `outils-et-tests.md`,
-`build-and-cpu.md`.
+sont dans `src/doc/` (en français) : `README-fr.md`, `bitboards-fr.md`, `evaluation-fr.md`,
+`recherche-fr.md`, `finales-fr.md`, `ouvertures-fr.md`, `outils-et-tests-fr.md`,
+`build-and-cpu-fr.md`.

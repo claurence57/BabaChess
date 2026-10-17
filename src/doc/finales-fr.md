@@ -1,6 +1,6 @@
 # Finales, tablebases et évaluation statique des échanges
 
-Ce document décrit les composants d'BabaChess liés aux finales : les
+Ce document décrit les composants de BabaChess liés aux finales : les
 **tablebases Syzygy** de `BBChess.Syzygy` (bindings sur la bibliothèque C
 **Fathom**), l'**évaluation statique des échanges** (SEE) de `BBChess.See`, et
 le **scaling d'évaluation par phase** de `BBChess.Eval`. Il explique les
@@ -44,7 +44,7 @@ table utilisable n'est trouvée ; dans ce cas `Largest = 0` et `Enabled = False`
 
 La sonde est au début de `Negamax` (`bbchess-search.adb`), après la détection
 de répétition. Elle n'est tentée que si `BBChess.Syzygy.Enabled` et
-`Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest` (garde de matériau).
+`Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest` (garde de matériel).
 Le code WDL est ensuite converti : `4` (TB_WIN) devient
 `BBChess.Syzygy.TB_Win - Ply` ; `0` (TB_LOSS) devient
 `-(BBChess.Syzygy.TB_Win - Ply)` ; `1 | 2 | 3` (nulle / blessed / cursed)
@@ -64,7 +64,7 @@ sequenceDiagram
     participant C as bbchess-tbwrap.c
     participant F as Fathom
 
-    N->>S: Enabled ? et Popcount inferieur ou egal a Largest ?
+    N->>S: Enabled ? et Popcount inférieur ou égal à Largest ?
     alt roque present ou tables absentes
         S-->>N: -1 (pas de sonde)
     else aucun droit de roque
@@ -72,7 +72,7 @@ sequenceDiagram
         S->>C: baba_tb_wdl (bitboards, rule50=0, castling=0, ep, turn)
         C->>F: tb_probe_wdl
         F-->>C: code WDL 0..4 ou 0xFFFFFFFF
-        C-->>S: resultat brut
+        C-->>S: résultat brut
         S-->>N: -1 si TB_Result_Failed, sinon 0..4
     end
     alt W = 4 (TB_WIN)
@@ -145,7 +145,7 @@ derrière la destination) sont traités à part.
 
 SEE sert à deux endroits de `bbchess-search.adb`, pour **élaguer ou prouver**,
 jamais comme évaluation. D'abord la **quiescence** : une capture dont le SEE est
-négatif est ignorée (sauf promotion et évasion sous échec) ; le delta pruning
+négatif est ignorée (sauf promotion et évasion sous échec) ; l'élagage delta
 s'y ajoute. Ensuite **ProbCut** : un coup tactique n'est essayé que si son SEE
 atteint `ProbCut_Margin`. Un ancien tri par SEE a été retiré (environ 13 % de
 knps en moins, `DEVELOPMENT.md` § 9.3). Le self-test couvre : pièce non défendue
@@ -159,21 +159,21 @@ flowchart TD
     A["Static_Exchange_Value (Position, Move)"] --> B{"Promotion ?"}
     B -- oui --> C["return Kind_Value (promotion) + 100"]
     B -- non --> D{"En_Passant ?"}
-    D -- oui --> E["Victim = 100, retirer le pion derriere To"]
-    D -- non --> F{"Piece presente sur To ?"}
+    D -- oui --> E["Victim = 100, retirer le pion derrière To"]
+    D -- non --> F{"Pièce présente sur To ?"}
     F -- non --> G["return 0 (coup tranquille)"]
-    F -- oui --> H["Victim = Kind_Value (piece capturee)"]
+    F -- oui --> H["Victim = Kind_Value (pièce capturée)"]
     E --> I["Remove From, Remove To, Put To"]
     H --> I
     I --> J["Value = Victim - Exchange (Work, To, Opp)"]
-    J --> K{"Value negatif ?"}
+    J --> K{"Value négatif ?"}
     K -- oui --> L["return 0 (refus)"]
     K -- non --> M["return Value"]
 ```
 
 ## 6. Scaling d'évaluation : les termes de finale
 
-`BBChess.Eval` n'a pas de terme « matériau restant » isolé, mais toute
+`BBChess.Eval` n'a pas de terme « matériel restant » isolé, mais toute
 l'évaluation positionnelle est **interpolée par phase** : c'est ce mécanisme qui
 réserve aux finales leur traitement spécifique.
 
@@ -182,7 +182,7 @@ réserve aux finales leur traitement spécifique.
 Chaque terme est calculé deux fois, une valeur d'ouverture et une de finale,
 portées par `Tapered_Score_Type` (`Opening`, `End_Game`). `Blend` interpole :
 `(Score.Opening * Phase + Score.End_Game * (100 - Phase)) / 100`. `Phase` vient
-de `Game_Phase`, calculée sur le matériau restant
+de `Game_Phase`, calculée sur le matériel restant
 (`4 × (cavaliers + fous) + 9 × tours + 16 × dames`, plafonnée à 100). Donc
 `Phase = 100` en ouverture complète, `Phase = 0` en finale pure : quand les
 pièces disparaissent, les valeurs de finale prennent le relais. Le calcul est
@@ -209,19 +209,19 @@ d'ouverture : elle n'est ajoutée que si `Phase >= King_Safety_Min_Phase` (20).
 
 ```mermaid
 flowchart LR
-    A["Position"] --> B["Game_Phase : materiau restant"]
+    A["Position"] --> B["Game_Phase : matériel restant"]
     B --> C["Phase (0 = finale, 100 = ouverture)"]
     A --> D["Positional_Score (White)"]
     A --> E["Positional_Score (Black)"]
     D --> H["Diff (Opening, End_Game)"]
     E --> H
-    C --> I["Blend : interpolation lineaire"]
+    C --> I["Blend : interpolation linéaire"]
     H --> I
     I --> J["Score = Opening x Phase + End_Game x (100 - Phase), / 100"]
     J --> K["Static, puis Evaluate (+ tempo)"]
     subgraph "Termes purement finale (End_Game)"
         M["King_End_PST : roi actif et central"]
-        N["Passed_Pawn_Endgame : pions passes decisifs"]
+        N["Passed_Pawn_Endgame : pions passés décisifs"]
         O["Bishop_Pair_Endgame, Rook_*_Endgame"]
     end
     M --> H

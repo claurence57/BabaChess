@@ -55,7 +55,7 @@ Découper proprement ces deux rôles est la marque d'un moteur lisible.
 ## 1.3 Les deux protocoles
 
 Le moteur ne parle pas directement au GUI : les deux échangent par un protocole
-textuel standard. Il en existe deux, encore tous deux en usage.
+textuel standard. Il en existe deux, tous deux encore en usage.
 
 **UCI** (Universal Chess Interface) définit des commandes comme `uci`,
 `isready`, `position`, `go` et `setoption`, et des réponses comme `uciok`,
@@ -81,7 +81,7 @@ La force d'un moteur se joue sur quelques leviers bien identifiés.
 - **La vitesse** : exprimée en nœuds par seconde (nps ou knps), elle fixe combien
   de positions le moteur examine par unité de temps. Un moteur deux fois plus
   rapide explore environ un demi-coup de plus.
-- **L'ordonnancement des coups** : essayer d'abord les coups probablement bons
+- **L'ordonnancement des coups** : essayer d'abord les coups les plus prometteurs
   rend l'élagage alpha-bêta bien plus efficace ; c'est souvent un gain gratuit en
   profondeur.
 
@@ -131,7 +131,7 @@ Le trajet d'un coup, en mode UCI, tient en quelques étapes.
 8. Le GUI applique le coup et renvoie la position suivante ; la boucle
    recommence.
 
-En mode XBoard, le déroulement est identique avec d'autres mots : `usermove
+En mode XBoard, le déroulement est identique en d'autres termes : `usermove
 e2e4` joue le coup de l'adversaire, `go` déclenche la recherche, et le moteur
 répond `move e2e4`.
 
@@ -150,10 +150,10 @@ chapitres qui suivent reprennent chaque brique et l'examinent dans ce code.
 
 ## Voir aussi
 
-- `src/doc/README.md` : vue d'ensemble de l'architecture et index de la
+- `src/doc/README-fr.md` : vue d'ensemble de l'architecture et index de la
   documentation technique.
-- `src/doc/bitboards.md`, `recherche.md`, `evaluation.md`, `ouvertures.md`,
-  `finales.md` : les composants un par un.
+- `src/doc/bitboards-fr.md`, `recherche-fr.md`, `evaluation-fr.md`, `ouvertures-fr.md`,
+  `finales-fr.md` : les composants un par un.
 - `src/babachess.adb` : point d'entrée et modes ligne de commande.
 - `src/bbchess-protocol.adb` : boucle de commandes et dispatch UCI / XBoard.
 - Chapitres voisins : `02-board-and-movegen-fr.md`, `03-evaluation-fr.md`,

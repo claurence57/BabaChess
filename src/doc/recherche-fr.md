@@ -6,7 +6,7 @@ Il explique les principes et les choix de conception, pas le code ligne à ligne
 et garde la trace des techniques **gardées**, **retirées** et **à l'essai**, en
 cohérence avec `DEVELOPMENT.md`.
 
-La recherche est un **negamax alpha-bêta** avec approfondissement itératif,
+La recherche est un **négamax alpha-bêta** avec approfondissement itératif,
 table de transposition, PVS, quiescence et un ensemble d'élagages modernes. Les
 scores sont en centipions, du point de vue du trait (`Score_Type`, `Infinity`,
 `Mate_Score` dans `BBChess.Eval`).
@@ -95,7 +95,7 @@ flowchart TD
     N1 --> N2{"Depth = 0 ?"}
     N2 -- "oui" --> Q["Quiescence"]
     N2 -- "non" --> N3["Chemin de recherche, Is_Repetition, Syzygy WDL"]
-    N3 --> N4["Mate-distance pruning, puis sonde TT"]
+    N3 --> N4["Élagage de distance de mat, puis sonde TT"]
     N4 --> N5{"Coup TT donnant un cutoff ?"}
     N5 -- "oui" --> RET["Retour du score borné"]
     N5 -- "non" --> N6["Generate_Legal_Moves, razoring, extension échec"]
@@ -302,7 +302,7 @@ que si la clé nouvelle est visible, donc avec un payload déjà consistant. Une
 clé ancienne sur un emplacement à moitié écrit échoue simplement au test de clé.
 Deux threads peuvent encore écrire des entrées valides dans le même emplacement
 (la dernière clé gagne) ou remplacer un emplacement entre le test et la copie,
-ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
+ce qui ne donne qu'un nœud cohérent sur la clé, éventuellement moins profond.
 
 ## Techniques gardées, retirées et à l'essai
 
@@ -317,11 +317,11 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
 - **Null-move pruning** (`Null_Reduction = 2`) et **reverse futility** à
   profondeur 1.
 - **Phase 0 (correction)** : re-recherche pleine de tout fail-high LMR, history
-  quadratique avec malus, nulles terminales, mate-distance pruning. Bilan neutre
+  quadratique avec malus, nulles terminales, élagage de distance de mat. Bilan neutre
   en A/B (10-9-21, environ ± 9 Elo) mais supprime des erreurs réelles : conservée
   comme prérequis.
-- **Phase 1 (élagage)** : LMR log, LMP, futility pruning, razoring, delta
-  pruning en quiescence. Arbre divisé par environ 11 à profondeur 9 (7,6 M vers
+- **Phase 1 (élagage)** : LMR log, LMP, futility pruning, razoring, élagage
+  delta en quiescence. Arbre divisé par environ 11 à profondeur 9 (7,6 M vers
   0,67 M nœuds), environ **+61 Elo** en self-play et **+140 Elo** contre GNU
   Chess (de 0-8-2 à 1-13-6).
 - **SEE** dans la quiescence, promotion d'abord, évasions toujours cherchées.
@@ -333,10 +333,10 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
 ### Implémenté et retiré (neutre ou négatif)
 
 - **Singular extensions** : implémentées puis **retirées** (commit `f17f217`).
-  Le probe cherchait la même position à `(Depth - 1) / 2` avec le coup TT exclu ;
+  La sonde cherchait la même position à `(Depth - 1) / 2` avec le coup TT exclu ;
   une SPRT de 300 parties a conclu **neutre** (`+4,6 ± 31,3` Elo, LOS 38,6 %) pour
   un coût en nœuds (`--bench 11` : 2,62 M vers 2,95 M, +12,5 %). Le paramètre
-  `Excluded` et tout le câblage ont été supprimés avec le probe.
+  `Excluded` et tout le câblage ont été supprimés avec la sonde.
 - **Phase 2 « ordonnancement »** : history persistante entre les coups,
   **countermove**, et tri **SEE** des captures. Régression nette contre GNU
   Chess (Phase 1 : 8/30, Phase 2 : 2/30) et tri SEE à environ 13 % de knps en
@@ -353,7 +353,7 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
   pli seul, test de sûreté `not Is_Attacked`) : **+33 à +91 % de temps** sur
   `--bench`, SPRT `1+0.1` **FAIL** (**−34,7 ± 15,6** Elo, H0 accepté à 714
   parties). Laissée **désactivée** (défaut 0). Détail : `DEVELOPMENT.md` §81.
-- **Continuation history 2-ply** (*follow-up*, seconde table keyée sur le coup
+- **Continuation history 2-ply** (*follow-up*, seconde table indexée par le coup
   deux plis plus haut) : **KNpS −5 à −7 %** et SPRT `1+0.1` **INCONCLUSIVE**
   (**−9,0 ± 13,6** Elo, score 0,487), poids 2 idem → **retirée**. Détail :
   `DEVELOPMENT.md` §83.
@@ -370,7 +370,7 @@ ce qui ne donne qu'un nœud key-consistent, éventuellement moins profond.
   captures prometteuses (`ProbCut_Max_Moves = 2`, celles dont
   `Static_Exchange_Value >= ProbCut_Margin = 200`) avec une fenêtre bêta
   **relevée** (`B + ProbCut_Margin`) et une profondeur réduite
-  (`Depth - ProbCut_Depth = 4`). Si ce probe dépasse la borne relevée, le nœud
+  (`Depth - ProbCut_Depth = 4`). Si cette sonde dépasse la borne relevée, le nœud
   est considéré comme réfuté et le score est renvoyé sans payer la recherche
   pleine profondeur. Technique standard (voir les références), mais **pas encore
   validée** : elle doit passer `--selftest`, un `--bench` stable, puis une

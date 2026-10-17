@@ -2,8 +2,8 @@
 
 L'évaluation note une position figée, sans anticiper de coups : « qui est mieux,
 et de combien ? ». La recherche l'appelle à chaque feuille, donc sa qualité
-oriente tout le jeu. Ce chapitre part du matériel et ajoute les ingrédients du
-positionnel : échelle, valeurs, tables pièce-case, phase, termes, échellisation
+oriente tout le jeu. Ce chapitre part du matériel et ajoute les ingrédients de
+l'évaluation positionnelle : échelle, valeurs, tables pièce-case, phase, termes, échellisation
 des nulles, symétrie, évaluation paresseuse et réglage automatique. BabaChess,
 moteur bitboard en Ada 2012, sert d'exemple : évaluation faite à la main, sans
 NNUE, réglée par Texel.
@@ -48,7 +48,7 @@ sans duplication. BabaChess les nomme `Pawn_PST`, `Knight_PST`, `Bishop_PST`,
 
 Tous les termes ne pèsent pas pareil selon l'avancement : une tour sur colonne
 ouverte est utile au milieu de jeu et décisive en finale, un roi central y est
-dangereux puis excellent. L'**évaluation tapered** évalue donc chaque terme
+dangereux au milieu de jeu mais excellent en finale. L'**évaluation tapered** évalue donc chaque terme
 **deux fois**, ouverture et finale, puis **interpole** selon la phase. La phase
 vient du matériel restant (4 par cavalier, 4 par fou, 9 par tour, 16 par dame,
 plafonné à 100) : 100 au départ, 0 dans une finale de rois et pions.
@@ -156,9 +156,9 @@ NNUE** ; les réseaux sont une autre voie, évoquée plus loin.
 
 ## Voir aussi
 
-- `src/doc/evaluation.md` : référence technique (phase, termes, paramètres,
+- `src/doc/evaluation-fr.md` : référence technique (phase, termes, paramètres,
   résultats négatifs).
-- `src/doc/bitboards.md` : représentation qui rend naturels les termes de pions et
+- `src/doc/bitboards-fr.md` : représentation qui rend naturels les termes de pions et
   de mobilité.
 - `src/bbchess-eval.adb` : `Positional_Score`, `Game_Phase`, `Blend`,
   `King_Safety`, `Scale_Factor`.

@@ -62,7 +62,7 @@ scripts/sprt.sh 1+0.1 0 5 1000 7 <previous_binary> bin/babachess
 
 A short match proves nothing: 300 games only resolve about ±30 Elo. Use at
 least 1 000 games (two independent seeds for a small effect). See
-`src/doc/outils-et-tests.md` and `docs/07-testing-en.md` for the method.
+`src/doc/outils-et-tests-en.md` and `docs/07-testing-en.md` for the method.
 
 ## Tune parameters
 
@@ -79,7 +79,7 @@ Any tuned set must be confirmed by a long SPRT before adoption.
 - **`docs/`** — the general, pedagogical, bilingual guide *How to build a
   chess engine*, one chapter per topic in `-en.md` and `-fr.md`.
 - **`src/doc/`** — the technical reference for this engine (French).
-- Keep `README.md` (English) and `README-fr.md` in sync.
+- Keep `README-en.md` (English) and `README-fr.md` in sync.
 
 ## Style
 

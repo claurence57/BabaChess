@@ -47,7 +47,7 @@ BabaChess moved from one to the other when it forked AdaChess, and uses 12
 bitboards (one per piece type) plus the colour and total occupancies.
 
 Above the representation, **move generation** produces the list of legal moves.
-It is the most solicited brick: the search calls it at every node of the tree.
+It is the most heavily used brick: the search calls it at every node of the tree.
 Chapter 2 is devoted to it.
 
 **Evaluation** and **search** work together. Evaluation judges a frozen
@@ -81,8 +81,8 @@ An engine's strength comes down to a few well-known levers.
 - **Speed**: expressed in nodes per second (nps or knps), it sets how many
   positions the engine examines per unit of time. An engine twice as fast
   searches roughly half a ply deeper.
-- **Move ordering**: trying the probably good moves first makes alpha-beta
-  pruning far more effective; it is often a free gain in depth.
+- **Move ordering**: trying the moves most likely to be good first makes
+  alpha-beta pruning far more effective; it is often a free gain in depth.
 
 These levers are measured, not guessed. Chapters 3 and 4 cover evaluation and
 search, and chapter 7 covers the measurement tools.
@@ -109,7 +109,7 @@ flowchart LR
 ```
 
 The position is a value passed from component to component, never a hidden
-global state. The opening book and the tablebases are **side** services: they
+global state. The opening book and the tablebases are **auxiliary** services: they
 are queried during the search, but they do not own the position.
 
 ## 1.6 The path of a move, end to end
@@ -131,7 +131,7 @@ The path of a move, in UCI mode, comes down to a few steps.
 8. The GUI applies the move and sends the next position back; the loop starts
    again.
 
-In XBoard mode the course is identical with other words: `usermove e2e4` plays
+In XBoard mode the flow is identical, only the wording changes: `usermove e2e4` plays
 the opponent's move, `go` triggers the search, and the engine answers `move
 e2e4`.
 
@@ -149,10 +149,10 @@ table. The following chapters take each brick and examine it in that code.
 
 ## See also
 
-- `src/doc/README.md`: overview of the architecture and index of the technical
+- `src/doc/README-en.md`: overview of the architecture and index of the technical
   documentation.
-- `src/doc/bitboards.md`, `recherche.md`, `evaluation.md`, `ouvertures.md`,
-  `finales.md`: the components one by one.
+- `src/doc/bitboards-en.md`, `recherche-en.md`, `evaluation-en.md`, `ouvertures-en.md`,
+  `finales-en.md`: the components one by one.
 - `src/babachess.adb`: entry point and command-line modes.
 - `src/bbchess-protocol.adb`: command loop and UCI / XBoard dispatch.
 - Neighbouring chapters: `02-board-and-movegen-en.md`, `03-evaluation-en.md`,

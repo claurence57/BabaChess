@@ -16,7 +16,7 @@ current era (§48 onward: the solidity/cleanliness/performance work, P0-P7 and
 after) and uses the BabaChess names (`babachess.gpr` / `bin/babachess`); the
 pre-fork history (§1-§47, which still refers to the old `adachess_bb.gpr` /
 `bin_bb/adachess_bb`) is archived in `DEVELOPMENT_HISTORY.md`. `CHANGELOG.md`
-and `CHANGELOG_TECHNIQUE.md` cover the engine. `README.md` describes BabaChess;
+and `CHANGELOG_TECHNIQUE.md` cover the engine. `README-en.md` describes BabaChess;
 `NOTICE.md` records provenance and licensing.
 
 ## Build
@@ -47,7 +47,7 @@ gprbuild -P babachess.gpr -XMode=debug        # -> ./bin/babachess
 - The root `Makefile` (RubiChess-style) detects the host CPU and passes
   `-march=x86-64-vN` (or `ARCH=...`) through the `BABA_ARCH_FLAGS` project
   external; it does not use `-march=native` by default (measured slower). See
-  `src/doc/build-and-cpu.md`.
+  `src/doc/build-and-cpu-en.md`.
 
 ## Test & verify (no test framework; CI runs in GitHub Actions)
 

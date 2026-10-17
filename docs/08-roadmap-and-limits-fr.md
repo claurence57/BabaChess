@@ -144,7 +144,7 @@ négatifs**, car savoir ce qui échoue vous empêche de le refaire plus tard.
 BabaChess est un moteur artisanal classique, à peu près au niveau de GNU Chess
 6.2.7. Ses gains sont venus dans l'ordre ci-dessus : correction par le perft et
 146 self-tests, vitesse par les bitboards à attaques PEXT, puis ordonnancement des
-coups, puis un lot de recherche, puis une évaluation réglée à la Texel.
+coups, puis un important travail de recherche, puis une évaluation réglée à la Texel.
 
 Les gains gardés ont survécu à de longs SPRT. L'ordonnancement counter-move et
 history et la gestion du temps sont venus en premier ; un réglage Texel sur des
@@ -158,8 +158,8 @@ paramètres neutres pour que l'arbre soit inchangé lorsqu'elles sont éteintes 
 refonte de la sécurité du roi, mobilité par phase, plusieurs termes de
 connaissance, échecs en quiescence, continuation history à deux plis, flag
 « improving », terme d'imbalance matérielle, évaluation incrémentale et refonte de
-la table de transposition. La table de hachage des pions a été écartée car le pion
-est déjà bon marché, et l'optimisation guidée par profil s'est mesurée plus lente.
+la table de transposition. La table de hachage des pions a été écartée car
+l'évaluation des pions est déjà bon marché, et l'optimisation guidée par profil s'est mesurée plus lente.
 Sur ce moteur, elles se heurtaient à un **optimum local**, et la réponse honnête
 était d'enregistrer la mesure et de passer à la suite.
 
@@ -175,7 +175,7 @@ est une propriété du modèle, non un échec de son auteur.
 - `05-opening-book-fr.md` et `06-endgame-tablebases-fr.md` : le livre et les
   tablebases, de la force peu coûteuse aux deux extrémités de la partie.
 - `07-testing-fr.md` : perft, self-tests, SPRT, Texel et SPSA.
-- `src/doc/outils-et-tests.md`, `src/doc/evaluation.md`, `src/doc/recherche.md` :
+- `src/doc/outils-et-tests-fr.md`, `src/doc/evaluation-fr.md`, `src/doc/recherche-fr.md` :
   mesures, évaluation et recherche en détail.
-- `src/doc/README.md` et `DEVELOPMENT.md` : l'index technique et les journaux
+- `src/doc/README-fr.md` et `DEVELOPMENT.md` : l'index technique et les journaux
   internes derrière ces mesures.

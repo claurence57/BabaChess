@@ -179,7 +179,7 @@ comptes de perft **inchangés**.
 
 ## Voir aussi
 
-- `src/doc/bitboards.md` : la description technique détaillée de la représentation et des
+- `src/doc/bitboards-fr.md` : la description technique détaillée de la représentation et des
   attaques.
 - Code : `src/bbchess-board.ads` / `.adb`, `src/bbchess-attacks.adb`,
   `src/bbchess-movegen.adb`, `src/bbchess-moves.ads` / `.adb`, `src/bbchess-perft.adb`,
@@ -187,4 +187,4 @@ comptes de perft **inchangés**.
 - Sommaire du guide : `README-fr.md`. Chapitres voisins : `01-introduction-fr.md`,
   `03-evaluation-fr.md`, `04-search-fr.md`, `05-opening-book-fr.md`,
   `06-endgame-tablebases-fr.md`, `07-testing-fr.md`, `08-roadmap-and-limits-fr.md`.
-- `src/doc/recherche.md` et `src/doc/outils-et-tests.md`.
+- `src/doc/recherche-fr.md` et `src/doc/outils-et-tests-fr.md`.

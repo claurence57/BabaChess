@@ -1,6 +1,6 @@
 # Bitboards et génération d'attaques
 
-Ce document décrit la représentation bitboard d'BabaChess et les principes
+Ce document décrit la représentation bitboard de BabaChess et les principes
 de génération des attaques. Il complète le journal d'ingénierie
 (`DEVELOPMENT.md`, sections 2, 7septies et 16). Tout le code cité vit dans
 `src/`, packages `BBChess.*`.
@@ -81,7 +81,7 @@ flowchart LR
     A["Pieces (Piece_Type)<br/>12 bitboards"] --> U["or : Color_Occ (couleur)"]
     U --> O["All_Occ : occupation totale"]
     O --> N["not All_Occ : cases vides"]
-    AT["Attaques d'une piece"] --> I["and (not Own) : cibles pseudo-legales"]
+    AT["Attaques d'une pièce"] --> I["and (not Own) : cibles pseudo-légales"]
     N --> I
 ```
 
@@ -230,12 +230,12 @@ après vérification que les cases intermédiaires sont libres et non attaquées
 flowchart TD
     A["Generate_Pseudo_Moves"] --> B{"Checkers /= 0 ?"}
     B -- "non" --> C["Check_Mask = toutes les cases"]
-    B -- "simple echec" --> D["Check_Mask = Bit(checkeur) or Between(roi, checkeur)"]
-    B -- "double echec" --> E["Check_Mask = 0 : roi seulement"]
+    B -- "simple échec" --> D["Check_Mask = Bit(checkeur) or Between(roi, checkeur)"]
+    B -- "double échec" --> E["Check_Mask = 0 : roi seulement"]
     C --> F["Filtre coups non-roi"]
     D --> F
     E --> F
-    F --> G["Piece epinglee : rester sur Line(roi, from)"]
+    F --> G["Pièce épinglée : rester sur Line(roi, from)"]
     A --> H["Coups de roi : Is_Attacked(To, Occ sans roi)"]
     H --> I["Generate_Legal_Common"]
     G --> I

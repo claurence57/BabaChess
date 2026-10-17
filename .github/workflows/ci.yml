@@ -31,6 +31,9 @@ jobs:
           gnat --version | head -1
           gprbuild --version | head -1
 
+      - name: Documentation check (bilingual parity + links)
+        run: python3 scripts/check_docs.py
+
       # -cargs:ada -gnatwe turns every Ada warning into an error, so this step
       # fails on the first warning (debug already carries -gnatwa -gnatVa).
       - name: Build debug (warnings as errors)

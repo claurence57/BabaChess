@@ -1,8 +1,8 @@
-# Évaluation statique d'BabaChess
+# Évaluation statique de BabaChess
 
 L'évaluation vit dans `BBChess.Eval` (`src/bbchess-eval.ads` / `.adb`). Elle
 produit un score en **centipawns**, positif quand les Blancs sont mieux. Le
-negamax interroge `Static (Position)`, le cœur sans tempo strictement
+négamax interroge `Static (Position)`, le cœur sans tempo strictement
 antisymétrique, et `Evaluate (Position)`, `Static` ramené du point de vue du
 trait plus le bonus de tempo. `Infinity` et `Mate_Score` valent `30_000`. Le
 package n'a aucune branche dédiée « Blanc » ou « Noir » : c'est la clé de la
@@ -14,7 +14,7 @@ symétrie (voir plus bas).
 flowchart TD
     A["Position_Type<br/>12 bitboards + trait"] --> O["Occupancy (Position)"]
     A --> P["Game_Phase<br/>0 finale .. 100 ouverture"]
-    A --> M["Position.Material<br/>materiel + PST incremental"]
+    A --> M["Position.Material<br/>matériel + PST incrémental"]
     O --> W["Positional_Score (blanc)"]
     O --> B["Positional_Score (noir)"]
     P --> W
@@ -65,13 +65,13 @@ fois**, pour l'ouverture et pour la finale, puis interpolé. Le type
 
 ```mermaid
 flowchart LR
-    subgraph GP["Game_Phase : 4xC + 4xF + 9xT + 16xD par camp, plafonne a 100"]
-        OU["Phase = 100<br/>ouverture complete"]
+    subgraph GP["Game_Phase : 4xC + 4xF + 9xT + 16xD par camp, plafonné à 100"]
+        OU["Phase = 100<br/>ouverture complète"]
         FI["Phase = 0<br/>finale pure"]
     end
     OU --> BL["Blend (Score, Phase)<br/>= (Ouv x Phase + Fin x (100 - Phase)) / 100"]
     FI --> BL
-    BL --> R["Score positionnel interpole"]
+    BL --> R["Score positionnel interpolé"]
 ```
 
 `Game_Phase` reprend le comptage classique : 4 par cavalier, 4 par fou, 9 par
@@ -130,7 +130,7 @@ Toujours dans la boucle de mobilité, un traitement spécial des tours :
   `Rook_Connected_Endgame`.
 
 La détection passe par `File_Mask`, sans boucle par pion, et la case du roi
-adverse est hissée hors de la boucle.
+adverse est extraite de la boucle.
 
 ### 4.3 Structure de pions
 
@@ -213,7 +213,7 @@ ou un fou attaquant une tour ou une dame ennemie rapporte
 `P_Threat_Minor * Piece_Value (Kind (Pc)) / 100`. Les deux paramètres sont dans
 `Params`. `DEVELOPMENT.md` § 9.4 note que le gain mesuré contre GNU (≈ 1,5/30
 avant, ≈ 3,5/30 après) reste **dans le bruit** à cette taille d'échantillon : la
-recherche temporisée, non déterministe, rend les petits écarts inmesurables sans
+recherche temporisée, non déterministe, rend les petits écarts immesurables sans
 un vrai SPRT de plusieurs centaines de parties. Le terme est conservé, avec
 cette réserve documentée.
 

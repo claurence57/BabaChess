@@ -149,11 +149,11 @@ Le flux de travail est une boucle : changer le code, construire `release`, lance
 qui soutiennent tout cela sont `BBChess.Self_Tests`
 (`src/bbchess-self_tests.adb`), `scripts/perft_suite.sh`, `scripts/sym_check.py`,
 `scripts/sprt.sh`, `scripts/texel.py` et `scripts/spsa.py`. Chaque instrument est
-décrit dans `src/doc/outils-et-tests.md`.
+décrit dans `src/doc/outils-et-tests-fr.md`.
 
 ## Voir aussi
 
-- `src/doc/outils-et-tests.md` : la documentation de référence des outils de test
+- `src/doc/outils-et-tests-fr.md` : la documentation de référence des outils de test
   et de mesure (`--selftest`, perft, `--bench`, `--eval-fens`, `--params`, SPRT,
   tuners).
 - `src/bbchess-self_tests.adb` : la batterie interne (`BBChess.Self_Tests`),

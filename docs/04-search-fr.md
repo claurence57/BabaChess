@@ -4,9 +4,9 @@
 adverse. La recherche explore l'arbre des coups, pèse les répliques et renvoie le
 coup dont la ligne mène à la meilleure position. BabaChess l'implémente dans
 `BBChess.Search` (`src/bbchess-search.adb`), avec `BBChess.See`
-(`src/bbchess-see.adb`) pour la quiescence : une **négamax alpha-bêta** rétrécie
+(`src/bbchess-see.adb`) pour la quiescence : une **négamax alpha-bêta** resserrée
 par l'ordonnancement, la table de transposition et une famille d'élagages. Ce
-chapitre décrit les idées ; `src/doc/recherche.md` garde le détail des choix.
+chapitre décrit les idées ; `src/doc/recherche-fr.md` garde le détail des choix.
 
 ## 4.1 L'arbre de jeu et la négamax
 
@@ -65,7 +65,7 @@ réessayées dans cet ordre :
   coup qui a coupé gagne un bonus, un coup stérile reçoit un malus.
 
 Ces tables apprennent en cours de recherche et se vieillissent (history halvée à
-chaque itération). Le cercle est vertueux : mieux ordonner produit plus de
+chaque itération). C'est un cercle vertueux : mieux ordonner produit plus de
 coupures, donc plus de profondeur, donc de meilleures entrées de table. Tout cela
 vit dans `Order`.
 
@@ -106,7 +106,7 @@ temps, ce qui ramène à l'ordonnancement. `Root_Search` applique la même strat
 Beaucoup de chemins mènent à la même position (e4 puis Cf3, ou Cf3 puis e4). La
 **table de transposition** mémorise le résultat d'une position déjà rencontrée,
 indexée par sa **clé de Zobrist** (condensé 64 bits maintenu de façon
-incrémentale, voir `src/doc/bitboards.md`), et évite de la recalculer.
+incrémentale, voir `src/doc/bitboards-fr.md`), et évite de la recalculer.
 
 Chaque entrée contient la clé complète, la profondeur restante, la **borne** du
 résultat (`Exact`, `Lower_Bound` ou `Upper_Bound`), le score (mats normalisés par
@@ -191,12 +191,12 @@ ajustables via `--params`.
 
 ## Voir aussi
 
-- `src/doc/recherche.md` : la documentation de référence de la recherche.
+- `src/doc/recherche-fr.md` : la documentation de référence de la recherche.
 - Code : `src/bbchess-search.adb` et `src/bbchess-search.ads` (négamax, PVS,
   ordonnancement, élagages, Lazy SMP), `src/bbchess-see.adb` (échange statique).
-- `src/doc/bitboards.md` : clé de Zobrist, base de la table de transposition.
-- `src/doc/evaluation.md` : l'évaluation appelée aux feuilles.
-- `src/doc/finales.md` : le sondage WDL Syzygy, qui court-circuite la recherche.
-- `src/doc/outils-et-tests.md` : `--selftest`, `--bench`, `--params`, SPRT/SPSA.
-- `src/doc/README.md` : l'index de la documentation technique.
+- `src/doc/bitboards-fr.md` : clé de Zobrist, base de la table de transposition.
+- `src/doc/evaluation-fr.md` : l'évaluation appelée aux feuilles.
+- `src/doc/finales-fr.md` : le sondage WDL Syzygy, qui court-circuite la recherche.
+- `src/doc/outils-et-tests-fr.md` : `--selftest`, `--bench`, `--params`, SPRT/SPSA.
+- `src/doc/README-fr.md` : l'index de la documentation technique.
 - Les autres chapitres du guide sont dans le dossier `docs/`.

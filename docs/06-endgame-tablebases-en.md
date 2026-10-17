@@ -139,10 +139,10 @@ and the engine plays on. `--selftest` and `--bench` never probe them.
 
 ## See also
 
-- `src/doc/finales.md`: reference documentation of the BabaChess tablebase layer.
+- `src/doc/finales-en.md`: reference documentation of the BabaChess tablebase layer.
 - `src/bbchess-syzygy.adb`, `src/bbchess-syzygy.ads`: the Ada binding.
 - `src/fathom/`: the vendored Fathom probe (MIT); see `src/fathom/LICENSE`,
   `NOTICE.md`.
 - Syzygy Bases: <https://www.chessprogramming.org/Syzygy_Bases>.
-- `src/doc/README.md`: the index of the technical documentation.
+- `src/doc/README-en.md`: the index of the technical documentation.
 - Neighbouring chapter: `05-opening-book-en.md`; the rest are in `docs/`.

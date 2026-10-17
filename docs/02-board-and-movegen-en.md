@@ -171,7 +171,7 @@ Golden rule: any change to move generation must keep `--selftest` green and the 
 
 ## See also
 
-- `src/doc/bitboards.md`: the detailed technical description of the representation and the
+- `src/doc/bitboards-en.md`: the detailed technical description of the representation and the
   attacks.
 - Code: `src/bbchess-board.ads` / `.adb`, `src/bbchess-attacks.adb`,
   `src/bbchess-movegen.adb`, `src/bbchess-moves.ads` / `.adb`, `src/bbchess-perft.adb`,
@@ -179,4 +179,4 @@ Golden rule: any change to move generation must keep `--selftest` green and the 
 - Guide index: `README-en.md`. Neighbouring chapters: `01-introduction-en.md`,
   `03-evaluation-en.md`, `04-search-en.md`, `05-opening-book-en.md`,
   `06-endgame-tablebases-en.md`, `07-testing-en.md`, `08-roadmap-and-limits-en.md`.
-- `src/doc/recherche.md` and `src/doc/outils-et-tests.md`.
+- `src/doc/recherche-en.md` and `src/doc/outils-et-tests-en.md`.

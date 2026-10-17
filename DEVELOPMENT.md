@@ -1164,7 +1164,7 @@ Tables **WDL 3-4-5 pièces** téléchargées (`tablebase.lichess.ovh`,
 Conclusion **honnête** : sans DTZ à la racine (le moteur ne sonde que le WDL),
 la conversion n'est **pas fiable** sur les finales où le chemin compte. C'est la
 limite « pas de DTZ à la racine » déjà connue ; elle est documentée en « Known
-limitations » (`README.md`, `RELEASE_NOTES_1.0.0.md`) **sans être corrigée**,
+limitations » (`README-fr.md`, `RELEASE_NOTES_1.0.0.md`) **sans être corrigée**,
 conformément à la consigne.
 
 ### 68.4 Étalonnage de force (R3.4)
@@ -1232,7 +1232,7 @@ runtime GNAT est lié statiquement par défaut.
 ### 69.3 Contenu et nommage des archives
 
 `babachess-1.0.0-<os>-x86_64-<bmi2|portable>.(tar.gz|zip)` contenant : binaire
-(`babachess`/`babachess.exe`), `LICENSE`, `NOTICE.md`, `README.md`,
+(`babachess`/`babachess.exe`), `LICENSE`, `NOTICE.md`, `README-fr.md`,
 `RELEASE_NOTES_1.0.0.md`, `src/fathom/LICENSE` (MIT), `books/book.bin` (à
 l'emplacement que le moteur sonde par défaut). `SHA256SUMS` joint à la release.
 L'archivage est fait par un fragment Python embarqué dans
@@ -1633,7 +1633,7 @@ futur.
 ## 78. Syzygy DTZ à la racine (`S_Syzygy_Root`) — infrastructure, gain ciblé démontré
 
 Branche `syzygy-dtz-root`. Le moteur ne sonde que le **WDL** ; la limite
-« pas de DTZ à la racine » est documentée (§68.3, `README.md`) : dans certaines
+« pas de DTZ à la racine » est documentée (§68.3, `README-fr.md`) : dans certaines
 finales gagnées, la recherche ne trouve pas le chemin le plus court et laisse
 filtrer la nulle par la règle des 50 coups. Ce lot ajoute une sonde **DTZ au
 root**, derrière un paramètre **désactivé par défaut**.
@@ -1854,7 +1854,7 @@ d'attaque, sans `Make_Move` par coup calme), ou à une autre cadence.
 ## 82. Build : PGO re-mesuré (répertoire de profil explicite) — toujours plus lent
 
 PGO (Profile-Guided Optimization) était déjà documenté comme écarté
-(`src/doc/build-and-cpu.md` : « mesurée plus lente, fragile avec `-flto` »). Sur
+(`src/doc/build-and-cpu-fr.md` : « mesurée plus lente, fragile avec `-flto` »). Sur
 proposition d'en refaire l'essai, il a été **reproduit proprement** pour lever le
 doute sur la métrologie :
 
