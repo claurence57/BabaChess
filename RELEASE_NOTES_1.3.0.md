@@ -28,6 +28,9 @@ Also new:
 - **Infrastructure** (no strength change): `Gives_Check` and SEE on quiet moves,
   a GNU-Chess gauntlet judge and an evaluation-symmetry checker.
 - **Tooling**: `spsa.py` runs matches with `--concurrency`.
+- **Documentation**: a general bilingual guide *How to build a chess engine*
+  under `docs/` (`*-en.md` / `*-fr.md`) and a French README (`README-fr.md`);
+  start at `docs/README-en.md`.
 - Self-test suite: **146 checks**.
 - All reported names say `BabaChess 1.3.0` (UCI `id name`, XBoard `myname`,
   `--version`, banner).

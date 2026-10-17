@@ -6,6 +6,20 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## 1.3.1 (2026-10-17)
+
+**Release de documentation.** Même moteur que 1.3.0 ; cette version embarque la
+documentation dans les archives.
+
+- **Guide général bilingue** `docs/` : huit chapitres (introduction, plateau et
+  génération de coups, évaluation, recherche, livre d'ouvertures, tables de
+  finales, tests, feuille de route) en `-en.md` et `-fr.md`, plus un index.
+- **`README-fr.md`** (traduction du README racine) et **`CONTRIBUTING.md`**.
+- Les archives incluent désormais `docs/` (le guide), `src/doc/` (la référence
+  technique), `README-fr.md` et `CONTRIBUTING.md`.
+- Aucun changement de moteur : `--selftest` 146/146, `--bench 9/11/12` =
+  492 444 / 1 176 310 / 2 467 856. Version : `BabaChess 1.3.1`.
+
 ## 1.3.0 (2026-10-15)
 
 **Gain de force modéré + nettoyage.** Un lot de recherche mesuré par SPRT, plus

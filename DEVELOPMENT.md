@@ -2049,3 +2049,27 @@ d'anneau, 2 graines ≈ −6 Elo), élagage SEE des captures perdantes, TT 256 M
 (plus lent), SPSA court (sans signal). Le moteur est à un **optimum local
 ferme** sur vitesse/recherche ; le seul gain démontré reste le lot recherche
 (+15 Elo).
+
+---
+
+## 87. Release 1.3.1 — documentation
+
+Version `1.3.1` (`BBChess.Text.BabaChess_Version`) : **release de documentation**,
+moteur **inchangé** par rapport à 1.3.0. Objet :
+
+- **Guide général bilingue** `docs/` — huit chapitres pédagogiques
+  (introduction ; plateau et génération de coups ; évaluation ; recherche ;
+  livre d'ouvertures ; tables de finales ; tests ; feuille de route), chacun en
+  `-en.md` et `-fr.md`, plus un index. Il **explique comment on développe un
+  moteur d'échecs** et prend BabaChess en exemple, avec renvois au code (`src/…`)
+  et à la référence technique (`src/doc/…`). Les journaux internes
+  (`DEVELOPMENT.md`, `CHANGELOG.md`) en sont exclus.
+- **`README-fr.md`** (traduction du README racine) et **`CONTRIBUTING.md`**.
+- **Packaging** (`scripts/package_release.sh`) : les archives embarquent désormais
+  `docs/` (le guide), `src/doc/` (la référence technique), `README-fr.md` et
+  `CONTRIBUTING.md` — archives autonomes.
+
+`--selftest` **146/146**, `--bench 9/11/12` = **492 444 / 1 176 310 / 2 467 856**
+(identiques à 1.3.0 : aucun changement de moteur). Release publiée en brouillon
+par `.github/workflows/release.yml` sur le tag `v1.3.1` ; la publication reste
+une décision humaine.

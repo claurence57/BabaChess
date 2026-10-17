@@ -3,8 +3,10 @@
 # Assemble one release archive for BabaChess.
 #
 # The archive contains the engine binary, the licences (project GPL, NOTICE,
-# the Fathom MIT licence), README, the release notes, and the bundled book at
-# books/book.bin (the location the engine probes by default).
+# the Fathom MIT licence), both READMEs (English and French), CONTRIBUTING,
+# the release notes, the bundled book at books/book.bin (the location the
+# engine probes by default), and the documentation: the general bilingual
+# guide (docs/) and the technical reference (src/doc/).
 #
 # Archive format: .tar.gz on Linux, .zip on Windows. Both are produced by an
 # embedded Python 3 snippet so the script behaves identically under git-bash
@@ -51,15 +53,21 @@ STAGE="$OUTDIR/$NAME"
 [ "$OS" = windows ] && EXE="babachess.exe" || EXE="babachess"
 
 rm -rf "$STAGE"
-mkdir -p "$STAGE/books" "$STAGE/src/fathom"
+mkdir -p "$STAGE/books" "$STAGE/src/fathom" "$STAGE/docs" "$STAGE/src/doc"
 
 cp "$BINARY" "$STAGE/$EXE"
 cp "$BOOK" "$STAGE/books/book.bin"
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 cp "$ROOT/NOTICE.md" "$STAGE/NOTICE.md"
 cp "$ROOT/README.md" "$STAGE/README.md"
+cp "$ROOT/README-fr.md" "$STAGE/README-fr.md"
+cp "$ROOT/CONTRIBUTING.md" "$STAGE/CONTRIBUTING.md"
 cp "$ROOT/RELEASE_NOTES_${VERSION}.md" "$STAGE/RELEASE_NOTES_${VERSION}.md"
 cp "$ROOT/src/fathom/LICENSE" "$STAGE/src/fathom/LICENSE"
+# The general bilingual guide (docs/) and the technical reference (src/doc/)
+# are shipped so the archive is self-contained.
+cp -R "$ROOT/docs/." "$STAGE/docs/"
+cp -R "$ROOT/src/doc/." "$STAGE/src/doc/"
 [ "$OS" = windows ] || chmod +x "$STAGE/$EXE"
 
 EXT="tar.gz"; [ "$OS" = windows ] && EXT="zip"
