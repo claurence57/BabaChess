@@ -356,8 +356,12 @@ package body BBChess.Eval is
      --  KS ramp 10..30 then 22..54.
      --
      --  Endgame scaling, out of 64 (64 = no scaling; P_Scale_NoPawn 0 = off).
+     --  NoPawn is ON: a lone minor with no pawn of its own can only win by a
+     --  smothered mate, and the position is otherwise a draw (e.g. the
+     --  Kieseritzky-Jaenisch "bishop vs two pawns"); Scale_Factor damps such
+     --  scores, keeping a small residue when enemy pawns can still mate.
      P_Scale_OCB       => 64,
-     P_Scale_NoPawn    => 0,
+     P_Scale_NoPawn    => 1,
      --  1 = mobility ignores the squares attacked by enemy pawns.
      P_Mob_Area        => 1,
      --  Undefended enemy pieces we attack; rook attacking a queen.
@@ -1361,7 +1365,18 @@ package body BBChess.Eval is
            and then NPM_S - NPM_W <= Piece_Value (Bishop)
          then
             if NPM_S < Piece_Value (Rook) then
-               return 0;
+               --  A lone minor (no pawn of its own) can only win by a
+               --  smothered mate, and only when the enemy king is boxed in by
+               --  its own pawns.  Against a pawnless enemy it is a dead draw
+               --  (K+B vs K, K+N vs K, K+B vs K+N ...); with enemy pawns it is
+               --  still almost always a draw, but a mate may exist, so keep a
+               --  small non-zero score rather than scaling to exactly 0.  A
+               --  forced mate is still found by the search regardless.
+               if Position.Pieces (Make (Weak, Pawn)) = 0 then
+                  return 0;
+               else
+                  return 4;
+               end if;
             elsif NPM_W <= Piece_Value (Bishop) then
                return 4;
             else
