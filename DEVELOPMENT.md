@@ -2095,3 +2095,104 @@ moteur **inchangé** par rapport à 1.3.1. Objet : rendre la documentation
 `--selftest` **146/146**, `--bench 9/11/12` = **492 444 / 1 176 310 / 2 467 856**
 (identiques : aucun changement de moteur). Release publiée en brouillon par
 `.github/workflows/release.yml` sur le tag `v1.3.2`.
+
+---
+
+## 89. Évaluation : écrêtage des finales nulles (`P_Scale_NoPawn`) — actif par défaut
+
+Rapport d'utilisateur sur la **position finale** d'une partie de
+correspondance Kieseritzky–Jaenisch (URS, 1939), nulle :
+
+```
+8/8/2k5/4b3/P3P3/8/5Kp1/8 b - - 1 50
+```
+
+Trait aux Noirs ; ceux-ci ont un **fou** et un **pion g2** (une case de la
+promotion), les Blancs un **roi f2** et deux pions (a4, e4). Le moteur annonçait
+les Noirs **+1,5** en recherche, alors que la position est **nulle** : le pion
+g2 tombe sur `Kxg2` (rien ne le défend, le promouvoir perd la pièce) et
+**fou contre deux pions = WDL 0** en Syzygy. `Be5#` **n'existe pas ici**, mais
+la même finale *peut* se gagner par mat étouffé — c'est tout le nœud du §89.2.
+
+### 89.1 Diagnostic
+
+`--eval-fens` (statique, point de vue Blancs) donne **−261** (Noirs +2,61),
+décomposé par `--params` :
+
+| Terme | Contribution |
+|---|---|
+| matériel fou (330) − 2 pions (200) | +130 (Noirs) |
+| bonus de pion passé de g2 (rangée 6 → `P_PASSED_EG_6` = 162) | **−154** |
+| pions passés blancs (a4, e4) + extérieur + approche du roi | +44 |
+| PST / mobilité / divers | reste |
+
+Deux causes cumulées :
+
+1. **Éval statique matérialiste et symétrique** (`Static` ne dépend pas du
+   trait, `P_Hanging_*` désactivé) : le pion g2 est compté comme un monstre alors
+   qu'il est déjà perdu ;
+2. la recherche *résout* bien la prise (`… f2g2`) et atteint **fou contre deux
+   pions**, mais cette finale est elle-même notée **−101** (Noirs +1,01) au lieu
+   de 0 — l'écrêtage des finales nulles, `Scale_Factor`, était **éteint**
+   (`P_Scale_NoPawn = 0`, et la porte `Phase ≤ 40 and (NoPawn ≠ 0 or OCB ≠ 64)`
+   était donc fausse).
+
+Preuve que c'est l'éval et non la recherche : avec `--syzygy`, le score
+**s'effondre à 0 dès la profondeur 3**.
+
+### 89.2 Correctif (`Scale_Factor`)
+
+La branche « sans pion » renvoie 0 quand la partie forte n'a aucun pion et au plus
+une pièce mineure d'avance. Elle renvoyait **0** dès que `NPM_S < Rook` — donc
+aussi pour **fou/cavalier contre pion(s)**, où un **mat étouffé** reste possible.
+Désormais :
+
+- partie faible **sans pion** → `0` (nulle morte : Rf vs R, Cf vs R, Rf vs C…) ;
+- partie faible **avec pions** → petit facteur **4/64**, pour ne pas annuler un
+  mat réel (le `Be5#` est trouvé par la recherche via le score de mat, indépendant
+  de l'éval).
+
+`P_Scale_NoPawn` passe à **1**.
+
+### 89.3 Symétrie et self-test
+
+`Scale_Factor` ne dépend que du signe du score et des deux camps, symétriquement.
+`scripts/sym_check.py` : **3000 positions, 0 écart** ; `--selftest` **146/146**.
+
+### 89.4 Banc de régression (nouveau)
+
+`bench/endgames_scale.fen` (16 finales vérifiées par Syzygy) +
+`scripts/draw_scale_bench.py` : il mesure le taux de nulles ramenées près de 0
+**et** toute gagnante mise à 0 (régression).
+
+| Config | Nulles dans ±40 cp | Gagnantes mises à 0 |
+|---|---|---|
+| `P_Scale_NoPawn 0` (avant) | **0/9** (moy. 295 cp) | 0/6 |
+| défaut corrigé | **9/9** (moy. 14 cp) | **0/6** |
+
+Position rapportée : recherche **+3 cp** (contre +98…+155 avant).
+
+### 89.5 Coût et mesure de force
+
+`--bench 9/11/12` = **488 704 / 1 166 698 / 2 467 322** nœuds (l'éval change,
+l'arbre diffère — normal).
+
+| Run | W–L–D | Score | Élo | LOS | Verdict |
+|---|---|---|---|---|---|
+| 60 parties, nœuds fixes (20 000/mvt) | 20–18–22 | 0,517 | **+11,6 ± 70,8** | 62,7 % | INCONCL. |
+| 1000 parties `1+0.1`, graine 7 | 197–176–627 | 0,510 | **+7,3 ± 13,1** | 86,2 % | **INCONCL.** (LLR 0,53) |
+
+Nulle 62,7 %. La campagne longue (journal `/tmp/opencode/sprt_long.log`) n'a pas
+atteint le cap de décision (`llr 0,53 ∈ [−2,94 ; 2,94]`) : le point est **positif**
+mais l'échantillon ne sépare pas « neutre » de « +5 Elo ». Aucune régression
+cependant (H0 non accepté).
+
+### 89.6 État
+
+Correctif conservé, `P_Scale_NoPawn` **actif par défaut** : c'est une
+**correction** (l'écrêtage était déjà là, simplement aveugle aux mats étouffés),
+pas une heuristique nouvelle, et le SPRT 1000 parties ne montre **aucune
+régression** (point positif +7,3 Elo, LLR inconclu). Garde-fou permanent :
+`scripts/draw_scale_bench.py` (9/9 nulles, 0 gagnante annulée). Si l'on voulait
+la stricte prudence des §81-§85, seul le défaut `P_Scale_NoPawn` est à ramener à
+0 — le durcissement de `Scale_Factor` reste correct dans les deux cas.
