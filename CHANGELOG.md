@@ -6,9 +6,10 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Unreleased
+## 1.3.3 (2026-10-25)
 
-**Évaluation : les finales nulles sont correctement écrêtées (`P_Scale_NoPawn`).**
+**Correctif d'évaluation : les finales nulles sont correctement écrêtées
+(`P_Scale_NoPawn`).**
 Corrige une évaluation qui donnait les Noirs gagnants (+1,5) dans une position
 nulle (Kieseritzky–Jaenisch, 1939 : fou et pion contre roi et deux pions ;
 « fou contre deux pions » = WDL 0 en Syzygy). Détail : `DEVELOPMENT.md` §89.
@@ -24,6 +25,7 @@ nulle (Kieseritzky–Jaenisch, 1939 : fou et pion contre roi et deux pions ;
   **488 704 / 1 166 698 / 2 467 322**. SPRT 1000 parties `1+0.1` :
   NEW **197–176–627** (51,0 %), **+7,3 ± 13,1 Elo**, LOS 86,2 % → **INCONCLUANT**
   (positif, aucune régression).
+- Version : `BabaChess 1.3.3`.
 
 ## 1.3.2 (2026-10-17)
 

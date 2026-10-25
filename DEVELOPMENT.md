@@ -2196,3 +2196,41 @@ régression** (point positif +7,3 Elo, LLR inconclu). Garde-fou permanent :
 `scripts/draw_scale_bench.py` (9/9 nulles, 0 gagnante annulée). Si l'on voulait
 la stricte prudence des §81-§85, seul le défaut `P_Scale_NoPawn` est à ramener à
 0 — le durcissement de `Scale_Factor` reste correct dans les deux cas.
+
+---
+
+## 90. Release 1.3.3 — correctif d'évaluation
+
+Version `1.3.3` (`BBChess.Text.BabaChess_Version`), notes
+`RELEASE_NOTES_1.3.3.md`, entrée `CHANGELOG.md`. Contenu depuis 1.3.2 :
+
+- le **correctif §89** de l'écrêtage des finales nulles (`Scale_Factor`,
+  `P_Scale_NoPawn` actif par défaut) ;
+- le **banc de régression** `bench/endgames_scale.fen` (16 finales vérifiées par
+  Syzygy) ;
+- **`scripts/draw_scale_bench.py`** et **`scripts/sprt_params.sh`** (banc de
+  régression et SPRT piloté par `--params`).
+
+### 90.1 Décision de releaser
+
+Le §89 est une **correction**, pas une heuristique : l'écrêtage existait déjà mais
+était aveugle aux mats étouffés. Le garde-fou permanent (`9/9` nulles ramenées
+près de 0, `0/6` gagnante annulée) justifie une release dédiée, d'autant que le
+SPRT 1 000 parties ne montre **aucune régression** (point positif `+7,3 ± 13,1`,
+LLR inconclu). La divergence binaire/patch présente depuis le 18/10 est ainsi
+levée.
+
+### 90.2 Self-test et banc
+
+- `--selftest` **146/146**, 0 échec.
+- `--bench 9/11/12` = **488 704 / 1 166 698 / 2 467 322** nœuds (l'éval change,
+  l'arbre diffère — normal depuis §89).
+- `scripts/draw_scale_bench.py` : **9/9** nulles dans ±40 cp, **0/6** gagnante
+  mise à 0.
+- `scripts/check_docs.py` : parité FR/EN et liens internes **OK**.
+
+### 90.3 État
+
+La release est publiée en **brouillon** par `.github/workflows/release.yml` sur le
+tag `v1.3.3` ; la publication reste une décision humaine. Les workflows
+`release.yml` portent désormais `1.3.3` en défaut et en repli.
