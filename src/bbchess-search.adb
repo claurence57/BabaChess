@@ -2348,19 +2348,23 @@ package body BBChess.Search is
             --  Age the history heuristics between iterations: halve every
             --  entry so the previous iteration's cutoffs keep a decreasing
             --  influence and the ordering tracks the current tree instead of
-            --  saturating. A no-op on the (still zero) first iteration.
-            for S in Color_Type loop
-               for F in Square_Type loop
-                  for T in Square_Type loop
-                     Ctx.History (S, F, T) := Ctx.History (S, F, T) / 2;
+            --  saturating. Init_Context zeroes both tables at the start of
+            --  every search, so the first iteration would halve ~598k zeros:
+            --  skip it (0 / 2 = 0, so the result is identical).
+            if D > 1 then
+               for S in Color_Type loop
+                  for F in Square_Type loop
+                     for T in Square_Type loop
+                        Ctx.History (S, F, T) := Ctx.History (S, F, T) / 2;
+                     end loop;
                   end loop;
                end loop;
-            end loop;
-            for K in 0 .. 767 loop
-               for J in 0 .. 767 loop
-                  Ctx.Cont_History (K, J) := Ctx.Cont_History (K, J) / 2;
+               for K in 0 .. 767 loop
+                  for J in 0 .. 767 loop
+                     Ctx.Cont_History (K, J) := Ctx.Cont_History (K, J) / 2;
+                  end loop;
                end loop;
-            end loop;
+            end if;
 
             if D = 1 then
                Alpha := -Infinity;
