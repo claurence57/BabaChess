@@ -135,6 +135,8 @@ def main() -> int:
                     help="SPSA a_k denominator offset")
     ap.add_argument("--search-only", action="store_true",
                     help="tune only the S_* search params (D4), not the eval P_*")
+    ap.add_argument("--only", default=None,
+                    help="regex: tune only the matching dumped parameter names")
     args = ap.parse_args()
 
     if args.search_only:
@@ -148,6 +150,9 @@ def main() -> int:
     work.mkdir(exist_ok=True)
 
     base = dump_params(binary)
+    if args.only:
+        only = re.compile(args.only)
+        TUNABLE[:] = [n for n in base if only.fullmatch(n)]
     # theta is kept as float so sub-unit SPSA steps accumulate instead of being
     # erased by integer rounding; only the engine-facing files are rounded.
     theta = {k: float(base[k]) for k in TUNABLE if k in base}
