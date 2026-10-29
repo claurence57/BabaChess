@@ -55,5 +55,6 @@ echo "             NEW = wrapper -> $BASE --params $PARAMS"
 echo "             params: $(tr '\n' ' ' < "$PARAMS")"
 
 # sprt.sh applies --params/--threads to every mode, so the override is honoured
-# on both the UCI and XBoard paths.
-exec "$ROOT/scripts/sprt.sh" "$TC" "$ELO0" "$ELO1" "$MAXGAMES" "$SEED" "$BASE" "$WRAP"
+# on both the UCI and XBoard paths. No exec: the EXIT trap must run afterwards
+# to delete the wrapper.
+"$ROOT/scripts/sprt.sh" "$TC" "$ELO0" "$ELO1" "$MAXGAMES" "$SEED" "$BASE" "$WRAP"
