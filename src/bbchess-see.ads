@@ -42,6 +42,14 @@ package BBChess.See is
        Move.From /= Move.To
        and then (Move.Flag = Promotion
                  or else (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0);
+
+   pragma Inline_Always (Static_Exchange_Value);
+   --  The search calls this from hot ordering/pruning loops but LTO keeps it
+   --  as a standalone function (~6% of bench time in call + cache-line churn
+   --  around the board arrays). Forcing inlining lets each call site fold
+   --  against its own arguments; the tree walk itself is unchanged, so node
+   --  counts stay bit-identical.
+
    -- Net centipawn outcome, from the point of view of the side to move, of
    -- playing Move: a capture, an en-passant, a promotion, or a QUIET move
    -- (Victim = 0, so a quiet move scores negative exactly when the piece
