@@ -2234,3 +2234,50 @@ levée.
 La release est publiée en **brouillon** par `.github/workflows/release.yml` sur le
 tag `v1.3.3` ; la publication reste une décision humaine. Les workflows
 `release.yml` portent désormais `1.3.3` en défaut et en repli.
+
+---
+
+## 91. Release 1.4.0 — SEE inliné, Syzygy auto-config, outillage Elo
+
+Version `1.4.0` (`BBChess.Text.BabaChess_Version`), notes
+`RELEASE_NOTES_1.4.0.md`. Le **moteur** change sur trois points, sans modifier
+l'arbre de recherche :
+
+- **SEE inliné** (`pragma Inline_Always` sur `Static_Exchange_Value`,
+  `src/bbchess-see.ads`) : LTO le laissait hors ligne (~6 % du temps d'auto sur
+  `--bench`) ; le forcer supprime l'appel et la pression de cache autour des
+  tableaux. Symbole supprimé (vérifié avec `nm`), `--bench` **identique**.
+  Mesure de l'auteur : **+1,1 % médian / +2,3 % meilleur de 9** knps
+  entrelacés. Le warning `-gnatwr` « `Pre` non vérifié » — qui cassait le build
+  `debug -gnatwe` — est neutralisé localement dans la spec.
+- **Auto-configuration Syzygy** (`Load_Default_Syzygy`) : sonde au démarrage
+  `syzygy`, `<exe>/syzygy`, `~/.babachess/syzygy` et `<exe>/../syzygy` pour des
+  `.rtbw`, silencieusement, sans écraser un `SyzygyPath` explicite ; inerte sans
+  tables (donc `--bench`/`--selftest` inchangés). Corrige au passage les erreurs
+  de la contribution d'origine (`Ordinary_File`, `Kind`, forme procédurale de
+  `Get_Next_Entry`, `Start_Search` à 3 arguments, motif `*.rtbw`).
+- **Aging** : la première itération saute le balayage (tables remises à zéro par
+  `Init_Context`) — iso-comportement, `0 / 2 = 0`.
+
+**Outillage / mesure** :
+
+- `scripts/elo_rate.py` (MLE ancré, IC via information de Fisher, `--json`),
+  `scripts/elo_eval.sh` (gauntlet), `scripts/elo_pool.conf` (échelle Stockfish
+  `UCI_Elo` 1800/2200/2600/3000).
+- `scripts/spsa.py --only <regex>` ; correction de la fuite de wrapper de
+  `sprt_params.sh`.
+- `pgn/` : les 800 parties de la première évaluation (ZIP + `README.md`).
+
+**Première évaluation ancrée** : 800 parties (200/adversaire, 100 Blancs +
+100 Noirs), `10+0.1`, livre off, contre SF `UCI_Elo` 1800/2200/2600/3000 →
+**2655** (IC 95 % 2618–2693) sur cette échelle. ⚠️ Les Elo impliqués par ancre
+s'étalent de **2331 à 2756** : l'échelle `UCI_Elo` n'est pas parfaitement
+cohérente vis-à-vis de BabaChess (et/ou effet de style). Lire la note comme
+**~2600–2700 avec une marge systématique de ±150–200 Elo**, pas « 2655 ± 19 ».
+Détail et PGN dans `pgn/README.md`.
+
+**Vérification** : `--selftest` **146/146** ; `--bench 9/11/12` =
+**488 704 / 1 166 698 / 2 467 322** (identiques à 1.3.3) ; `sym_check` 3000/0.
+
+Release publiée en **brouillon** par `.github/workflows/release.yml` sur le tag
+`v1.4.0` ; la publication reste une décision humaine.

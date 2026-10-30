@@ -6,6 +6,33 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## 1.4.0 (2026-10-30)
+
+**Performance + configuration.** SEE inliné, auto-configuration Syzygy,
+optimisation iso-comportement, et nouvelle chaîne d'évaluation Elo.
+
+- **SEE inliné** (`pragma Inline_Always` sur `Static_Exchange_Value`) : LTO le
+  laissait hors ligne (~6 % du temps en auto sur `--bench`) ; le forcer supprime
+  l'appel et la pression de cache autour des tableaux. Arbre inchangé. Le
+  warning « `Pre` non vérifié » qui cassait le build `debug -gnatwe` est
+  neutralisé localement dans la spec.
+- **Auto-configuration Syzygy** (`Load_Default_Syzygy`) : sonde `syzygy`,
+  `<exe>/syzygy`, `~/.babachess/syzygy` et `<exe>/../syzygy` (`.rtbw`) au
+  démarrage, silencieusement, sans écraser un `SyzygyPath` explicite. Inerte
+  sans tables.
+- **Perf iso-comportement** : le balayage d'aging de l'historique saute la
+  première itération (tables déjà remises à zéro par `Init_Context`).
+- **Outillage** : `spsa.py --only <regex>` ; correction de la fuite de wrapper
+  de `sprt_params.sh` ; **système d'évaluation Elo ancré** (`scripts/elo_rate.py`,
+  `scripts/elo_eval.sh`, `scripts/elo_pool.conf`) ; archive des 800 parties
+  d'évaluation dans `pgn/`.
+- **Mesure** : 800 parties vs Stockfish `UCI_Elo` 1800/2200/2600/3000 (10+0.1)
+  → **2655** (IC 95 % 2618–2693) sur cette échelle, à lire avec une marge
+  systématique (±150–200 Elo) car les ancres ne sont pas parfaitement cohérentes
+  (Elo impliqués 2331…2756). Voir `pgn/README.md`.
+- `--selftest` **146/146**, `--bench 9/11/12` = **488 704 / 1 166 698 / 2 467 322**
+  (inchangés depuis 1.3.3). Version : `BabaChess 1.4.0`.
+
 ## 1.3.3 (2026-10-25)
 
 **Correctif d'évaluation : les finales nulles sont correctement écrêtées
