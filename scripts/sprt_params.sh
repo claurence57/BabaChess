@@ -42,13 +42,14 @@ BASE="$(realpath "$BASE")"
 
 mkdir -p /tmp/opencode
 WRAP="/tmp/opencode/sprt_params_wrap_$$.sh"
-cat > "$WRAP" <<EOF
-#!/bin/sh
-exec "$BASE" --params "$PARAMS" "\$@"
-EOF
-chmod 755 "$WRAP"
 cleanup() { rm -f "$WRAP"; }
 trap cleanup EXIT
+
+cat > "$WRAP" <<EOF
+#!/bin/sh
+exec "\$BABACHESS_BASE" --params "\$BABACHESS_PARAMS" "\$@"
+EOF
+chmod 755 "$WRAP"
 
 echo "params SPRT: OLD = $BASE            (default eval)"
 echo "             NEW = wrapper -> $BASE --params $PARAMS"
@@ -56,4 +57,12 @@ echo "             params: $(tr '\n' ' ' < "$PARAMS")"
 
 # sprt.sh applies --params/--threads to every mode, so the override is honoured
 # on both the UCI and XBoard paths.
-exec "$ROOT/scripts/sprt.sh" "$TC" "$ELO0" "$ELO1" "$MAXGAMES" "$SEED" "$BASE" "$WRAP"
+#
+# The wrapper must stay *lazy*: sprt.sh runs `realpath "$NEW"`, which fails on
+# a dangling symlink -- so we cannot export WRAP as a symlink to the engine
+# (it would be resolved away before the match starts).  Instead the wrapper
+# exec's the engine through env vars set here; `exec` keeps it a single
+# process so cutechess-cli talks directly to the engine over its pipes.
+export BABACHESS_BASE="$BASE"
+export BABACHESS_PARAMS="$PARAMS"
+"$ROOT/scripts/sprt.sh" "$TC" "$ELO0" "$ELO1" "$MAXGAMES" "$SEED" "$BASE" "$WRAP"

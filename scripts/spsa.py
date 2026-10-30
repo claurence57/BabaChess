@@ -135,10 +135,22 @@ def main() -> int:
                     help="SPSA a_k denominator offset")
     ap.add_argument("--search-only", action="store_true",
                     help="tune only the S_* search params (D4), not the eval P_*")
+    ap.add_argument("--only", metavar="REGEX", default=None,
+                    help="restrict tuning to params whose name matches REGEX "
+                         "(re.search, case-sensitive); e.g. --only '^S_LMR' "
+                         "or a single name like --only S_HIST_AGE_PCT")
     args = ap.parse_args()
 
     if args.search_only:
         TUNABLE[:] = TUNABLE_SEARCH
+    if args.only:
+        pat = re.compile(args.only)
+        picked = [p for p in TUNABLE if pat.search(p)]
+        if not picked:
+            print(f"error: --only {args.only!r} matched none of the "
+                  f"{len(TUNABLE)} tunable params", file=sys.stderr)
+            return 2
+        TUNABLE[:] = picked
 
     rng = random.Random(args.seed)
     binary = Path(args.binary).resolve()
