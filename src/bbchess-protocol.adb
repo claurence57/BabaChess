@@ -8,6 +8,7 @@
 
 with Ada.Characters.Handling;
 with Ada.Command_Line;
+with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings.Unbounded;
 
@@ -175,6 +176,86 @@ package body BBChess.Protocol is
    begin
       BBChess.Syzygy.Init (Path, Ok);
    end Configure_Syzygy;
+
+   --  Tablebase autoconfiguration, the Syzygy counterpart of
+   --  Load_Default_Book: probe the conventional locations so a user who
+   --  dropped the .rttb files in ~/.babachess/syzygy (or ./syzygy) gets DTZ
+   --  play without any setoption.  Best-effort and silent, like the book
+   --  search: a missing candidate is the normal case.  Only directories that
+   --  actually contain tablebase files are considered, so an empty leftover
+   --  directory never shadows a real one.
+   procedure Load_Default_Syzygy is
+      Exe : constant String := Ada.Command_Line.Command_Name;
+
+      function Exe_Dir return String is
+         Slash : Natural := 0;
+      begin
+         for I in Exe'Range loop
+            if Exe (I) = '/' then
+               Slash := I;
+            end if;
+         end loop;
+         if Slash = 0 then
+            return ".";
+         end if;
+         return Exe (Exe'First .. Slash - 1);
+      end Exe_Dir;
+
+      D    : constant String := Exe_Dir;
+      Home : constant String :=
+        (if Ada.Environment_Variables.Exists ("HOME")
+         then Ada.Environment_Variables.Value ("HOME") else "");
+
+      function Has_Tablebase (Dir : in String) return Boolean is
+         use Ada.Directories;
+         Search : Search_Type;
+         Found  : Boolean := False;
+      begin
+         if Dir'Length = 0 or else not Exists (Dir)
+           or else Kind_Of (Dir) /= Directory
+         then
+            return False;
+         end if;
+         Start_Search (Search, Dir, "*.rttb", "");
+         while More_Entries (Search) loop
+            declare
+               E : constant Directory_Entry_Type := Get_Next_Entry (Search);
+            begin
+               if Kind_Of (E) = Regular_File then
+                  Found := True;
+                  exit;
+               end if;
+            end;
+         end loop;
+         End_Search (Search);
+         return Found;
+      end Has_Tablebase;
+
+      Candidates : constant array (1 .. 4) of Unbounded_String :=
+        (1 => To_Unbounded_String ("syzygy"),
+         2 => To_Unbounded_String (D & "/syzygy"),
+         3 => To_Unbounded_String (Home & "/.babachess/syzygy"),
+         4 => To_Unbounded_String (D & "/../syzygy"));
+   begin
+      --  An explicit setoption SyzygyPath (or --syzygy) wins: Fathom keeps
+      --  the paths given at its last Init, so probing here would clobber it.
+      if BBChess.Syzygy.Enabled then
+         return;
+      end if;
+      for C in Candidates'Range loop
+         declare
+            Path : constant String := To_String (Candidates (C));
+            Ok   : Boolean;
+         begin
+            if Has_Tablebase (Path) then
+               BBChess.Syzygy.Init (Path, Ok);
+               if Ok then
+                  return;
+               end if;
+            end if;
+         end;
+      end loop;
+   end Load_Default_Syzygy;
 
    procedure Load_Default_Book is
       Exe : constant String := Ada.Command_Line.Command_Name;

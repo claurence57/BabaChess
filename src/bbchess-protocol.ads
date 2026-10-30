@@ -56,8 +56,14 @@ package BBChess.Protocol is
    procedure Configure_Book (Path : in String);
    procedure Configure_Syzygy (Path : in String);
    procedure Load_Default_Book;
+   procedure Load_Default_Syzygy;
    --  Opening-book / tablebase configuration. Kept here so babachess.adb does
    --  not need to depend on the Polyglot / Syzygy packages directly.
+   --  Load_Default_Syzygy probes the conventional tablebase locations
+   --  ("syzygy" next to the working directory or the executable, and
+   --  ~/.babachess/syzygy) best-effort and silently, mirroring the book
+   --  search. A no-op when tables are already configured (--syzygy or
+   --  setoption SyzygyPath).
 
    ----------------------------
    --  Observability (tests) --

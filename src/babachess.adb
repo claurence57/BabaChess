@@ -285,6 +285,12 @@ begin
       end if;
    end;
 
+   -- Tablebase autoconfiguration, the counterpart of the default-book probe:
+   -- ~/.babachess/syzygy and ./syzygy are tried silently when neither
+   -- --syzygy nor setoption SyzygyPath configured tables. A no-op otherwise,
+   -- so bench/selftest behaviour is unchanged on machines without tables.
+   BBChess.Protocol.Load_Default_Syzygy;
+
    Main_Loop : loop
       Ada.Text_IO.Get_Line (Input_Line, Last);
       BBChess.Protocol.Process (Input_Line (1 .. Last));
