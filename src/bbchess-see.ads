@@ -28,6 +28,11 @@ use BBChess.Eval;
 
 package BBChess.See is
 
+   --  Inlining cannot enforce the Pre contract (the callers own it and the
+   --  tree walk is bit-identical); silence the debug-only -gnatwr warning that
+   --  would otherwise fail the -gnatwe CI build.
+   pragma Warnings (Off, "not enforced on inlined subprogram");
+
    function Static_Exchange_Value
      (Position : in Position_Type;
       Move     : in Move_Type) return Score_Type
@@ -44,6 +49,7 @@ package BBChess.See is
                  or else (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0);
 
    pragma Inline_Always (Static_Exchange_Value);
+   pragma Warnings (On, "not enforced on inlined subprogram");
    --  The search calls this from hot ordering/pruning loops but LTO keeps it
    --  as a standalone function (~6% of bench time in call + cache-line churn
    --  around the board arrays). Forcing inlining lets each call site fold
