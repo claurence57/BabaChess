@@ -209,23 +209,21 @@ package body BBChess.Protocol is
       function Has_Tablebase (Dir : in String) return Boolean is
          use Ada.Directories;
          Search : Search_Type;
+         E      : Directory_Entry_Type;
          Found  : Boolean := False;
       begin
          if Dir'Length = 0 or else not Exists (Dir)
-           or else Kind_Of (Dir) /= Directory
+           or else Kind (Dir) /= Directory
          then
             return False;
          end if;
-         Start_Search (Search, Dir, "*.rttb", "");
+         Start_Search (Search, Dir, "*.rtbw");
          while More_Entries (Search) loop
-            declare
-               E : constant Directory_Entry_Type := Get_Next_Entry (Search);
-            begin
-               if Kind_Of (E) = Regular_File then
-                  Found := True;
-                  exit;
-               end if;
-            end;
+            Get_Next_Entry (Search, E);
+            if Kind (E) = Ordinary_File then
+               Found := True;
+               exit;
+            end if;
          end loop;
          End_Search (Search);
          return Found;

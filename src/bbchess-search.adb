@@ -2348,7 +2348,9 @@ package body BBChess.Search is
             --  Age the history heuristics between iterations: halve every
             --  entry so the previous iteration's cutoffs keep a decreasing
             --  influence and the ordering tracks the current tree instead of
-            --  saturating. A no-op on the (still zero) first iteration.
+            --  saturating. Init_Context zeroes both tables at the start of
+            --  every search, so the first iteration would halve ~598k zeros:
+            --  skip it (0 / 2 = 0, so the result is identical).
             if D > 1 then
                for S in Color_Type loop
                   for F in Square_Type loop

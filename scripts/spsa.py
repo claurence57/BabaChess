@@ -137,8 +137,7 @@ def main() -> int:
                     help="tune only the S_* search params (D4), not the eval P_*")
     ap.add_argument("--only", metavar="REGEX", default=None,
                     help="restrict tuning to params whose name matches REGEX "
-                         "(re.search, case-sensitive); e.g. --only '^S_LMR' "
-                         "or a single name like --only S_HIST_AGE_PCT")
+                         "(re.search, case-sensitive); e.g. --only '^P_BISHOP'")
     args = ap.parse_args()
 
     if args.search_only:
@@ -160,6 +159,9 @@ def main() -> int:
     work.mkdir(exist_ok=True)
 
     base = dump_params(binary)
+    if args.only:
+        only = re.compile(args.only)
+        TUNABLE[:] = [n for n in base if only.fullmatch(n)]
     # theta is kept as float so sub-unit SPSA steps accumulate instead of being
     # erased by integer rounding; only the engine-facing files are rounded.
     theta = {k: float(base[k]) for k in TUNABLE if k in base}
