@@ -20,7 +20,6 @@ case "$MODE" in release|portable) ;; *) echo "mode: release or portable" >&2; ex
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-MAJOR="$(gcc -dumpversion | cut -d. -f1)"
 ADALIB="$(gnatls -v 2>/dev/null | sed -n 's#.*: *\(/.*adalib\)$#\1#p' | head -1)"
 if [ -z "$ADALIB" ] || [ ! -f "$ADALIB/libgnat.a" ]; then
   CAND="$(dirname "$(gcc -print-file-name=libgnat.a 2>/dev/null)")"
@@ -29,8 +28,14 @@ fi
 if [ -z "$ADALIB" ] || [ ! -f "$ADALIB/libgnat.a" ]; then
   ADALIB="$(find /usr/lib/gcc -type d -name adalib -print -quit 2>/dev/null || true)"
 fi
-[ -n "$ADALIB" ] && [ -f "$ADALIB/libgnat.a" ] \
-  || { echo "cannot locate adalib/libgnat.a (is GNAT installed?)" >&2; exit 1; }
+[ -n "$ADALIB" ] && [ -f "$ADALIB/libgnat.a" ] && [ -f "$ADALIB/libgnarl.a" ] \
+  || { echo "cannot locate adalib/libgnat.a and libgnarl.a (is GNAT installed?)" >&2; exit 1; }
+
+# The GNAT driver (gcc-<maj>) asks for -lgnat-<maj> / -lgnarl-<maj>. Derive the
+# version from the runtime directory, not from the default `gcc`: on CI the
+# default gcc can differ from the GCC shipped with the installed gnat-<maj>.
+MAJOR="$(basename "$(dirname "$ADALIB")")"
+echo "GNAT runtime: $ADALIB (major $MAJOR)"
 
 mkdir -p build/static-libs
 ln -sf "$ADALIB/libgnat.a"  "build/static-libs/libgnat-$MAJOR.a"
