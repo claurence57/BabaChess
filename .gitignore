@@ -15,6 +15,7 @@ gnatinspect.*
 .idea/*
 .omo/
 *.zip
+!pgn/*.zip
 books/*
 !books/README.md
 debug/*
