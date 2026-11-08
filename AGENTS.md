@@ -104,7 +104,8 @@ mode; `--book`/`--syzygy` only to the playing modes (not probed by
 The engine speaks **both** XBoard and UCI (protocol selected by the `uci`
 command). The UCI search is **asynchronous** (runs in a task): `isready` answers
 `readyok` during a search, `stop` interrupts it, `quit` stops and exits. `go`
-supports `wtime`/`btime`/`winc`/`binc`/`movetime`/`depth`/`nodes`/`infinite`.
+supports `wtime`/`btime`/`winc`/`binc`/`movetime`/`depth`/`nodes`/`infinite`
+and `ponder` (the `bestmove` is held until `ponderhit` or `stop`).
 The XBoard search path is synchronous.
 
 ## Conventions & gotchas
@@ -128,9 +129,10 @@ The XBoard search path is synchronous.
 - Endgame tablebases: Syzygy via **vendored Fathom** (`src/fathom/`, **MIT** —
   see `NOTICE.md`). Enable with `--syzygy <dir>` or UCI `SyzygyPath`; inert
   without `.rtbw`/`.rtbz` files. WDL is probed in the search (no castling
-  rights); no DTZ yet.
-- The UCI `Hash` option is **inert** (the table size is compile-time); the option
-  advertises the real size and warns when a different value is requested.
+  rights); no DTZ in the search (a DTZ root probe is opt-in, `S_Syzygy_Root 1`).
+- The UCI `Hash` option sizes the transposition table at run time (1-1024 MiB,
+  default 64, rounded down to a power-of-two entry count); `Clear Hash` clears
+  it. The UCI `info` line reports `hashfull`, sampled over ~1000 slots.
 - Log notable engine changes in `DEVELOPMENT.md` (French, sectioned) and
   `CHANGELOG.md`, matching the existing style. Licence: GPL-3.0-or-later, except
   the MIT C components (see `NOTICE.md`).
