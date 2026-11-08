@@ -94,6 +94,8 @@ package body BBChess.Protocol.UCI is
                Result.Nodes := Parse_Node_Count (Next, 0);
             elsif Name = "infinite" then
                Result.Infinite := True;
+            elsif Name = "ponder" then
+               Result.Ponder := True;
             end if;
          end;
          I := I + 1;
@@ -106,12 +108,36 @@ package body BBChess.Protocol.UCI is
    ----------------------
 
    function Parse_Setoption (Parameter : in String) return Setoption_Params is
+      N      : constant Natural := Token_Count (Parameter);
       Result : Setoption_Params;
+      Name   : Unbounded_String := Null_Unbounded_String;
+      I      : Natural := 2;   -- token 1 is "setoption", token 2 is "name"
    begin
-      Result.Name     := To_Unbounded_String (To_Lower (Token (Parameter, 2)));
-      Result.Token3   := To_Unbounded_String (To_Lower (Token (Parameter, 3)));
-      Result.Is_Value := Result.Token3 = To_Unbounded_String ("value");
-      Result.Value    := To_Unbounded_String (Token_Rest (Parameter, 4));
+      --  UCI option names may contain spaces ("Move Overhead", "Clear Hash"),
+      --  so the name is every word between "name" and the "value" keyword --
+      --  not just the third token, which is what used to be parsed and made
+      --  any multi-word option unreachable through setoption.
+      while I <= N loop
+         declare
+            T : constant String := To_Lower (Token (Parameter, I));
+         begin
+            if T = "value" then
+               Result.Is_Value := True;
+               if I < N then
+                  Result.Value :=
+                    To_Unbounded_String (Token_Rest (Parameter, I + 1));
+               end if;
+               exit;
+            end if;
+            if Length (Name) > 0 then
+               Append (Name, ' ');
+            end if;
+            Append (Name, T);
+         end;
+         I := I + 1;
+      end loop;
+
+      Result.Name := Name;
       return Result;
    end Parse_Setoption;
 

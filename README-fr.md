@@ -142,9 +142,12 @@ protocole XBoard ou UCI. Les options en ligne de commande incluent
 `--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
 `--bench [depth]`, `--perft <FEN> <depth>`, `--selftest` et `--version`.
 
-Options UCI : `Hash` (inerte, la taille est fixée à la compilation ; l'option
-annonce la taille réelle et avertit en cas de demande différente), `Threads`,
-`OwnBook`, `BookFile`, `SyzygyPath`.
+Options UCI : `Hash` (taille de la table en MiB, 1 à 1024, allouée à
+l'exécution et arrondie à la puissance de deux inférieure ; 64 par défaut),
+`Clear Hash`, `Threads`, `Move Overhead` (millisecondes réservées à chaque coup
+pour la latence GUI/OS, 10 par défaut), `OwnBook`, `BookFile`, `SyzygyPath`.
+`go ponder` est pris en charge : le moteur cherche la position prédite et
+retient son `bestmove` jusqu'à `ponderhit` ou `stop`.
 
 ## Limitations connues
 

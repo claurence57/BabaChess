@@ -135,9 +135,12 @@ options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
 `--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
 `--bench [depth]`, `--perft <FEN> <depth>`, `--selftest` and `--version`.
 
-UCI options: `Hash` (inert — the size is compile-time; the option advertises
-the real size and warns on a different request), `Threads`, `OwnBook`,
-`BookFile`, `SyzygyPath`.
+UCI options: `Hash` (table size in MiB, 1-1024, allocated at run time and
+rounded down to a power of two; default 64), `Clear Hash`, `Threads`,
+`Move Overhead` (milliseconds reserved per move for GUI/OS latency, default
+10), `OwnBook`, `BookFile`, `SyzygyPath`. `go ponder` is supported: the engine
+searches the predicted position and holds its `bestmove` until `ponderhit` or
+`stop`.
 
 ## Known limitations
 

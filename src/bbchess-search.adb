@@ -261,15 +261,28 @@ package body BBChess.Search is
    Data_Age_Shift   : constant := 49;
    Empty_Depth      : constant := 255;
 
-   --  4_194_304 entries x 16 bytes = 64 MiB. A power of two, so the
-   --  two-entry bucket index below stays even (TT_Mask - 1 clears bit 0)
-   --  and the "Bk + 1" slot never runs past the table. Was 2**20 = 16 MiB.
-   TT_Size   : constant := 4_194_304;
-   TT_Mask   : constant := TT_Size - 1;
-   type TT_Table is array (0 .. TT_Size - 1) of TT_Entry;
+   --  The table is allocated at run time so that the UCI "Hash" option can
+   --  size it; the default is the former compile-time 64 MiB. The entry count
+   --  is always a power of two, so the two-entry bucket index below stays
+   --  even (TT_Mask - 1 clears bit 0) and the "Bk + 1" slot never runs past
+   --  the table.
+   Default_TT_MB  : constant := 64;
+   Min_TT_MB      : constant := 1;
+   Max_TT_MB      : constant := 1_024;
+   TT_Entry_Bytes : constant := 16;
+
+   type TT_Array is array (Natural range <>) of TT_Entry;
+   type TT_Array_Access is access all TT_Array;
+
    --  Cache-line aligned so a 16-byte bucket (two entries) never straddles a
-   --  64-byte line; the default link-time alignment is only a coincidence.
-   Transposition_Table : TT_Table with Alignment => 64;
+   --  64-byte line; the default alignment is only a coincidence.
+   for TT_Array'Alignment use 64;
+
+   procedure Free_TT is new Ada.Unchecked_Deallocation (TT_Array, TT_Array_Access);
+
+   Transposition_Table : TT_Array_Access := null;
+   TT_Size : Natural := 0;                                -- entries
+   TT_Mask : Bitboard := 0;                               -- TT_Size - 1
 
    -- Current search generation, used to age entries: an entry left over from
    -- a previous search is replaced before a fresh one.
@@ -288,7 +301,7 @@ package body BBChess.Search is
 
    -- Two entries form a bucket (even index and the next one).
    function TT_Bucket (Position : in Position_Type) return Natural is
-     (Natural (Position.Key and Bitboard (TT_Mask - 1)));
+     (Natural (Position.Key and (TT_Mask - 1)));
    pragma Inline (TT_Bucket);
 
    --  Data field encoding / decoding.
@@ -402,7 +415,10 @@ package body BBChess.Search is
    begin
       -- Cleared entry by entry: an aggregate assignment of the whole table
       -- would be built on the (limited) main-thread stack.
-      for I in Transposition_Table'Range loop
+      if TT_Size = 0 then
+         return;   --  nothing allocated yet (elaboration order)
+      end if;
+      for I in 0 .. TT_Size - 1 loop
          Transposition_Table (I).Data    := Data_Empty;
          -- Empty marker: stored key 0, so Key_Xor = 0 xor Data_Empty = 0.
          -- A probe then matches only if Position.Key = Data_Empty, which a
@@ -410,6 +426,81 @@ package body BBChess.Search is
          Transposition_Table (I).Key_Xor := 0;
       end loop;
    end Clear_Transposition_Table;
+
+   --  Round N down to the nearest power of two (N >= 1).
+   function Power_Of_Two_At_Most (N : in Natural) return Natural is
+      P : Natural := 1;
+   begin
+      while P <= N / 2 loop
+         P := P * 2;
+      end loop;
+      return P;
+   end Power_Of_Two_At_Most;
+
+   --  (Re)allocate the table for a request in MiB. The new table is built
+   --  before the old one is released, so a failed allocation leaves the engine
+   --  with a working (smaller) table rather than none: on Storage_Error the
+   --  request is halved and retried down to Min_TT_MB.
+   procedure Allocate_Transposition_Table (MB : in Natural) is
+      Want    : Natural := Natural'Max (Min_TT_MB, Natural'Min (Max_TT_MB, MB));
+      Entries : Natural;
+      Fresh   : TT_Array_Access;
+   begin
+      loop
+         Entries := Power_Of_Two_At_Most
+                      (Want * (1024 * 1024) / TT_Entry_Bytes);
+         begin
+            Fresh := new TT_Array (0 .. Entries - 1);
+            exit;
+         exception
+            when Storage_Error =>
+               if Want <= Min_TT_MB then
+                  raise;
+               end if;
+               Want := Natural'Max (Min_TT_MB, Want / 2);
+         end;
+      end loop;
+
+      if Transposition_Table /= null then
+         Free_TT (Transposition_Table);
+      end if;
+      Transposition_Table := Fresh;
+      TT_Size := Entries;
+      TT_Mask := Bitboard (Entries - 1);
+      TT_Generation := 0;
+      Clear_Transposition_Table;
+   end Allocate_Transposition_Table;
+
+   --  Per-mille occupancy of the table by entries written during the current
+   --  search generation (the "hashfull" figure UCI reports). Sampled every
+   --  Step slots: a full scan would cost more than the information is worth.
+   function Transposition_Hashfull return Natural is
+      Samples : constant := 1_000;
+      Step    : constant Natural := Natural'Max (1, TT_Size / Samples);
+      Age     : constant Natural := TT_Generation mod 32_768;
+      Used    : Natural := 0;
+      Seen    : Natural := 0;
+   begin
+      if Transposition_Table = null then
+         return 0;
+      end if;
+      declare
+         I : Natural := 0;
+      begin
+         while I < TT_Size loop
+            declare
+               D : constant Bitboard := Transposition_Table (I).Data;
+            begin
+               if Data_Depth_Signed (D) >= 0 and then Data_Age (D) = Age then
+                  Used := Used + 1;
+               end if;
+            end;
+            Seen := Seen + 1;
+            I := I + Step;
+         end loop;
+      end;
+      return Used * 1_000 / Natural'Max (1, Seen);
+   end Transposition_Hashfull;
 
    -- Store a node. Mate scores are normalized by the distance to the root
    -- so they stay comparable across different depths. The two-way bucket
@@ -1053,6 +1144,13 @@ package body BBChess.Search is
          return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
       end Img;
 
+      --  Same for a Natural (the "hashfull" occupancy, per mille).
+      function Img_Nat (X : Natural) return String is
+         S : constant String := Natural'Image (X);
+      begin
+         return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
+      end Img_Nat;
+
       procedure Append_Mate (Positive_Mate : in Boolean; Plies : in Score_Type) is
          M : constant Score_Type :=
            (if Positive_Mate then (Plies + 1) / 2 else Plies / 2);
@@ -1093,6 +1191,7 @@ package body BBChess.Search is
                       Long_Integer (Nodes) * 1000 / Millis
                     else
                       Long_Integer (Nodes) * 1000));
+         Append (" hashfull " & Img_Nat (Transposition_Hashfull));
          if Pv_Len > 0 then
             Append (" pv");
             for I in 1 .. Pv_Len loop
@@ -2515,12 +2614,17 @@ package body BBChess.Search is
    end Reset_Nodes;
 
    function Transposition_Size_MB return Natural is
-      -- Fixed compile-time table: TT_Size entries of TT_Entry bytes.
+      -- Run-time sized table: TT_Size entries of TT_Entry bytes.
       Bytes : constant Natural :=
         TT_Size * (TT_Entry'Size / 8);
    begin
       return Bytes / (1024 * 1024);
    end Transposition_Size_MB;
+
+   procedure Set_Transposition_Size (MB : in Natural) is
+   begin
+      Allocate_Transposition_Table (MB);
+   end Set_Transposition_Size;
 
    function TT_Data_Self_Test return Boolean is
       D : Bitboard;
@@ -2952,6 +3056,9 @@ package body BBChess.Search is
    end Best_Move;
 
 begin
+   -- Size the transposition table (the UCI "Hash" option re-sizes it later).
+   Allocate_Transposition_Table (Default_TT_MB);
+
    -- Precompute the late-move reduction table from the default real
    -- parameters (rebuilt by Set_Search_Real_Param when they are tuned).
    Rebuild_LMR;

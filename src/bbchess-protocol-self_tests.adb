@@ -122,9 +122,19 @@ package body BBChess.Protocol.Self_Tests is
 
       -- "clear hash" form.
       S := BBChess.Protocol.UCI.Parse_Setoption ("name Clear Hash");
-      Assert (To_String (S.Name) = "clear"
-              and then To_String (S.Token3) = "hash",
+      Assert (To_String (S.Name) = "clear hash"
+              and then not S.Is_Value,
               "setoption: clear hash form");
+
+      -- Multi-word name followed by a value: the name is "move overhead",
+      -- not just its first word (the historical parser stopped at token 3
+      -- and made every multi-word option unreachable).
+      S := BBChess.Protocol.UCI.Parse_Setoption
+             ("name Move Overhead value 250");
+      Assert (To_String (S.Name) = "move overhead"
+              and then S.Is_Value
+              and then To_String (S.Value) = "250",
+              "setoption: multi-word name with value");
 
       -- Missing value: nothing past the name.
       S := BBChess.Protocol.UCI.Parse_Setoption ("name OwnBook");
@@ -168,10 +178,10 @@ package body BBChess.Protocol.Self_Tests is
       Reset_Capture;
       BBChess.Protocol.Initialize (Capture'Access);
       BBChess.Protocol.Process ("uci");
-      Assert (N_Lines = 8, "uci handshake emits 8 lines");
+      Assert (N_Lines = 9, "uci handshake emits 9 lines");
       Assert (Captured (1) = "id name BabaChess " & BabaChess_Version,
               "uci: id name");
-      Assert (Captured (8) = "uciok", "uci: final uciok");
+      Assert (Captured (9) = "uciok", "uci: final uciok");
       Assert (BBChess.Protocol.Is_UCI, "uci: mode flag set");
 
       -- isready answers readyok.

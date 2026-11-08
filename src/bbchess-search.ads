@@ -122,9 +122,19 @@ package BBChess.Search is
    -- Reset the node counter (benchmarking).
 
    function Transposition_Size_MB return Natural;
-   -- Size in mebibytes of the transposition table. The table is a
-   -- compile-time-fixed array (not resizable at run time), so this is the
-   -- value reported through the UCI "Hash" option.
+   -- Size in mebibytes of the transposition table. The table is allocated at
+   -- run time (and re-sized by Set_Transposition_Size); this is the value
+   -- reported through the UCI "Hash" option.
+
+   procedure Set_Transposition_Size (MB : in Natural);
+   -- (Re)allocate the transposition table for a request in mebibytes, clamped
+   -- to 1 .. 1024 and rounded down to a power-of-two entry count, then clear
+   -- it. Must not be called while a search is running. On Storage_Error the
+   -- request is halved until it fits; the old table stays valid on failure.
+
+   function Transposition_Hashfull return Natural;
+   -- Per-mille (0 .. 1000) of the table occupied by entries written during
+   -- the current search generation. Sampled, so it costs O(1000) per call.
 
    function TT_Data_Self_Test return Boolean;
    -- Round-trip check of the packed TT payload (score min/max and mate,

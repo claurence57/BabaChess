@@ -30,6 +30,7 @@ package BBChess.Protocol.UCI is
          Has_Depth    : Boolean  := False;
          Nodes        : BBChess.Search.Node_Count_Type := 0;
          Infinite     : Boolean  := False;
+         Ponder       : Boolean  := False;
       end record;
 
    function Parse_Go (Parameter : in String) return Go_Params;
@@ -41,16 +42,15 @@ package BBChess.Protocol.UCI is
    --  command loop compared case-insensitively.
    type Setoption_Params is
       record
-         Name     : Unbounded_String;
-         Token3   : Unbounded_String;   -- third token, lower-cased
-         Is_Value : Boolean;            -- third token is exactly "value"
-         Value    : Unbounded_String;   -- everything from the fourth token
+         Name     : Unbounded_String;   -- every word between "name" and "value"
+         Is_Value : Boolean := False;   -- a "value" keyword was present
+         Value    : Unbounded_String;   -- everything after the "value" keyword
       end record;
 
    function Parse_Setoption (Parameter : in String) return Setoption_Params;
-   --  Split a "setoption name <name> value <value>" line. The name and the
-   --  third token are lower-cased (UCI is case-insensitive); the value keeps
-   --  its original case and may contain spaces (a path).
+   --  Split a "setoption name <name> value <value>" line. The name may contain
+   --  spaces ("Move Overhead", "Clear Hash") and is lower-cased; the value
+   --  keeps its original case and may contain spaces (a path).
 
    function Token_Count (S : in String) return Natural;
    --  Number of space separated tokens.

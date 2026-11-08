@@ -73,6 +73,10 @@ package body BBChess.Protocol is
    Time_Increment : Duration := 0.0;
    Moves_To_Go    : Natural := 0;
    Moves_Per_Session : Natural := 0;
+   --  Time the engine hands back to the GUI/OS on every move (I/O, process
+   --  scheduling, GUI lag). Subtracted from the clock before the budget is
+   --  computed; the UCI "Move Overhead" option sets it in milliseconds.
+   Move_Overhead  : Duration := 0.010;
    Max_Depth      : Natural := 64;
 
    Book_Max_Ply : constant := 16;
@@ -118,14 +122,17 @@ package body BBChess.Protocol is
    -----------------------
 
    function Time_For_Next_Move return BBChess.Clocks.Allocation is
+      --  The overhead is taken off the clock, not off the budget: it stays an
+      --  absolute amount of time even when the remaining clock is small.
+      Usable : constant Duration := Clock_Left - Move_Overhead;
    begin
       if Fixed_Time then
          return Exact (Move_Time);
       end if;
-      if Clock_Left <= 0.0 then
+      if Clock_Left <= 0.0 or else Usable <= 0.0 then
          return Exact (Move_Time);
       end if;
-      return Clock_Based (Clock_Left, Time_Increment, Moves_To_Go);
+      return Clock_Based (Usable, Time_Increment, Moves_To_Go);
    end Time_For_Next_Move;
 
    procedure Consume_Move_Count is
@@ -324,11 +331,41 @@ package body BBChess.Protocol is
 
    UCI_Busy : UCI_Status;
 
+   --  "ponderhit" arrives from the command loop while the search task owns
+   --  the best move: a protected flag carries the event across the task
+   --  boundary without polling shared unprotected state.
+   protected type Ponder_State is
+      procedure Hit;
+      procedure Clear;
+      function  Hitting return Boolean;
+   private
+      H : Boolean := False;
+   end Ponder_State;
+
+   protected body Ponder_State is
+      procedure Hit is
+      begin
+         H := True;
+      end Hit;
+
+      procedure Clear is
+      begin
+         H := False;
+      end Clear;
+
+      function Hitting return Boolean is
+      begin
+         return H;
+      end Hitting;
+   end Ponder_State;
+
+   Ponder_Hit : Ponder_State;
+
    task type UCI_Search_Task is
       entry Start (P : in Position_Type; D : in Natural;
                    Soft : in Duration; Hard : in Duration;
                    Node_Cap : in BBChess.Search.Node_Count_Type;
-                   Infinite : in Boolean);
+                   Infinite : in Boolean; Ponder : in Boolean);
       entry Stop_Now;
    end UCI_Search_Task;
 
@@ -340,20 +377,23 @@ package body BBChess.Protocol is
       Hard_Alloc : Duration;
       Cap      : BBChess.Search.Node_Count_Type;
       Inf      : Boolean;
+      Pond     : Boolean;
    begin
       loop
          select
             accept Start (P : in Position_Type; D : in Natural;
                           Soft : in Duration; Hard : in Duration;
                           Node_Cap : in BBChess.Search.Node_Count_Type;
-                          Infinite : in Boolean)
+                          Infinite : in Boolean; Ponder : in Boolean)
             do
                Inf := Infinite;
+               Pond := Ponder;
                Position := P;
                Depth  := D;
                Soft_Alloc := Soft;
                Hard_Alloc := Hard;
                Cap    := Node_Cap;
+               Ponder_Hit.Clear;
                UCI_Busy.Set_Busy (True);
                Clear_Stop;
             end Start;
@@ -374,7 +414,15 @@ package body BBChess.Protocol is
                   M := Empty_Move;
             end;
 
-            while Inf and then not Stop_Requested loop
+            --  Hold the best move until the opponent actually plays it
+            --  ("ponderhit") or the GUI calls it off ("stop"/"quit"). The
+            --  search itself runs with the normal budget, so the time spent
+            --  pondering is not reclaimed: on ponderhit the move is emitted
+            --  at once instead of being re-timed.
+            while (Inf or Pond)
+              and then not Stop_Requested
+              and then not (Pond and then Ponder_Hit.Hitting)
+            loop
                delay 0.005;
             end loop;
 
@@ -554,7 +602,9 @@ package body BBChess.Protocol is
       Moves_To_Go := Go.Movestogo;
       Max_Depth := Go.Depth;
 
-      if not Go.Infinite and then Go.Nodes = 0 and then not UCI_Busy.Busy then
+      if not Go.Infinite and then not Go.Ponder
+        and then Go.Nodes = 0 and then not UCI_Busy.Busy
+      then
          declare
             BM : Move_Type;
          begin
@@ -585,7 +635,7 @@ package body BBChess.Protocol is
 
          Ensure_UCI_Task;
          Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Go.Nodes, Go.Infinite);
+                            Go.Nodes, Go.Infinite, Go.Ponder);
       end;
    end Handle_UCI_Go;
 
@@ -600,8 +650,9 @@ package body BBChess.Protocol is
       Emit ("id name BabaChess " & BabaChess_Version);
       Emit ("id author BabaChess");
       Emit ("option name Hash type spin default " & Size
-            & " min " & Size & " max " & Size);
+            & " min 1 max 1024");
       Emit ("option name Threads type spin default 1 min 1 max 16");
+      Emit ("option name Move Overhead type spin default 10 min 0 max 5000");
       Emit ("option name OwnBook type check default true");
       Emit ("option name BookFile type string default books/book.bin");
       Emit ("option name SyzygyPath type string default <empty>");
@@ -616,27 +667,45 @@ package body BBChess.Protocol is
       use Ada.Characters.Handling;
       Opt : constant UCI.Setoption_Params := UCI.Parse_Setoption (Par);
       Name  : constant String := To_String (Opt.Name);
-      Token3 : constant String := To_String (Opt.Token3);
       Value : constant String := To_String (Opt.Value);
+
+      --  Dispatch key: the option name with its spaces removed, so that both
+      --  "SyzygyPath" (what this engine advertises) and "Syzygy Path" (what a
+      --  user may type, and what some GUIs send) reach the same branch.
+      function No_Spaces (S : in String) return String is
+         R : String (1 .. S'Length);
+         N : Natural := 0;
+      begin
+         for C of S loop
+            if C /= ' ' then
+               N := N + 1;
+               R (N) := C;
+            end if;
+         end loop;
+         return R (1 .. N);
+      end No_Spaces;
+
+      Key : constant String := No_Spaces (Name);
    begin
       if UCI_Busy.Busy then
          Emit ("info string setoption ignored while searching");
-      elsif Name = "clear" and then Token3 = "hash" then
+      elsif Key = "clearhash" then
          Reset_Search;
-      elsif Name = "hash" and then Opt.Is_Value then
-         if UCI.Parse_Natural (Value, 0) /= Transposition_Size_MB then
-            Emit ("info string Hash size is fixed at "
-                  & Trim_Both (Natural'Image (Transposition_Size_MB))
-                  & " MB (compile-time); clearing table");
-         end if;
+      elsif Key = "hash" and then Opt.Is_Value then
+         Set_Transposition_Size (UCI.Parse_Natural (Value, 0));
+         Emit ("info string Hash size "
+               & Trim_Both (Natural'Image (Transposition_Size_MB)) & " MB");
          Reset_Search;
-      elsif Name = "threads" and then Opt.Is_Value then
+      elsif Key = "moveoverhead" and then Opt.Is_Value then
+         Move_Overhead :=
+           Duration (Natural'Min (5_000, UCI.Parse_Natural (Value, 10))) / 1000.0;
+      elsif Key = "threads" and then Opt.Is_Value then
          Set_Threads (UCI.Parse_Natural (Value, 1));
-      elsif Name = "ownbook" and then Opt.Is_Value then
+      elsif Key = "ownbook" and then Opt.Is_Value then
          Own_Book := To_Lower (Value) = "true";
-      elsif Name = "bookfile" and then Opt.Is_Value then
+      elsif Key = "bookfile" and then Opt.Is_Value then
          Configure_Book (Value);
-      elsif Name = "syzygypath" and then Opt.Is_Value then
+      elsif Key = "syzygypath" and then Opt.Is_Value then
          Configure_Syzygy (Value);
       end if;
    end Handle_UCI_Setoption;
@@ -734,9 +803,12 @@ package body BBChess.Protocol is
                   Request_Stop;
                end if;
 
+            elsif Cmd = "ponderhit" and then UCI_Mode then
+               --  The predicted move was played: release the held best move.
+               Ponder_Hit.Hit;
+
             elsif UCI_Mode
-              and then (Cmd = "ponderhit" or else Cmd = "debug"
-                        or else Cmd = "register")
+              and then (Cmd = "debug" or else Cmd = "register")
             then
                null;
 

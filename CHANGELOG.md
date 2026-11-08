@@ -6,6 +6,36 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## Non publié
+
+**Configuration UCI et protocole.** Arbre de recherche inchangé (les compteurs
+de nœuds de `--bench 9/12/14` sont identiques : 488 704 / 2 467 322 / 5 454 471).
+
+- **Table de transposition dimensionnable** : allouée à l'exécution (64 Mio par
+  défaut) au lieu d'être un tableau statique ; l'option UCI `Hash` accepte
+  1 à 1024 Mio, arrondit au nombre d'entrées puissance de deux inférieur et
+  réalloue. `Clear Hash` vide la table. En cas de `Storage_Error` la demande est
+  divisée par deux jusqu'à tenir, et l'ancienne table reste valide.
+- **`hashfull`** dans la ligne `info` (occupation de la table par la génération
+  courante, échantillonnée sur ~1000 emplacements).
+- **`go ponder`** : le moteur cherche la position prédite et **retient** son
+  `bestmove` jusqu'à `ponderhit` ou `stop`. Auparavant il répondait
+  immédiatement, ce qui cassait la pondération côté GUI. La recherche garde son
+  budget normal : le temps passé à pondérer n'est pas récupéré.
+- **`Move Overhead`** (0 à 5000 ms, 10 par défaut) : temps rendu au GUI/OS à
+  chaque coup, déduit de l'horloge avant le calcul du budget.
+- **Analyseur `setoption` multi-mots** : le nom de l'option est désormais tout
+  ce qui sépare `name` de `value`. L'ancien analyseur ne lisait qu'un seul mot,
+  ce qui rendait inatteignable toute option à nom composé (`Move Overhead`) et
+  obligeait à un cas particulier pour `Clear Hash`. Les espaces sont ignorés à
+  la répartition, donc `Syzygy Path` et `SyzygyPath` aboutissent au même code.
+- **Correctif** : `Setoption_Params.Is_Value` n'avait pas de valeur par défaut
+  (champ non initialisé quand la ligne ne contenait pas `value`).
+- **Tests** : deux vérifications mises à jour (poignée de main à 9 lignes,
+  `Clear Hash` analysé comme nom composé) et une ajoutée (option à nom composé
+  avec valeur). Suite : 146 vérifications suivies par le harnais, 0 échec ; les
+  assertions du paquet protocole, qui lèvent au lieu de compter, restent vertes.
+
 ## 1.4.0 (2026-10-30)
 
 **Performance + configuration.** SEE inliné, auto-configuration Syzygy,
