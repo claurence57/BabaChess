@@ -2399,3 +2399,82 @@ du bench est identique. Le gain est démontré quand la table est sous pression
 **Vérification** : `--selftest` **146/146** en debug `-gnatwe`, release,
 portable et checked ; `--bench 9/12/14` identiques à HEAD ; `--dump-params`
 expose les trois nouveaux paramètres ; `scripts/check_docs.py` OK.
+
+---
+
+## 94. Recherche : ProbCut (`S_Probcut`) — SPRT PASS au réglage 170/8
+
+Item 5 de la feuille de route (`~/notes/babachess-pistes-elo.md`). Technique
+standard : si une capture déjà gagnante en échange statique, cherchée avec une
+borne bêta **relevée** et une profondeur **réduite**, dépasse cette borne
+relevée, le nœud est considéré comme réfuté sans payer la recherche pleine.
+
+### 94.1 Implémentation
+
+Bloc placé après le null-move et avant l'ordonnancement, sur la liste de coups
+légaux déjà générée (aucune génération supplémentaire) :
+
+- conditions : `S_Probcut = 1`, hors échec, **nœud non PV** (`Beta − Alpha > 1`
+  faux : la ligne principale doit rester exacte), `Depth >= S_Probcut_Depth`
+  (5), `Beta + Marge < Mate_Threshold` — sinon un score renvoyé au-dessus de la
+  bande de mat serait lu comme un mat prouvé ;
+- candidats : les coups tactiques dont `Static_Exchange_Value >= S_Probcut_Margin`,
+  au plus `S_Probcut_Max` — la liste est encore dans l'ordre du générateur
+  (l'ordonnancement MVV-LVA n'a pas encore eu lieu), donc ce sont « les N
+  premiers coups tactiques qui passent le filtre SEE » ;
+- sonde : `-Negamax (Depth − S_Probcut_Red, Ply + 1, −(Beta+Marge),
+  −(Beta+Marge)+1)` ; `Depth` borné à 1 si la réduction dépasse la profondeur ;
+  si le score atteint la borne relevée, le nœud renvoie ce score.
+- Paramètres : `S_Probcut` (défaut **1**), `S_Probcut_Depth` (5),
+  `S_Probcut_Margin` (170), `S_Probcut_Red` (4), `S_Probcut_Max` (8).
+  `S_Probcut 0` est **bit-identique** à l'arbre d'avant
+  (`--bench 9/12/14` = 488 704 / 2 467 322 / 5 454 471).
+
+### 94.2 Coût (`--bench`, défaut avec ProbCut)
+
+| Profondeur | Nœuds (sans → avec) | Knps |
+|---|---|---|
+| 9 | 488 704 → 455 176 (**−7 %**) | inchangé (~730) |
+| 12 | 2 467 322 → 1 784 546 (**−28 %**) | inchangé |
+| 14 | 5 454 471 → 5 215 141 (**−4 %**) | inchangé |
+
+### 94.3 Mesures (auto-match, même binaire, `--params` d'un seul côté)
+
+Protocole des campagnes : `20 000` nœuds/coup, `Hash 8 Mio`, `openings.epd`
+ordre aléatoire, `-repeat`, `concurrency 5`, threads 1, bornes `[0, 5]`,
+alpha = bêta = 0,05.
+
+| Réglage | W–L–D | Score | Élo | LLR | Verdict |
+|---|---|---|---|---|---|
+| marge 200, max 3 | 1109–1107–784 (3000 p.) | 50,03 % | **+0,23 ± 10,45** | −0,28 | neutre |
+| marge 170, max 8 | 727–536–481 (1744 p.) | 55,48 % | **+38,20 ± 14,29** | **+2,96** | **PASS** (H1 accepté) |
+
+Le premier réglage, trop restrictif (3 captures sondées, marge élevée), ne
+déclenche presque jamais et ne rapporte rien ; en élargissant le sondage (8
+captures, marge 170) le gain apparaît nettement — l'effet vient du **nombre de
+nœuds réfutés**, pas de la finesse de la borne. `nElo` +43,98 ± 16,31 au
+réglage retenu.
+
+### 94.4 Confirmation en configuration livrée (`10+0.1`, Hash 64 Mio)
+
+800 parties contre le binaire du commit précédent (`7820a4d`, politique TT
+seule) :
+
+| W–L–D | Score | Élo | LOS | LLR | Verdict |
+|---|---|---|---|---|---|
+| 248–218–334 | 51,88 % | **+13,03 ± 18,17** | 92,1 % | +0,49 | non tranché à 800 parties, estimation positive |
+
+Comme pour la politique TT (§93), le gain mesuré en nœuds fixes est plus grand
+que celui de la cadence réelle — à `10+0.1` le moteur cherche déjà profond, où
+les nœuds économisés valent moins d'Elo. Le signe reste positif et rien ne
+contredit le PASS.
+
+### 94.5 État
+
+**Activé par défaut** (marge 170, max 8, profondeur minimale 5, réduction 4).
+Réglages non balayés : une marge plus basse (140-150) ou une réduction plus
+forte (5) restent à tester si l'on veut pousser ; `S_Probcut 0` désactive tout.
+
+**Vérification** : `--selftest` **146/146** en debug `-gnatwe`, release,
+portable et checked ; `--bench 9/12/14` = 455 176 / 1 784 546 / 5 215 141 avec
+ProbCut et identiques à HEAD quand il est coupé ; `scripts/check_docs.py` OK.

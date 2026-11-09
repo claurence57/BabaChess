@@ -8,6 +8,25 @@
 
 ## Non publié
 
+**Recherche : ProbCut (`S_Probcut`, activé par défaut).** Sur un nœud non PV,
+hors échec et à `Depth >= 5`, une capture dont la SEE atteint
+`S_Probcut_Margin = 170` est cherchée avec une borne bêta relevée de cette
+marge et 4 plis de moins (8 captures au plus) ; si la sonde atteint la borne
+relevée, le nœud est réfuté sans la recherche pleine.
+
+- Mesure **PASS** en nœuds fixes (auto-match, même binaire, 20 000 nœuds/coup,
+  `Hash 8 Mio`) : **+38,20 ± 14,29** Elo, nElo +43,98 ± 16,31, LOS 100 %,
+  LLR +2,96, H1 accepté à 1 744 parties. Réglage plus restrictif
+  (marge 200, 3 captures) mesuré **neutre** (+0,23 ± 10,45 sur 3 000 parties).
+- Configuration livrée (`10+0.1`, `Hash 64`) : **+13,03 ± 18,17** Elo sur
+  800 parties (LOS 92 %), non tranché à cette cadence mais du même signe.
+  Détail : `DEVELOPMENT.md` §94.
+- Coût : `--bench 9/12/14` = **455 176 / 1 784 546 / 5 215 141** nœuds
+  (−7 % / −28 % / −4 %), knps inchangé ; `S_Probcut 0` rend l'arbre
+  bit-identique à HEAD (488 704 / 2 467 322 / 5 454 471).
+- La doc de recherche ne décrit plus ProbCut comme « en cours
+  d'expérimentation ».
+
 **Recherche : politique de remplacement de la transposition table
 (`S_Tt_Replace`, activée par défaut).** L'ancienne règle était purement
 *depth-preferred* ; chaque entrée a désormais une valeur de conservation

@@ -248,7 +248,13 @@ that the node is neither in check nor in a mate position.
   check** (tested after `Make_Move`, on the opponent's position). A fail-high of the
   reduced search is **always re-verified at full depth** (correction
   of Phase 0).
-- **ProbCut**: see the "under experimentation" section.
+- **ProbCut** (`S_Probcut`): at a **non-PV** node, outside check and at
+  `Depth >= 5`, a capture whose SEE reaches `S_Probcut_Margin = 170` is
+  searched with beta raised by that margin at a depth reduced by 4 plies
+  (at most `S_Probcut_Max = 8` captures); if the probe reaches the raised
+  bound the node is refuted without the full search. Measured
+  **+38.2 ± 14.3** Elo at fixed nodes (SPRT PASS), `+13.0 ± 18.2` at `10+0.1`
+  (`DEVELOPMENT.md` §94).
 
 ## Check extension
 
@@ -317,6 +323,9 @@ which only gives a key-consistent node, possibly shallower.
 - **TT replacement policy** (keep-score = depth + PV bonus − age penalty,
   `S_Tt_Replace`): **+8.08 ± 2.91** Elo in a saturated table (SPRT PASS), same
   point estimate at `10+0.1`/64 MiB (`DEVELOPMENT.md` §93).
+- **ProbCut** (`S_Probcut`): **+38.20 ± 14.29** Elo at fixed nodes (SPRT PASS
+  at 1 744 games, LLR +2.96), `+13.03 ± 18.17` at `10+0.1` over 800 games;
+  enabled by default (`DEVELOPMENT.md` §94).
 - **Null-move pruning** (`Null_Reduction = 2`) and **reverse futility** at
   depth 1.
 - **Phase 0 (correction)**: full re-search of every LMR fail-high, history
@@ -368,17 +377,8 @@ which only gives a key-consistent node, possibly shallower.
 
 ### Under experimentation
 
-- **ProbCut**: present in the working tree (not committed). At
-  `Depth >= ProbCut_Min_Depth = 5`, outside check, one searches a small number of
-  promising captures (`ProbCut_Max_Moves = 2`, those whose
-  `Static_Exchange_Value >= ProbCut_Margin = 200`) with a **raised** beta window
-  (`B + ProbCut_Margin`) and a reduced depth
-  (`Depth - ProbCut_Depth = 4`). If this probe exceeds the raised bound, the node
-  is considered refuted and the score is returned without paying the
-  full-depth search. Standard technique (see the references), but **not yet
-  validated**: it must pass `--selftest`, a stable `--bench`, then a
-  SPRT campaign of several hundred games, as the singular
-  extensions were.
+*(nothing in progress: ProbCut is now validated, see above and
+`DEVELOPMENT.md` §94.)*
 
 ## References
 

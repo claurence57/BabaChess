@@ -182,6 +182,15 @@ package BBChess.Search is
       S_Tt_Replace,       -- 1 = scored (depth + PV - age) replacement
       S_Tt_Pv_Bonus,      -- plies of extra value for an exact (PV) entry
       S_Tt_Age_Penalty,   -- value lost by an entry of an older generation
+      --  ProbCut: at a non-PV node deep enough, a capture with a high static
+      --  exchange value (>= S_Probcut_Margin) is searched with beta raised by
+      --  that margin and a reduced depth; if the probe already beats the
+      --  raised bound the node is refuted without the full-width search.
+      S_Probcut,          -- 1 = ProbCut enabled
+      S_Probcut_Depth,    -- minimum remaining depth
+      S_Probcut_Margin,   -- beta raise and SEE threshold (centipawns)
+      S_Probcut_Red,      -- depth reduction of the probe
+      S_Probcut_Max,      -- maximum number of captures probed
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
       S_Asp_Grow,         -- 1 = aspiration window widened gradually
       S_QChecks,          -- 1 = quiet checks at the first quiescence ply

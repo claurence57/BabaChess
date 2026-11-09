@@ -249,7 +249,13 @@ qu'on n'est ni en échec ni dans une position de mat.
   échec** (testé après `Make_Move`, sur la position adverse). Un fail-high de la
   recherche réduite est **toujours re-vérifié à profondeur pleine** (correction
   de la Phase 0).
-- **ProbCut** : voir la section « en cours d'expérimentation ».
+- **ProbCut** (`S_Probcut`) : sur un nœud **non PV**, hors échec et à
+  `Depth >= 5`, une capture dont la SEE atteint `S_Probcut_Margin = 170` est
+  cherchée avec une borne bêta relevée de cette marge et une profondeur
+  réduite de 4 plis (`S_Probcut_Max = 8` captures au plus) ; si la sonde atteint
+  la borne relevée, le nœud est réfuté sans recherche pleine. Mesuré
+  **+38,2 ± 14,3** Elo en nœuds fixes (SPRT PASS), `+13,0 ± 18,2` à `10+0.1`
+  (`DEVELOPMENT.md` §94).
 
 ## Extension en échec
 
@@ -319,6 +325,9 @@ ce qui ne donne qu'un nœud cohérent sur la clé, éventuellement moins profond
   profondeur + bonus PV − pénalité d'âge, `S_Tt_Replace`) : **+8,08 ± 2,91** Elo
   en table saturée (SPRT PASS), estimation cohérente à `10+0.1`/64 Mio
   (`DEVELOPMENT.md` §93).
+- **ProbCut** (`S_Probcut`) : **+38,20 ± 14,29** Elo en nœuds fixes (SPRT PASS
+  à 1 744 parties, LLR +2,96), `+13,03 ± 18,17` à `10+0.1` sur 800 parties ;
+  activé par défaut (`DEVELOPMENT.md` §94).
 - **Null-move pruning** (`Null_Reduction = 2`) et **reverse futility** à
   profondeur 1.
 - **Phase 0 (correction)** : re-recherche pleine de tout fail-high LMR, history
@@ -370,17 +379,8 @@ ce qui ne donne qu'un nœud cohérent sur la clé, éventuellement moins profond
 
 ### En cours d'expérimentation
 
-- **ProbCut** : présent dans l'arbre de travail (non commité). À
-  `Depth >= ProbCut_Min_Depth = 5`, hors échec, on cherche un petit nombre de
-  captures prometteuses (`ProbCut_Max_Moves = 2`, celles dont
-  `Static_Exchange_Value >= ProbCut_Margin = 200`) avec une fenêtre bêta
-  **relevée** (`B + ProbCut_Margin`) et une profondeur réduite
-  (`Depth - ProbCut_Depth = 4`). Si cette sonde dépasse la borne relevée, le nœud
-  est considéré comme réfuté et le score est renvoyé sans payer la recherche
-  pleine profondeur. Technique standard (voir les références), mais **pas encore
-  validée** : elle doit passer `--selftest`, un `--bench` stable, puis une
-  campagne SPRT de plusieurs centaines de parties, comme l'ont été les singular
-  extensions.
+*(aucune technique en cours : ProbCut est désormais validé, voir ci-dessus et
+`DEVELOPMENT.md` §94.)*
 
 ## Références
 

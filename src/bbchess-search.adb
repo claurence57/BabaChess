@@ -107,6 +107,19 @@ package body BBChess.Search is
       S_Tt_Replace           => 1,
       S_Tt_Pv_Bonus          => 4,
       S_Tt_Age_Penalty       => 24,
+      --  ProbCut (S_Probcut): at a non-PV node deep enough, a capture with a
+      --  static exchange value >= S_Probcut_Margin is searched with beta
+      --  raised by that margin at a reduced depth; a probe that beats the
+      --  raised bound refutes the node without the full-width search.
+      --  SPRT PASS vs the previous build at 20 000 nodes/move, Hash 8 MiB:
+      --  +38,2 +/- 14,3 Elo (nElo +44 +/- 16, LLR +2,96, H1 at 1744 games)
+      --  with margin 170 / max 8; margin 200 / max 3 was neutral
+      --  (-0,0 +/- 10,5 over 3000 games) -- DEVELOPMENT.md §94.
+      S_Probcut              => 1,
+      S_Probcut_Depth        => 5,
+      S_Probcut_Margin       => 170,
+      S_Probcut_Red          => 4,
+      S_Probcut_Max          => 8,
       S_Lmr_Hist             => 8_192,
       S_Asp_Grow             => 1,
       --  Checks in quiescence (S_QChecks): quiet checks at the FIRST
@@ -154,6 +167,11 @@ package body BBChess.Search is
       S_Tt_Replace           => 0,
       S_Tt_Pv_Bonus          => 0,
       S_Tt_Age_Penalty       => 0,
+      S_Probcut              => 0,
+      S_Probcut_Depth        => 0,
+      S_Probcut_Margin       => 0,
+      S_Probcut_Red          => 0,
+      S_Probcut_Max          => 0,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0,
       S_QChecks              => 0,
@@ -199,6 +217,11 @@ package body BBChess.Search is
       S_Tt_Replace           => 1,
       S_Tt_Pv_Bonus          => 64,
       S_Tt_Age_Penalty       => 128,
+      S_Probcut              => 1,
+      S_Probcut_Depth        => 16,
+      S_Probcut_Margin       => 32_000,
+      S_Probcut_Red          => 16,
+      S_Probcut_Max          => 64,
       S_Lmr_Hist             => 1_000_000,
       S_Asp_Grow             => 1,
       S_QChecks              => 1,
@@ -2071,6 +2094,57 @@ package body BBChess.Search is
             Position.Key := Saved_Key;
             if N_Score >= B then
                return N_Score;
+            end if;
+         end;
+      end if;
+
+      -- ProbCut: a capture worth at least the margin, searched with beta
+      -- raised by the margin at a reduced depth, already proves the node
+      -- fails high when the probe beats the raised bound. Restricted to
+      -- non-PV nodes: the principal variation must be exact, not a probe.
+      if Search_Params (S_Probcut) /= 0
+        and then not In_Check
+        and then not Is_PV
+        and then Depth >= Natural (Search_Params (S_Probcut_Depth))
+      then
+         declare
+            Margin : constant Score_Type := Search_Params (S_Probcut_Margin);
+            -- The raised bound must stay out of the mate band: a returned
+            -- score at or above Mate_Threshold would be read as a proven mate.
+            Bound  : constant Score_Type := B + Margin;
+            Red    : constant Natural := Natural (Search_Params (S_Probcut_Red));
+            Enemy  : constant Bitboard :=
+              Color_Board (Position, Opposite (Position.Side));
+            -- Never recurse with a negative depth (Red may exceed Depth).
+            Probe_Depth : constant Natural :=
+              (if Red >= Depth then 1 else Depth - Red);
+            Probed : Natural := 0;
+         begin
+            if Margin > 0 and then Bound < Mate_Threshold then
+               for I in 1 .. Count loop
+                  exit when Probed >= Natural (Search_Params (S_Probcut_Max));
+                  if (Moves (I).Flag in En_Passant | Promotion
+                      or else (Enemy and Bit (Moves (I).To)) /= 0)
+                    and then Static_Exchange_Value (Position, Moves (I)) >= Margin
+                  then
+                     Probed := Probed + 1;
+                     declare
+                        Undo  : Undo_Info;
+                        Score : Score_Type;
+                     begin
+                        Make_Move (Position, Moves (I), Undo);
+                        if Ply <= Max_Ply then
+                           Ctx.Move_Path (Ply) := Moves (I);
+                        end if;
+                        Score := -Negamax (Ctx, Position, Probe_Depth, Ply + 1,
+                                            -Bound, -Bound + 1);
+                        Unmake_Move (Position, Moves (I), Undo);
+                        if Score >= Bound then
+                           return Score;
+                        end if;
+                     end;
+                  end if;
+               end loop;
             end if;
          end;
       end if;
