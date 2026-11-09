@@ -2478,3 +2478,40 @@ forte (5) restent à tester si l'on veut pousser ; `S_Probcut 0` désactive tout
 **Vérification** : `--selftest` **146/146** en debug `-gnatwe`, release,
 portable et checked ; `--bench 9/12/14` = 455 176 / 1 784 546 / 5 215 141 avec
 ProbCut et identiques à HEAD quand il est coupé ; `scripts/check_docs.py` OK.
+
+### 94.6 Balayage des paramètres — l'écran en nœuds fixes surestime les réglages agressifs
+
+Quatre variantes comparées au réglage livré (marge 170, 8 captures, profondeur
+minimale 5, réduction 4), chacune par un auto-match du même binaire avec
+`--params` d'un seul côté, à `20 000` nœuds/coup et `Hash 8 Mio` :
+
+| Candidat | Parties | Score | Élo | LLR | Verdict |
+|---|---|---|---|---|---|
+| marge 150 | 2000 | 49,60 % | −2,78 ± 13,55 | −0,47 | neutre |
+| réduction 5 | 2000 | 49,68 % | −2,26 ± 12,53 | −0,43 | neutre |
+| **profondeur min 4** | 1630 | 55,40 % | **+37,66 ± 13,65** | **+2,97** | **PASS** |
+| profondeur min 3 | 722 | 50,48 % | +3,37 ± 22,17 | +0,04 | arrêté (plus candidat) |
+
+Ni la marge ni la réduction ne bougent quoi que ce soit : l'optimum est plat
+autour de 170 et de 4. Le seul candidat retenu par l'écran est
+`S_Probcut_Depth = 4` (sonder un pli plus tôt), et la profondeur 3 montre que
+l'optimum est bien à 4 — pas « toujours plus tôt ».
+
+**Confirmation en configuration livrée** (`10+0.1`, `Hash 64 Mio`), même
+protocole que §94.4, arrêtée à **420 parties** parce que le verdict ne faisait
+plus de doute :
+
+| W–L–D | Score | Élo | Verdict |
+|---|---|---|---|
+| 108–125–187 | 48,0 % | **−15,80 ± 23,19** | le gain en nœuds fixes **ne se transfère pas** |
+
+À profondeur réelle le moteur cherche 18-22 plis, où une sonde commencée un pli
+plus tôt et quatre plis moins profonde réfute à tort : le réglage **reste à
+profondeur minimale 5**. Enseignement pour la suite : l'écran en nœuds fixes est
+un bon filtre de **direction** (il a correctement classé ProbCut et la politique
+TT) mais il surestime fortement l'ampleur des réglages agressifs ; la
+confirmation à la cadence réelle reste obligatoire avant d'adopter quoi que ce
+soit.
+
+**Aucun changement de réglage n'est retenu par ce balayage** : la configuration
+livrée (170 / 8 / 5 / 4) est conservée telle quelle.

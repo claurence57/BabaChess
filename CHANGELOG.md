@@ -26,6 +26,12 @@ relevée, le nœud est réfuté sans la recherche pleine.
   bit-identique à HEAD (488 704 / 2 467 322 / 5 454 471).
 - La doc de recherche ne décrit plus ProbCut comme « en cours
   d'expérimentation ».
+- **Balayage des paramètres** (marge 150, réduction 5, profondeur minimale 4
+  puis 3), chacun contre le réglage livré : marge et réduction **neutres**
+  (−2,8 ± 13,6 et −2,3 ± 12,5 sur 2 000 parties) ; la profondeur minimale 4
+  gagne **+37,7 ± 13,7** en nœuds fixes (SPRT PASS) mais **perd −15,8 ± 23,2**
+  à `10+0.1` (420 parties) → **aucun changement retenu**, réglage livré
+  (170 / 8 / 5 / 4) conservé. Détail : `DEVELOPMENT.md` §94.6.
 
 **Recherche : politique de remplacement de la transposition table
 (`S_Tt_Replace`, activée par défaut).** L'ancienne règle était purement
