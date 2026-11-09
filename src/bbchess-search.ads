@@ -176,6 +176,12 @@ package BBChess.Search is
       S_Tm_Stable,        -- 1 = soft time scaled by best-move stability
       S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
+      --  Transposition-table replacement policy (S_Tt_Replace = 1): each slot
+      --  gets a keep-score (depth + PV bonus - age penalty) and the lower of
+      --  the two is replaced; 0 keeps the historical depth/age rule.
+      S_Tt_Replace,       -- 1 = scored (depth + PV - age) replacement
+      S_Tt_Pv_Bonus,      -- plies of extra value for an exact (PV) entry
+      S_Tt_Age_Penalty,   -- value lost by an entry of an older generation
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
       S_Asp_Grow,         -- 1 = aspiration window widened gradually
       S_QChecks,          -- 1 = quiet checks at the first quiescence ply

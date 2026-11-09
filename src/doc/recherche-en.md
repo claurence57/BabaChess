@@ -134,25 +134,25 @@ pay for hashing.
 
 ### Entry and buckets
 
-The `Transposition_Table` table makes `TT_Size = 4_194_304` entries (4 194 304 ×
-16 bytes = **64 MiB**). Each `TT_Entry` contains:
-
-| Field      | Role |
-|------------|------|
-| `Hash_Key` | full Zobrist key, to confirm the identity of the position |
-| `Depth`    | remaining search depth; `-1` means "empty" |
-| `Bound`    | `Exact`, `Lower_Bound` or `Upper_Bound` |
-| `Score`    | normalized score (mate shifted by the ply) |
-| `Move`     | best move, encoded in 32 bits (`Pack_Move`) |
-| `Age`      | search generation, for replacement |
+Each `TT_Entry` is 16 bytes: a 64-bit payload `Data` and a self-verifying key
+`Key_Xor = key xor Data`. `Data` packs **Move 23 | Score 16 | Depth 8 | Bound 2
+| Age 15**; `Depth = 255` marks an empty slot. The table is **allocated at run
+time** (UCI option `Hash`, 64 MiB by default, 1 to 1024 MiB) with a power-of-two
+entry count; both words are read and written atomically, so an entry is accepted
+only when `Key_Xor xor Data` gives back the position key — two concurrent writes
+(Lazy SMP) cannot produce a coherent pair of different origins.
 
 Positions are stored in **two-way buckets**: `TT_Bucket`
 computes an even index from the key (`Key and (TT_Mask - 1)`), and the probe
-looks at the even index then the odd one. `Store` chooses the slot as follows: identical
-key first, then empty slot, then entry too old
-(`Age < TT_Generation`), then the shallowest entry. The write takes place only
-if the new entry is at least as deep, if the key matches, or if
-the old one is stale: **depth-preferred** replacement with aging.
+looks at the even index then the odd one. `Store` chooses the slot as follows:
+identical key first, then the entry of **lower keep-score**
+(`Repl_Score = depth + PV bonus - age penalty`), empty slots being worth
+infinitely less than any entry. An `Exact` (principal-variation) entry is worth
+`S_Tt_Pv_Bonus = 4` extra plies; an entry from an older generation loses
+`S_Tt_Age_Penalty = 24`, which makes it give way before any fresh entry. The
+write happens if the key matches or if the new entry is worth at least the old
+one (`S_Tt_Replace = 1`, the default; `0` restores the old **depth-preferred**
+rule "deepest wins, stale first").
 `TT_Generation` is incremented at each `Best_Move`, so an entry from a
 previous search gives way before a fresh entry.
 
@@ -311,9 +311,12 @@ which only gives a key-consistent node, possibly shallower.
 - **Iterative deepening, PVS, aspiration windows** (iteration 1 in full
   window then ± 40 cp), two-way table with aging, ordering hash /
   promotions / MVV-LVA / killers / history.
-- **TT 64 MiB**, **history aging** and **LMR regime** (PV -1 / cut +1,
-  killers and moves giving check never reduced): batch measured at **+15 Elo** on
+- **TT 64 MiB**, **history aging** and the **LMR regime** (PV −1 / cut +1,
+  killers and checking moves never reduced): batch measured at **+15 Elo** on
   two independent seeds (`DEVELOPMENT.md` §80).
+- **TT replacement policy** (keep-score = depth + PV bonus − age penalty,
+  `S_Tt_Replace`): **+8.08 ± 2.91** Elo in a saturated table (SPRT PASS), same
+  point estimate at `10+0.1`/64 MiB (`DEVELOPMENT.md` §93).
 - **Null-move pruning** (`Null_Reduction = 2`) and **reverse futility** at
   depth 1.
 - **Phase 0 (correction)**: full re-search of every LMR fail-high, history

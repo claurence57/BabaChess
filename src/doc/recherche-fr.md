@@ -134,25 +134,26 @@ paie pas le hachage.
 
 ### Entrée et buckets
 
-La table `Transposition_Table` fait `TT_Size = 4_194_304` entrées (4 194 304 ×
-16 octets = **64 Mio**). Chaque `TT_Entry` contient :
-
-| Champ      | Rôle |
-|------------|------|
-| `Hash_Key` | clé Zobrist complète, pour confirmer l'identité de la position |
-| `Depth`    | profondeur de recherche restante ; `-1` signifie « vide » |
-| `Bound`    | `Exact`, `Lower_Bound` ou `Upper_Bound` |
-| `Score`    | score normalisé (mat décalé par le ply) |
-| `Move`     | meilleur coup, encodé en 32 bits (`Pack_Move`) |
-| `Age`      | génération de recherche, pour le remplacement |
+Chaque `TT_Entry` fait 16 octets : une charge utile `Data` de 64 bits et une clé
+d'auto-vérification `Key_Xor = clé xor Data`. `Data` empile **Move 23 | Score 16
+| Depth 8 | Bound 2 | Age 15** ; `Depth = 255` marque un emplacement vide. La
+table est **allouée à l'exécution** (option UCI `Hash`, 64 Mio par défaut, 1 à
+1024 Mio) en un nombre d'entrées puissance de deux ; les deux mots sont lus et
+écrits de façon atomique, si bien qu'une entrée n'est acceptée que si
+`Key_Xor xor Data` redonne la clé de la position — deux écritures concurrentes
+(Lazy SMP) ne peuvent pas produire une paire cohérente d'origines différentes.
 
 Les positions sont rangées dans des **buckets de deux voies** : `TT_Bucket`
 calcule un index pair à partir de la clé (`Key and (TT_Mask - 1)`), et la sonde
 regarde l'index pair puis l'impair. `Store` choisit l'emplacement ainsi : clé
-identique d'abord, puis emplacement vide, puis entrée trop ancienne
-(`Age < TT_Generation`), puis l'entrée la moins profonde. L'écriture n'a lieu que
-si la nouvelle entrée est au moins aussi profonde, si la clé correspond, ou si
-l'ancienne est périmée : remplacement **depth-preferred** avec aging.
+identique d'abord, puis l'entrée de **plus faible valeur de conservation**
+(`Repl_Score = profondeur + bonus PV − pénalité d'âge`), les emplacements vides
+valant infiniment moins que toute entrée. Une entrée `Exact` (ligne principale)
+vaut `S_Tt_Pv_Bonus = 4` plis de plus ; une entrée d'une génération antérieure
+perd `S_Tt_Age_Penalty = 24`, ce qui la fait céder avant toute entrée fraîche.
+L'écriture a lieu si la clé correspond ou si la nouvelle entrée vaut au moins
+l'ancienne (`S_Tt_Replace = 1`, défaut ; `0` rétablit l'ancienne règle
+**depth-preferred** « la plus profonde gagne, les périmées d'abord »).
 `TT_Generation` est incrémentée à chaque `Best_Move`, donc une entrée d'une
 recherche précédente cède la place avant une entrée fraîche.
 
@@ -314,6 +315,10 @@ ce qui ne donne qu'un nœud cohérent sur la clé, éventuellement moins profond
 - **TT 64 Mio**, **aging de l'history** et **régime LMR** (PV −1 / cut +1,
   killers et coups donnant échec jamais réduits) : lot mesuré à **+15 Elo** sur
   deux graines indépendantes (`DEVELOPMENT.md` §80).
+- **Politique de remplacement de la TT** (valeur de conservation
+  profondeur + bonus PV − pénalité d'âge, `S_Tt_Replace`) : **+8,08 ± 2,91** Elo
+  en table saturée (SPRT PASS), estimation cohérente à `10+0.1`/64 Mio
+  (`DEVELOPMENT.md` §93).
 - **Null-move pruning** (`Null_Reduction = 2`) et **reverse futility** à
   profondeur 1.
 - **Phase 0 (correction)** : re-recherche pleine de tout fail-high LMR, history

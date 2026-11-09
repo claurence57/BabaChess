@@ -2281,3 +2281,121 @@ Détail et PGN dans `pgn/README.md`.
 
 Release publiée en **brouillon** par `.github/workflows/release.yml` sur le tag
 `v1.4.0` ; la publication reste une décision humaine.
+
+---
+
+## 92. Recherche : élagage SEE des captures — mesuré non concluant, code retiré
+
+Premier point de la feuille de route de force classique
+(`~/notes/babachess-pistes-elo.md`, item 1). La SEE n'était utilisée qu'en
+**ordonnancement** (`S_Bad_Capture`, §71) et dans la quiescence ; l'idée était
+de l'employer aussi comme **élagage** dans la recherche principale, à la manière
+de Stockfish (« SEE based pruning for captures and checks »).
+
+**Implémentation (retirée depuis)** : deux paramètres `S_See_Prune_Margin`
+(seuil par pli) et `S_See_Prune_Depth` (profondeur maximale, 0 = inactif), un
+prédicat `Can_See_Prune` inline placé après le futility pruning et avant la LMR
+(hors échec, coup tactique, indice > 1, pas de score de mat), le test matériel
+restant chez l'appelant — `Static_Exchange_Value < -(Margin × Depth)` — pour ne
+payer la marche d'échange que sur les coups passant les conditions bon marché.
+Réglage mesuré 90/6 : `--bench 9/12/14` = 494 908 / 1 957 005 / 4 969 506 nœuds
+(−21 % à profondeur 12, knps inchangé), `Depth = 0` bit-identique à l'arbre
+d'avant.
+
+**Mesure (SPRT 800 parties, `10+0.1`)** : `openings.epd` ordre aléatoire,
+`-repeat` (couleurs inversées), livre neutralisé des deux côtés,
+`concurrency 5`, threads 1, Hash 64 Mio, bornes `[0, 5]`, alpha = bêta = 0,05,
+binaires figés dans `/tmp` :
+
+| W–L–D | Score | Élo | LOS | LLR | Verdict |
+|---|---|---|---|---|---|
+| 239–215–346 | 0,515 | **+10,4 ± 18,1** | 87,1 % | +0,38 | **non concluant** (aucune borne franchie à 800 parties) |
+
+L'effet est positif mais non prouvé et l'intervalle contient 0 : au sens du
+protocole retenu (« verdict seulement si l'intervalle exclut 0 »), le patch n'est
+pas validé. 800 parties à cette cadence ne résolvent que ±18 Elo, donc un effet
+réel de +10 ne peut pas en sortir significatif.
+
+**Décision : code supprimé** (`git checkout` sur les fichiers touchés, arbre
+revenu à `488 704 / 2 467 322 / 5 454 471`). Il reste consigné ici pour éviter un
+re-test à l'identique : une nouvelle tentative devrait soit monter à
+2 000–3 000 parties, soit balayer le couple marge/profondeur (60/4, 120/8), soit
+ajouter la variante **coups tranquilles** (`-26 × lmrDepth²`), non implémentée.
+
+---
+
+## 93. Recherche : politique de remplacement de la TT (`S_Tt_Replace`) — SPRT PASS en table saturée
+
+Item 2 de la feuille de route (`~/notes/babachess-pistes-elo.md`). L'ancienne
+règle était purement **depth-preferred** : clé identique, puis emplacement vide,
+puis entrée périmée, puis la moins profonde ; l'écriture avait lieu si la
+nouvelle entrée était au moins aussi profonde, si la clé correspondait ou si
+l'ancienne était périmée. Le remplacement ne tenait donc aucun compte de la
+**nature** de l'entrée (nœud PV ou coupure).
+
+### 93.1 Implémentation
+
+- `Repl_Score (Data)` — valeur de conservation d'une entrée, plus haute = plus
+  utile : `profondeur + S_Tt_Pv_Bonus (4) si Bound = Exact − S_Tt_Age_Penalty
+  (24) si l'âge diffère de la génération courante`. Un emplacement vide vaut
+  `-1_000_000`, donc il est toujours pris en premier.
+- `Store` : dans le bucket à deux voies, la clé identique est rafraîchie, sinon
+  l'entrée de **plus faible `Repl_Score`** cède la place ; l'écriture a lieu si
+  la clé correspond ou si la nouvelle entrée vaut au moins l'ancienne (une
+  égalité rafraîchit, comme avant).
+- `S_Tt_Replace` (défaut **1**), `S_Tt_Pv_Bonus` (4), `S_Tt_Age_Penalty` (24)
+  sont réglables (`--params`, SPSA). `S_Tt_Replace 0` rétablit **exactement**
+  l'ancienne règle (branche séparée).
+- Effet mécanique vérifié à la main (UCI, `Hash 1`, profondeur 12, même
+  position) : 466 013 → 433 656 nœuds (**−7 %**) avec la nouvelle politique ;
+  à `Hash 64` la même position donne 387 104 nœuds dans les deux cas.
+
+### 93.2 Pourquoi `--bench` ne voit rien
+
+`--bench 9/12/14` reste **488 704 / 2 467 322 / 5 454 471**, identique à HEAD.
+Ce n'est pas un défaut de câblage : avec la table par défaut (64 Mio,
+4 194 304 entrées) les positions du bench ne la saturent jamais (`hashfull`
+1 à 12 ‰ observé à profondeur 19) et la politique de remplacement n'est donc
+jamais décisive. Le gate bit-identique prouve seulement que rien d'autre n'a
+bougé ; la mesure de force doit se faire là où la table est pleine.
+
+### 93.3 Mesure 1 — table saturée, nœuds fixes (SPRT PASS)
+
+Auto-match du **même binaire**, les deux camps ne différant que par
+`--params S_TT_REPLACE 1` : `20 000` nœuds/coup, `Hash 8 Mio`, `openings.epd`
+ordre aléatoire, `-repeat`, `concurrency 5`, threads 1, bornes `[0, 5]`,
+alpha = bêta = 0,05.
+
+| W–L–D | Score | Élo | nElo | LOS | LLR | Verdict |
+|---|---|---|---|---|---|---|
+| 701–654–667 (2022 p.) | 51,16 % | **+8,08 ± 2,91** | +41,98 ± 15,14 | 100 % | **+2,97** | **PASS** (H1 accepté, 18 min 49 s) |
+
+Le taux de nulles est élevé (92 %) : à 20 000 nœuds/coup les parties sont
+courtes et l'écart se joue sur des détails. LLR franchement au-dessus de la
+borne : l'effet est là, et il est **petit** (+8 Elo) — cohérent avec la
+fourchette « +3…10 » de la feuille de route.
+
+### 93.4 Mesure 2 — configuration livrée (`10+0.1`, Hash 64 Mio)
+
+Même protocole que les campagnes précédentes, binaires figés dans `/tmp`
+(NEW = défaut à 1, OLD = HEAD), 800 parties :
+
+| W–L–D | Score | Élo | LOS | LLR | Verdict |
+|---|---|---|---|---|---|
+| 249–229–322 | 51,25 % | **+8,69 ± 17,70** | 83,2 % | +0,31 | non tranché à 800 parties |
+
+L'estimation ponctuelle **retombe sur celle de la mesure 1** (+8,7 contre +8,1) ;
+l'intervalle de 800 parties à cette cadence ne permet simplement pas de trancher
+un effet de cette taille (§92 le montrait déjà). Rien ne contredit le PASS.
+
+### 93.5 État
+
+`S_Tt_Replace` est **activé par défaut**. Coût : un `Repl_Score` (deux
+comparaisons d'âge/bound) par écriture TT, invisible sur `--bench`, et l'arbre
+du bench est identique. Le gain est démontré quand la table est sous pression
+(petit `Hash`, cadences longues, analyse) et l'estimation reste positive à
+64 Mio en blitz.
+
+**Vérification** : `--selftest` **146/146** en debug `-gnatwe`, release,
+portable et checked ; `--bench 9/12/14` identiques à HEAD ; `--dump-params`
+expose les trois nouveaux paramètres ; `scripts/check_docs.py` OK.

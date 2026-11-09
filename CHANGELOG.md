@@ -8,6 +8,25 @@
 
 ## Non publié
 
+**Recherche : politique de remplacement de la transposition table
+(`S_Tt_Replace`, activée par défaut).** L'ancienne règle était purement
+*depth-preferred* ; chaque entrée a désormais une valeur de conservation
+`profondeur + bonus PV − pénalité d'âge` et c'est la moins utile des deux du
+bucket qui cède, avec `S_Tt_Pv_Bonus = 4` et `S_Tt_Age_Penalty = 24` réglables.
+
+- Mesure **PASS** en table saturée (auto-match, même binaire, 20 000 nœuds/coup,
+  `Hash 8 Mio`) : **+8,08 ± 2,91** Elo, nElo +41,98 ± 15,14, LOS 100 %,
+  LLR +2,97, H1 accepté à 2 022 parties.
+- Configuration livrée (`10+0.1`, `Hash 64`) : **+8,69 ± 17,70** Elo sur
+  800 parties (LOS 83 %), non tranché à cette cadence mais cohérent avec la
+  mesure ci-dessus. Détail : `DEVELOPMENT.md` §93.
+- `--bench 9/12/14` reste **488 704 / 2 467 322 / 5 454 471** : à 64 Mio les
+  positions du bench ne saturent pas la table, la politique n'y est jamais
+  décisive (vérifié à la main : à `Hash 1`, −7 % de nœuds sur la même position).
+- L'élagage SEE des captures, essayé juste avant, est **mesuré non concluant**
+  (+10,4 ± 18,1 Elo sur 800 parties) : **code retiré**, résultat consigné
+  (`DEVELOPMENT.md` §92) pour ne pas le re-tester à l'identique.
+
 **Configuration UCI et protocole.** Arbre de recherche inchangé (les compteurs
 de nœuds de `--bench 9/12/14` sont identiques : 488 704 / 2 467 322 / 5 454 471).
 

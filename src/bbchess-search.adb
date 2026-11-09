@@ -97,6 +97,16 @@ package body BBChess.Search is
       S_Tm_Stable            => 0,
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
+      --  TT replacement policy: keep-score = depth + PV bonus - age penalty,
+      --  the lower of the two bucket entries makes way (0 = the historical
+      --  "deeper wins, stale first" rule). SPRT PASS vs the previous build at
+      --  20 000 nodes/move, Hash 8 MiB: +8,1 +/- 2,9 Elo (nElo +42 +/- 15,
+      --  LLR +2,97, H1 accepted at 2022 games); the released setting
+      --  (10+0.1, Hash 64 MiB) gives +8,7 +/- 17,7 over 800 games, i.e. the
+      --  same point estimate, unresolved -- DEVELOPMENT.md §93.
+      S_Tt_Replace           => 1,
+      S_Tt_Pv_Bonus          => 4,
+      S_Tt_Age_Penalty       => 24,
       S_Lmr_Hist             => 8_192,
       S_Asp_Grow             => 1,
       --  Checks in quiescence (S_QChecks): quiet checks at the FIRST
@@ -141,6 +151,9 @@ package body BBChess.Search is
       S_Tm_Stable            => 0,
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 0,
+      S_Tt_Replace           => 0,
+      S_Tt_Pv_Bonus          => 0,
+      S_Tt_Age_Penalty       => 0,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0,
       S_QChecks              => 0,
@@ -183,6 +196,9 @@ package body BBChess.Search is
       S_Tm_Stable            => 1,
       S_Iir_Depth            => 64,
       S_Bad_Capture          => 1,
+      S_Tt_Replace           => 1,
+      S_Tt_Pv_Bonus          => 64,
+      S_Tt_Age_Penalty       => 128,
       S_Lmr_Hist             => 1_000_000,
       S_Asp_Grow             => 1,
       S_QChecks              => 1,
@@ -502,6 +518,28 @@ package body BBChess.Search is
       return Used * 1_000 / Natural'Max (1, Seen);
    end Transposition_Hashfull;
 
+   --  Keep-score of a stored entry, used by the scored replacement policy
+   --  (S_Tt_Replace = 1). Higher means more worth keeping:
+   --    * depth in plies dominates;
+   --    * an exact-bound (PV) entry is worth S_Tt_Pv_Bonus extra plies, so a
+   --      slightly shallower PV line survives a deeper bound-only entry;
+   --    * an entry written by an older search generation loses
+   --      S_Tt_Age_Penalty, which (well above Max_Ply) makes it the first
+   --      thing dropped, whatever its depth.
+   --  Empty slots score far below every real entry.
+   function Repl_Score (D : Bitboard) return Integer is
+   begin
+      if Data_Depth_Signed (D) < 0 then
+         return -1_000_000;
+      end if;
+      return Data_Depth_Signed (D)
+        + (if Data_Bound (D) = Exact
+           then Search_Params (S_Tt_Pv_Bonus) else 0)
+        + (if Data_Age (D) = TT_Generation mod 32_768
+           then 0 else -Search_Params (S_Tt_Age_Penalty));
+   end Repl_Score;
+   pragma Inline (Repl_Score);
+
    -- Store a node. Mate scores are normalized by the distance to the root
    -- so they stay comparable across different depths. The two-way bucket
    -- keeps the deeper of the two entries and replaces stale ones first.
@@ -535,26 +573,41 @@ package body BBChess.Search is
 
       -- Prefer a matching key, then an empty slot, then a stale entry, then
       -- the shallower of the two.
-      if Key_Match (Transposition_Table (B), Position.Key) then
-         Slot := B;
-      elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
-         Slot := B + 1;
-      elsif Data_Depth_Signed (D_B) < 0 then
-         Slot := B;
-      elsif Data_Depth_Signed (D_1) < 0 then
-         Slot := B + 1;
-      elsif Data_Age (D_B) /= TT_Generation mod 32_768
-        and then Data_Age (D_1) = TT_Generation mod 32_768
-      then
-         Slot := B;
-      elsif Data_Age (D_1) /= TT_Generation mod 32_768
-        and then Data_Age (D_B) = TT_Generation mod 32_768
-      then
-         Slot := B + 1;
-      elsif Data_Depth_Signed (D_1) < Data_Depth_Signed (D_B) then
-         Slot := B + 1;
+      if Search_Params (S_Tt_Replace) = 0 then
+         if Key_Match (Transposition_Table (B), Position.Key) then
+            Slot := B;
+         elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
+            Slot := B + 1;
+         elsif Data_Depth_Signed (D_B) < 0 then
+            Slot := B;
+         elsif Data_Depth_Signed (D_1) < 0 then
+            Slot := B + 1;
+         elsif Data_Age (D_B) /= TT_Generation mod 32_768
+           and then Data_Age (D_1) = TT_Generation mod 32_768
+         then
+            Slot := B;
+         elsif Data_Age (D_1) /= TT_Generation mod 32_768
+           and then Data_Age (D_B) = TT_Generation mod 32_768
+         then
+            Slot := B + 1;
+         elsif Data_Depth_Signed (D_1) < Data_Depth_Signed (D_B) then
+            Slot := B + 1;
+         else
+            Slot := B;
+         end if;
       else
-         Slot := B;
+         --  Scored policy: the same key is refreshed, otherwise the less
+         --  valuable of the two entries (Repl_Score) makes way. Empty slots
+         --  score far below everything, so they are taken first.
+         if Key_Match (Transposition_Table (B), Position.Key) then
+            Slot := B;
+         elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
+            Slot := B + 1;
+         elsif Repl_Score (D_1) < Repl_Score (D_B) then
+            Slot := B + 1;
+         else
+            Slot := B;
+         end if;
       end if;
 
       declare
@@ -562,10 +615,22 @@ package body BBChess.Search is
          Match : constant Boolean :=
            Key_Match (Transposition_Table (Slot), Position.Key);
       begin
-         Repl := Data_Depth_Signed (Old_D) < 0
-           or else Match
-           or else Depth >= Natural'Max (0, Data_Depth_Signed (Old_D))
-           or else Data_Age (Old_D) /= TT_Generation mod 32_768;
+         if Search_Params (S_Tt_Replace) = 0 then
+            Repl := Data_Depth_Signed (Old_D) < 0
+              or else Match
+              or else Depth >= Natural'Max (0, Data_Depth_Signed (Old_D))
+              or else Data_Age (Old_D) /= TT_Generation mod 32_768;
+         else
+            --  The new entry is from the current generation, so it carries no
+            --  age penalty; it is written when it is worth at least as much as
+            --  what occupies the slot (a tie refreshes the entry, as in the
+            --  historical policy).
+            Repl := Match
+              or else Integer (Depth)
+                        + (if Bound = Exact
+                           then Search_Params (S_Tt_Pv_Bonus) else 0)
+                      >= Repl_Score (Old_D);
+         end if;
       end;
 
       if Repl then
