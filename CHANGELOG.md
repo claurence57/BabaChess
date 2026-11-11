@@ -8,6 +8,13 @@
 
 ## Non publié
 
+**Confirmation longue du lot TT + ProbCut (`10+0.1`) : +19,0 ± 9,4 Elo.**
+3 000 parties, binaires figés, ouvertures jouées avec les deux couleurs :
+956–792–1252 (52,73 %), LOS 100 %, LLR +2,80 (borne 2,94 manquée de 0,14 au
+plafond de campagne) ; 18 pertes au temps (7/11) retirées → +18,7. Le gain se
+manifeste surtout avec les Blancs (55,8 % contre 49,7 % avec les Noirs).
+Détail : `DEVELOPMENT.md` §95.
+
 **Recherche : ProbCut (`S_Probcut`, activé par défaut).** Sur un nœud non PV,
 hors échec et à `Depth >= 5`, une capture dont la SEE atteint
 `S_Probcut_Margin = 170` est cherchée avec une borne bêta relevée de cette

@@ -2515,3 +2515,60 @@ soit.
 
 **Aucun changement de réglage n'est retenu par ce balayage** : la configuration
 livrée (170 / 8 / 5 / 4) est conservée telle quelle.
+
+---
+
+## 95. Confirmation longue du lot TT + ProbCut à `10+0.1` : +19,0 ± 9,4 Elo
+
+Les deux mécanismes livrés (§93 politique de remplacement de la TT, §94 ProbCut)
+avaient chacun une estimation positive mais non tranchée à la cadence réelle
+(+8,7 ± 17,7 et +13,0 ± 18,2 sur 800 parties). Cette campagne mesure leur effet
+**cumulé**, seul chiffre qui compte pour la force du moteur livré.
+
+### 95.1 Dispositif
+
+3 000 parties `10+0.1`, `Hash 64` Mio, threads 1, `openings.epd` en ordre
+aléatoire, `-repeat` (chaque ouverture jouée avec les deux couleurs), livre
+neutralisé des deux côtés, 5 parties en parallèle, `-draw movenumber=40
+movecount=8 score=20`, `-resign movecount=4 score=900`, bornes SPRT `[0, 5]`,
+alpha = bêta = 0,05. Binaires figés dans `/tmp` : NEW = arbre du commit
+`cfb3dc3`, OLD = HEAD d'avant la session (`e0066aa`, `--bench 9` = 488 704).
+
+### 95.2 Résultat
+
+| W–L–D | Score | Élo | nElo | LOS | LLR | Durée |
+|---|---|---|---|---|---|---|
+| 956–792–1252 | 52,73 % | **+19,01 ± 9,44** | +25,08 ± 12,43 | 100,00 % | **+2,80** | 4 h 49 |
+
+Taux de nulles 33,9 %. L'intervalle **exclut 0** : le lot vaut ~+19 Elo à cette
+cadence, fourchette +10 à +28. Le SPRT s'arrête à **2,80 contre une borne de
+2,94** — il manquait 0,14, soit ~2 parties favorables sur les 3 000 ; le
+plafond de campagne a été atteint juste avant. Ce n'est pas un « non tranché »
+au sens habituel (l'intervalle est décisif) mais ce n'est pas non plus un PASS
+formel, et le log le dit ainsi.
+
+| Split | Parties | Score | Élo |
+|---|---|---|---|
+| NEW avec les Blancs | 1 500 | 55,77 % | **+40** |
+| NEW avec les Noirs | 1 500 | 49,70 % | **−2** |
+
+L'asymétrie est réelle (≈ 4 σ) : le gain se manifeste **avec les Blancs**, où le
+moteur convertit mieux les petits avantages d'ouverture ; avec les Noirs il ne
+se distingue pas de l'ancienne version. Comme chaque ouverture est jouée deux
+fois, le total reste l'estimation non biaisée de la force ; l'asymétrie est
+consignée pour la prochaine campagne (si un futur lot donne le même profil, il
+faudra chercher un mécanisme dépendant du camp, ce qui n'est le cas ni de la
+politique TT ni de ProbCut — tous deux aveugles à la couleur).
+
+**Pertes au temps** : 18 parties (7 pour NEW, 11 pour OLD, 0 crash). En les
+excluant, le score est 52,68 % (**+18,7**), donc la conclusion ne change pas.
+
+### 95.3 Enseignements
+
+- Les deux écrans en nœuds fixes avaient vu juste sur le **signe** et surestimé
+  l'**ampleur** (§94.6) : +8 et +38 en nœuds fixes, +19 pour le cumul à la
+  cadence réelle.
+- Une campagne de 3 000 parties à `10+0.1` donne ±9,4 Elo : c'est le format à
+  retenir pour valider tout lot de cette taille (les 800 parties donnent ±18,
+  insuffisant pour trancher un gain de 10-20 Elo).
+- Coût machine : 4 h 49 pour 3 000 parties à 5 en parallèle.
