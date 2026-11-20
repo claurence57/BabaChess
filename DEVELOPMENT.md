@@ -2630,3 +2630,70 @@ Un moteur peut laisser de la pendule sans perdre d'Elo : ce qui compte est la
 dépensé. La piste 7 est close sur cette mesure ; s'y remettre devrait viser
 « dépenser mieux » (hard relevé à soft constant, stabilité du meilleur coup —
 déjà mesurée neutre en §75), pas « dépenser plus ».
+
+---
+
+## 97. Évaluation : `P_Outpost_*` et `P_RookBehind_*` — deux termes négatifs, la leçon du réglage Texel
+
+Item 8 de la feuille de route (`~/notes/babachess-pistes-elo.md`) : ajouter des
+termes d'évaluation absents (outposts, tour derrière un pion passé, espace),
+« un seul à la fois », +2…5 Elo chacun, P≈0,35.
+
+### 97.1 Ce qui a été implémenté
+
+Deux termes, chacun derrière deux paramètres `_Op` / `_Eg` à **défaut 0** (terme
+inactif : évaluation et arbre bit-identiques, `--bench 9/12` inchangés à
+455 176 / 1 784 546) :
+
+- **Outposts** (`P_Outpost_Op`, `P_Outpost_Eg`) : un cavalier ou fou sur une case
+  **défendue par un de nos pions** et qu'**aucun pion adverse ne peut jamais
+  attaquer** reçoit un bonus forfaitaire. Le masque « cases d'où un pion adverse
+  pourrait attaquer » est calculé par `Outpost_Attacker_Mask` (trois files
+  voisines, rangs devant la pièce, avec `File_Mask` / `Ranks_Below`).
+- **Tour derrière un pion passé** (`P_RookBehind_Op`, `P_RookBehind_Eg`) : dans la
+  boucle des pions passés de `Pawn_Structure_Term`, si une tour du camp se trouve
+  sur la même file **entre le pion et notre première rangée**, bonus forfaitaire.
+
+Contrôles avant mesure : `--selftest` 146/146 (debug `-gnatwe`, release),
+`--bench` identique à paramètres nuls, **`scripts/sym_check.py` 1 500 puis
+1 200 positions / 0 écart** avec les termes actifs, et deux contrôles manuels
+(Cavalier e5 soutenu par d4 sans pion noir en d/f → +16 ; le même avec un pion
+f7 qui peut venir l'attaquer → 0 ; tour d1 derrière le pion d5 → +29, tour h1 →
+aucun changement).
+
+### 97.2 Mesures (écran en nœuds fixes, 20 000/coup, Hash 8 Mio, 2 000 parties chacune)
+
+| Terme | Réglage | W–L–D | Score | Élo | LLR |
+|---|---|---|---|---|---|
+| Outposts | 30 / 15 | 661–727–612 | 48,3 % | **−11,47 ± 10,99** | −1,52 |
+| Tour derrière pion passé | 20 / 30 | 690–783–527 | 47,7 % | **−16,17 ± 11,64** | −1,95 |
+
+Les deux intervalles **excluent 0 du côté négatif** : ce ne sont pas des
+« neutres », ce sont des pertes. Aucun des deux termes n'est activé.
+
+### 97.3 Pourquoi — et ce qu'il faut faire à la place
+
+L'évaluation de BabaChess n'est pas un assemblage de termes réglés à la main : elle
+a été **ajustée globalement par Texel** (§70, +104 Elo ; second passage neutre en
+§74), tables de pièces et termes de structure compris. Ajouter un terme forfaitaire
+déplace cet équilibre : soit il recouvre ce que la PST et la mobilité rémunèrent
+déjà (un cavalier en d5/e5 est déjà valorisé par `Knight_PST`), soit il crée un
+biais que les marges d'élagage (RFP, futilité, ProbCut) exploitent mal — et le
+résultat est une perte de 11 à 16 Elo, pas un gain.
+
+Les deux termes restent donc dans le code, **désactivés**, en tant que
+**paramètres à part entière** : `scripts/texel.py` lit tous les `P_*` de
+`--dump-params`, donc une prochaine campagne de réglage les ajustera
+conjointement avec le reste au lieu de leur donner une valeur choisie à la main.
+C'est la seule voie qui a un sens ici, et c'est aussi ce que dit l'historique du
+projet : les termes gagnants (§73, zone de mobilité) ne l'ont emporté qu'**après**
+réglage.
+
+Le troisième terme prévu (espace) n'a pas été testé : deux termes indépendants
+négatifs suffisent à conclure que l'ajout manuel ne marche pas dans cette
+évaluation, et une troisième mesure aurait coûté 20 minutes pour la même
+information.
+
+**Vérification** : `--selftest` **146/146** (debug `-gnatwe`, release, portable,
+checked), `--bench 9/12` identiques aux paramètres nuls,
+`scripts/check_docs.py` OK.

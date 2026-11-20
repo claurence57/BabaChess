@@ -8,6 +8,15 @@
 
 ## Non publié
 
+**Évaluation : deux termes ajoutés (`P_Outpost_*`, `P_RookBehind_*`), tous deux
+mesurés négatifs.** Outposts (cavalier/fou défendu par un pion, hors de portée
+des pions adverses) : **−11,47 ± 10,99** Elo ; tour derrière un pion passé :
+**−16,17 ± 11,64** Elo (2 000 parties en nœuds fixes chacune, intervalles
+excluant 0). Les deux termes restent dans le code **désactivés** (défauts 0, bench
+inchangé) comme paramètres `P_*` : `scripts/texel.py` les lit et une campagne de
+réglage les ajustera conjointement au reste, seule voie qui a un sens sur une
+évaluation déjà réglée globalement. Détail : `DEVELOPMENT.md` §97.
+
 **Temps : allocation réglable, variante `div 20` mesurée perdante.**
 `BBChess.Clocks` expose désormais `Time_Policy` (diviseur quand le GUI n'annonce
 pas de `movestogo`, multiple `hard/soft`, part de l'incrément), piloté par

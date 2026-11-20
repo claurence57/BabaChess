@@ -286,7 +286,13 @@ package body BBChess.Eval is
       P_Hanging_Op, P_Hanging_Eg, P_Threat_RQ,
       P_Connected, P_Backward_Op, P_Backward_Eg,
       P_KS_Lo, P_KS_Hi,
-      P_Imb_KBNB);
+      P_Imb_KBNB,
+      --  Outposts: a knight or bishop on a square defended by an own pawn
+      --  that no enemy pawn can ever attack.
+      P_Outpost_Op, P_Outpost_Eg,
+      --  Rook behind one of our passed pawns (same file, between the pawn and
+      --  our back rank).
+      P_RookBehind_Op, P_RookBehind_Eg);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -382,7 +388,13 @@ package body BBChess.Eval is
       --  (SPRT inconclusive, 1000 games, section 85) -> left OFF, like the
       --  other rejected eval terms. It vanishes at a full eight pawns (no
       --  phase taper needed) and is exactly antisymmetric.
-      P_Imb_KBNB        => 0);
+      P_Imb_KBNB        => 0,
+      --  Outposts: off by default (0 = the term contributes nothing, so the
+      --  evaluation - and the search tree - is unchanged until it is set).
+      P_Outpost_Op      => 0,
+      P_Outpost_Eg      => 0,
+      P_RookBehind_Op   => 0,
+      P_RookBehind_Eg   => 0);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type is
    begin
@@ -731,6 +743,14 @@ package body BBChess.Eval is
    --  Kaufman minor-piece imbalance slope (see Minor_Imbalance in Static).
    Imbalance_KB_Pawn     : Score_Type renames Params (P_Imb_KBNB);
 
+   --  Outpost bonus per knight/bishop (opening, endgame).
+   Outpost_Opening       : Score_Type renames Params (P_Outpost_Op);
+   Outpost_Endgame       : Score_Type renames Params (P_Outpost_Eg);
+
+   --  Rook behind one of our passed pawns (opening, endgame).
+   Rook_Behind_Opening   : Score_Type renames Params (P_RookBehind_Op);
+   Rook_Behind_Endgame   : Score_Type renames Params (P_RookBehind_Eg);
+
    -- Connected pawn base bonus by own row (supported or phalanx pawn).
    Connected_Seed : constant array (Natural range 0 .. 7) of Score_Type :=
      (0, 7, 8, 12, 29, 48, 86, 0);
@@ -748,6 +768,24 @@ package body BBChess.Eval is
       8 => 16#FFFF_FFFF_FFFF_FFFF#);
 
    Light_Squares : constant Bitboard := 16#55AA_55AA_55AA_55AA#;
+
+   --  Squares from which an enemy pawn could attack Square, for a piece of
+   --  Color standing on it: the three neighbouring files, ahead of the piece
+   --  (a pawn attacks forward, so only squares beyond it in its direction of
+   --  travel can ever threaten it). Used by the outpost term: a piece is on an
+   --  outpost only when no enemy pawn can ever attack its square.
+   function Outpost_Attacker_Mask (Color  : in Color_Type;
+                                   Square : in Square_Type) return Bitboard is
+      F : constant Natural := File_Of (Square);
+      R : constant Natural := Rank_Of (Square);
+   begin
+      return (File_Mask (F)
+              or (if F > 0 then File_Mask (F - 1) else 0)
+              or (if F < 7 then File_Mask (F + 1) else 0))
+        and (if Color = White then not Ranks_Below (R + 1)
+             else Ranks_Below (R));
+   end Outpost_Attacker_Mask;
+   pragma Inline (Outpost_Attacker_Mask);
 
    -- King (Chebyshev) distance between two squares.
    function Distance (A, B : in Square_Type) return Natural is
@@ -1189,6 +1227,24 @@ package body BBChess.Eval is
                     (Opening => Outside_Passed_Opening,
                      End_Game => Outside_Passed_Endgame);
                end if;
+               --  A rook of ours behind the passer (same file, between the
+               --  pawn and our back rank) supports its advance; off by
+               --  default (both parameters 0).
+               if Rook_Behind_Opening /= 0 or else Rook_Behind_Endgame /= 0 then
+                  declare
+                     Behind : constant Bitboard :=
+                       (if Color = White then Ranks_Below (Rank_Of (Sq))
+                        else not Ranks_Below (Rank_Of (Sq) + 1));
+                  begin
+                     if (Position.Pieces (Make (Color, Rook))
+                         and File_Mask (F) and Behind) /= 0
+                     then
+                        Acc := Acc +
+                          (Opening => Rook_Behind_Opening,
+                           End_Game => Rook_Behind_Endgame);
+                     end if;
+                  end;
+               end if;
             end;
             PB := PB and (PB - 1);
          end loop;
@@ -1285,6 +1341,37 @@ package body BBChess.Eval is
          return Acc;
       end Pawn_Threats_Term;
 
+      --  Outposts: a knight or bishop standing on a square defended by one of
+      --  our pawns that no enemy pawn can ever attack. One flat bonus per
+      --  piece, tapered by the phase. Off by default (both parameters 0), and
+      --  the loop is skipped entirely in that case, so the evaluation is
+      --  bit-identical to the previous one.
+      function Outpost_Term return Tapered_Score_Type is
+         Minors : Bitboard :=
+           Position.Pieces (Make (Color, Knight))
+           or Position.Pieces (Make (Color, Bishop));
+         Acc : Tapered_Score_Type := (Opening => 0, End_Game => 0);
+      begin
+         if Outpost_Opening = 0 and then Outpost_Endgame = 0 then
+            return Acc;
+         end if;
+         while Minors /= 0 loop
+            declare
+               Sq : constant Square_Type := Lowest_Bit (Minors);
+            begin
+               if (Outpost_Attacker_Mask (Color, Sq) and Enemy_Pawns) = 0
+                 and then (Pawn_Attacks (Enemy, Sq) and Own_Pawns) /= 0
+               then
+                  Acc := Acc
+                    + (Opening  => Outpost_Opening,
+                       End_Game => Outpost_Endgame);
+               end if;
+            end;
+            Minors := Minors and (Minors - 1);
+         end loop;
+         return Acc;
+      end Outpost_Term;
+
       --  King: endgame activity replaces the home-oriented PST.
       function King_Activity_Term return Tapered_Score_Type is
          King_Sq : constant Square_Type :=
@@ -1304,6 +1391,7 @@ package body BBChess.Eval is
       Result := Result + Connected_Rooks_Term;
       Result := Result + Pawn_Structure_Term;
       Result := Result + Pawn_Threats_Term;
+      Result := Result + Outpost_Term;
       Result := Result + King_Activity_Term;
 
       return Result;
