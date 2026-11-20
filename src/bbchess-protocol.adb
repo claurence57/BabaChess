@@ -132,7 +132,12 @@ package body BBChess.Protocol is
       if Clock_Left <= 0.0 or else Usable <= 0.0 then
          return Exact (Move_Time);
       end if;
-      return Clock_Based (Usable, Time_Increment, Moves_To_Go);
+      return Clock_Based
+        (Usable, Time_Increment, Moves_To_Go,
+         Policy =>
+           (Moves_Default => BBChess.Search.Tm_Moves_Default,
+            Hard_Mult     => Duration (BBChess.Search.Tm_Hard_Hundredths) / 100.0,
+            Inc_Frac      => Duration (BBChess.Search.Tm_Inc_Hundredths) / 100.0));
    end Time_For_Next_Move;
 
    procedure Consume_Move_Count is

@@ -2572,3 +2572,61 @@ excluant, le score est 52,68 % (**+18,7**), donc la conclusion ne change pas.
   retenir pour valider tout lot de cette taille (les 800 parties donnent ±18,
   insuffisant pour trancher un gain de 10-20 Elo).
 - Coût machine : 4 h 49 pour 3 000 parties à 5 en parallèle.
+
+---
+
+## 96. Temps : allocation rendue réglable, `div 20` mesuré perdant
+
+Item 7 de la feuille de route (`~/notes/babachess-pistes-elo.md`). Diagnostic de
+départ : à `10+0.1` la politique historique (`soft = t/30 + 0,75×inc`,
+`hard = 2×soft`) laisse ~30 % de la pendule non dépensée en fin de partie — le
+moteur cherche donc moins profond qu'il ne pourrait.
+
+### 96.1 Implémentation
+
+`BBChess.Clocks` portait les trois constantes en dur. Elles sont regroupées dans
+un `Time_Policy` (diviseur quand le GUI n'annonce pas de `movestogo`, multiple
+`hard/soft`, fraction d'incrément) que le protocole remplit depuis trois
+paramètres réglables :
+
+| Paramètre | Défaut | Rôle |
+|---|---|---|
+| `S_Tm_Div` | 30 | diviseur de la pendule (moves-to-go estimé) |
+| `S_Tm_Hard_100` | 200 | limite dure, en % du budget mou |
+| `S_Tm_Inc_100` | 75 | part de l'incrément ajoutée au budget mou |
+
+Les défauts reproduisent **exactement** l'ancienne allocation (vérifié : même
+`--bench`, mêmes self-tests, `Clock_Based` inchangé par défaut) ; la division est
+protégée (diviseur ≥ 1, hard ≥ 100 %). Effet du levier vérifié en UCI sur une
+même position avec 3 s à la pendule : `div 30` → 123 ms / profondeur 9,
+`div 20` → 216 ms / profondeur 10.
+
+### 96.2 Mesure (`10+0.1`, auto-match, `S_Tm_Div 20` contre 30)
+
+2 000 parties prévues, arrêtées à **999** (le verdict était stable depuis 400) :
+
+| | Parties | Score | Élo | Drapeaux |
+|---|---|---|---|---|
+| brut (drapeaux comptés) | 999 | 49,05 % | **−5,7 ± 15,9** (fastchess) | NEW 13 / OLD 2 |
+| hors pertes au temps | 984 | 49,75 % | **−1,8 ± 21,7** | — |
+
+Deux conclusions nettes :
+
+1. **Le temps supplémentaire ne rapporte rien** : hors drapeaux, le score est à
+   50 % (−1,8 Elo). Les 30 % de pendule inutilisés ne valaient donc pas un pli
+   de plus là où ils étaient dépensés — le moteur avait déjà, en gros, le temps
+   de faire ce qu'il pouvait à cette cadence.
+2. **Il coûte des parties** : 13 pertes au temps contre 2 (1,3 % contre 0,2 %),
+   soit ~−1,3 % de score. Le net est négatif.
+
+`S_Tm_Div` reste donc à **30**. Les trois paramètres restent dans le code (utiles
+à un futur essai « hard plus haut à soft constant », ou à une cadence longue où
+le plafond `Max_Soft = 2 s` mord), mais aucun réglage n'est adopté.
+
+### 96.3 Enseignement
+
+Un moteur peut laisser de la pendule sans perdre d'Elo : ce qui compte est la
+**forme** de la courbe (itérations complètes, pas de drapeau), pas le volume
+dépensé. La piste 7 est close sur cette mesure ; s'y remettre devrait viser
+« dépenser mieux » (hard relevé à soft constant, stabilité du meilleur coup —
+déjà mesurée neutre en §75), pas « dépenser plus ».

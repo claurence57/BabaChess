@@ -8,6 +8,16 @@
 
 ## Non publié
 
+**Temps : allocation réglable, variante `div 20` mesurée perdante.**
+`BBChess.Clocks` expose désormais `Time_Policy` (diviseur quand le GUI n'annonce
+pas de `movestogo`, multiple `hard/soft`, part de l'incrément), piloté par
+`S_Tm_Div` (30), `S_Tm_Hard_100` (200) et `S_Tm_Inc_100` (75) — les défauts
+reproduisent l'ancienne allocation à l'identique. Mesure à `10+0.1` en
+auto-match (`div 20` contre 30), 999 parties : brut **−5,7 ± 15,9** Elo,
+hors pertes au temps **−1,8 ± 21,7** ; les drapeaux passent de 2 à 13. Dépenser
+les ~30 % de pendule inutilisés ne rapporte donc rien et coûte des parties :
+réglage livré inchangé (30 / 200 / 75). Détail : `DEVELOPMENT.md` §96.
+
 **Confirmation longue du lot TT + ProbCut (`10+0.1`) : +19,0 ± 9,4 Elo.**
 3 000 parties, binaires figés, ouvertures jouées avec les deux couleurs :
 956–792–1252 (52,73 %), LOS 100 %, LLR +2,80 (borne 2,94 manquée de 0,14 au

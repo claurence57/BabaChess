@@ -20,14 +20,20 @@ package body BBChess.Clocks is
       return (Soft => T, Hard => T);
    end Exact;
 
-   function Clock_Based (Clock_Left  : Duration;
-                         Increment   : Duration;
-                         Moves_To_Go : Natural) return Allocation is
+   function Clock_Based (Clock_Left    : Duration;
+                         Increment     : Duration;
+                         Moves_To_Go   : Natural;
+                         Policy        : Time_Policy := Default_Policy)
+     return Allocation
+   is
       Inc     : Duration := Increment;
       Budget  : Duration;
       Cap     : Duration;
       Hard    : Duration;
       Reserve : constant Duration := Clock_Left - Safety_Margin;
+      --  Guard the divisor: a zero or negative policy value would divide by 0.
+      Div     : constant Duration :=
+        Duration (Natural'Max (1, Policy.Moves_Default));
    begin
       if Inc < 0.0 then
          Inc := 0.0;
@@ -38,10 +44,10 @@ package body BBChess.Clocks is
          --  clock over exactly that many moves, so the fraction per move
          --  grows as the session limit approaches. The anti-spike ceiling is
          --  lifted (only the clock reserve still bounds the budget).
-         Budget := Clock_Left / Duration (Moves_To_Go) + 0.75 * Inc;
+         Budget := Clock_Left / Duration (Moves_To_Go) + Policy.Inc_Frac * Inc;
          Cap := Clock_Left;
       else
-         Budget := Clock_Left / Duration (Moves_To_Go_Default) + 0.75 * Inc;
+         Budget := Clock_Left / Div + Policy.Inc_Frac * Inc;
          Cap := Max_Soft;
       end if;
 
@@ -52,8 +58,8 @@ package body BBChess.Clocks is
          Budget := Reserve;
       end if;
 
-      --  Hard = 2 x soft, but never past the clock reserve.
-      Hard := 2.0 * Budget;
+      --  Hard = Policy.Hard_Mult x soft, but never past the clock reserve.
+      Hard := Policy.Hard_Mult * Budget;
       if Hard > Reserve then
          Hard := Reserve;
       end if;

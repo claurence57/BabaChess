@@ -30,8 +30,24 @@ package BBChess.Clocks is
    --  count lifts the ceiling.
    Max_Soft : constant Duration := 2.0;
 
-   --  Estimated moves to go when the GUI does not provide one.
+   --  Estimated moves to go when the GUI does not provide one (the default of
+   --  Time_Policy.Moves_Default).
    Moves_To_Go_Default : constant := 30;
+
+   --  Time_Policy gathers the three knobs of the allocation: the moves-to-go
+   --  estimate used when the GUI announces none, and the two fractions of the
+   --  historical policy (hard = 2 x soft, increment used at 0.75). Default_Policy
+   --  reproduces the historical allocation exactly.
+   type Time_Policy is record
+      Moves_Default : Natural := Moves_To_Go_Default;
+      Hard_Mult     : Duration := 2.0;
+      Inc_Frac      : Duration := 0.75;
+   end record;
+
+   Default_Policy : constant Time_Policy :=
+     (Moves_Default => Moves_To_Go_Default,
+      Hard_Mult     => 2.0,
+      Inc_Frac      => 0.75);
 
    --  Exact budget ("st" / UCI movetime): soft = hard = the requested time.
    --  The caller asked for exactly this, so no clock reserve is applied.
@@ -40,10 +56,13 @@ package BBChess.Clocks is
    --  Clock-based budget.
    --    Clock_Left  remaining time of the engine (seconds, > 0)
    --    Increment   per-move increment (seconds)
-   --    Moves_To_Go 0 = unknown (use Moves_To_Go_Default), else the value
+   --    Moves_To_Go 0 = unknown (use Policy.Moves_Default), else the value
    --                announced by the GUI ("movestogo" / "level" moves).
-   function Clock_Based (Clock_Left  : Duration;
-                         Increment   : Duration;
-                         Moves_To_Go : Natural) return Allocation;
+   --    Policy      moves-to-go estimate and the hard / increment fractions
+   function Clock_Based (Clock_Left    : Duration;
+                         Increment     : Duration;
+                         Moves_To_Go   : Natural;
+                         Policy        : Time_Policy := Default_Policy)
+     return Allocation;
 
 end BBChess.Clocks;

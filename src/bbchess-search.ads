@@ -174,6 +174,11 @@ package BBChess.Search is
       S_Nmp_Eval,         -- 1 = null move only when the static eval >= beta
       S_Qs_TT,            -- 1 = quiescence probes / stores the TT
       S_Tm_Stable,        -- 1 = soft time scaled by best-move stability
+      --  Time allocation (BBChess.Clocks.Clock_Based), in hundredths where a
+      --  fraction is meant: defaults reproduce the historical policy.
+      S_Tm_Div,           -- moves-to-go estimate when the GUI announces none
+      S_Tm_Hard_100,      -- hard limit, in percent of the soft one
+      S_Tm_Inc_100,       -- increment added to the soft budget, in percent
       S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
       --  Transposition-table replacement policy (S_Tt_Replace = 1): each slot
@@ -227,5 +232,13 @@ package BBChess.Search is
    -- Print every search parameter as "NAME value", one per line (the same
    -- two-column format as the evaluation-parameter dump, so the tuner's
    -- "--dump-params" parser reads them unchanged).
+
+   function Tm_Moves_Default return Natural;
+   function Tm_Hard_Hundredths return Natural;
+   function Tm_Inc_Hundredths return Natural;
+   -- The time-allocation policy currently in force (BBChess.Clocks.Time_Policy):
+   -- the moves-to-go estimate used when the GUI announces none, and the hard /
+   -- increment fractions in hundredths. Exposed so the protocol driver builds
+   -- the per-move budget from the tunable values instead of hard-coded ones.
 
 end BBChess.Search;

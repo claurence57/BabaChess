@@ -95,6 +95,11 @@ package body BBChess.Search is
       S_Nmp_Eval             => 0,
       S_Qs_TT                => 1,
       S_Tm_Stable            => 0,
+      --  Time allocation: divisor 30, hard = 2 x soft, 75 % of the increment
+      --  (the historical policy, now tunable; see BBChess.Clocks).
+      S_Tm_Div               => 30,
+      S_Tm_Hard_100          => 200,
+      S_Tm_Inc_100           => 75,
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
       --  TT replacement policy: keep-score = depth + PV bonus - age penalty,
@@ -162,6 +167,9 @@ package body BBChess.Search is
       S_Nmp_Eval             => 0,
       S_Qs_TT                => 0,
       S_Tm_Stable            => 0,
+      S_Tm_Div               => 1,
+      S_Tm_Hard_100          => 100,
+      S_Tm_Inc_100           => 0,
       S_Iir_Depth            => 0,
       S_Bad_Capture          => 0,
       S_Tt_Replace           => 0,
@@ -212,6 +220,9 @@ package body BBChess.Search is
       S_Nmp_Eval             => 1,
       S_Qs_TT                => 1,
       S_Tm_Stable            => 1,
+      S_Tm_Div               => 200,
+      S_Tm_Hard_100          => 800,
+      S_Tm_Inc_100           => 300,
       S_Iir_Depth            => 64,
       S_Bad_Capture          => 1,
       S_Tt_Replace           => 1,
@@ -2859,6 +2870,22 @@ package body BBChess.Search is
            (Search_Real_Param_Id'Image (Id), Search_Real_Params (Id));
       end loop;
    end Dump_Search_Params;
+
+   ------------------------------
+   -- Time-allocation getters --
+   ------------------------------
+
+   --  Clamped again here (not only by Set_Search_Param) so a params file that
+   --  bypasses the setter cannot make Clock_Based divide by zero or produce a
+   --  hard limit below the soft one.
+   function Tm_Moves_Default return Natural is
+     (Natural (Natural'Max (1, Search_Params (S_Tm_Div))));
+
+   function Tm_Hard_Hundredths return Natural is
+     (Natural (Natural'Max (100, Search_Params (S_Tm_Hard_100))));
+
+   function Tm_Inc_Hundredths return Natural is
+     (Natural (Natural'Max (0, Search_Params (S_Tm_Inc_100))));
 
    -----------------
    -- Best_Move (fixed depth) --
