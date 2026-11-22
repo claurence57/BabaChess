@@ -2697,3 +2697,80 @@ information.
 **Vérification** : `--selftest` **146/146** (debug `-gnatwe`, release, portable,
 checked), `--bench 9/12` identiques aux paramètres nuls,
 `scripts/check_docs.py` OK.
+
+---
+
+## 98. Texel : les deux termes d'éval, valeurs trouvées par le tuner, effet non tranché
+
+Suite de §97. Les deux termes ajoutés à la main perdent quand on leur donne une
+valeur choisie par l'homme ; la question restante était celle de la méthode : que
+veut le **tuner** ? Le réglage est bon marché (21 s pour quatre paramètres), le
+coût réel est le jeu de données.
+
+### 98.1 Données — `openings.epd` est inutilisable pour ça
+
+Premier essai : 8 000 parties d'auto-jeu depuis `openings/openings.epd`. Résultat
+de l'extraction : **3 710 positions**. Deux causes cumulées — la suite ne compte
+que **65 positions**, et le moteur est **déterministe à nœuds fixes**, donc
+`-repeat` rejouait 130 parties identiques que la déduplication de l'extracteur
+ramenait à quelques milliers de positions très corrélées.
+
+Correction : nouvel outil `scripts/gen_balanced_openings.py` (écrit pour
+l'occasion, la procédure de §72.1 n'était pas scriptée) — positions issues de
+parties **aléatoires** de 6-10 demi-coups, matériel à ±1 pion, gardées si
+`|Static| ≤ 60` (un seul `--eval-fens` pour tout le lot) : **2 500 ouvertures en
+7 s**. Auto-jeu depuis cette suite : 5 000 parties (2 500 × 2 couleurs), 12 000
+nœuds/coup, ~28 min → **50 504 positions** après extraction (~12 600 par
+paramètre).
+
+### 98.2 Réglage (`texel.py --only "P_(OUTPOST|ROOKBEHIND)_*"`)
+
+6 tours, 21 s, arrêt sur stagnation de la validation :
+
+| | train | validation |
+|---|---|---|
+| départ (tous à 0) | 0,110991 | 0,113194 |
+| fin | 0,110954 | 0,113141 |
+
+Valeurs retenues : `P_OUTPOST_OP 20`, `P_OUTPOST_EG −12`,
+`P_ROOKBEHIND_OP 6`, `P_ROOKBEHIND_EG 20`.
+
+Deux choses à en lire :
+
+- Les valeurs sont **plausibles et non triviales** : un outpost vaut +20 au
+  milieu de partie mais **−12 en finale** (un cavalier avancé sans pions ne vaut
+  plus rien), et la tour derrière le pion passé ne vaut presque rien à
+  l'ouverture (+6) mais +20 en finale. C'est exactement ce qu'un réglage peut
+  trouver et qu'une main humaine ne tape pas — ce qui valide le câblage des deux
+  termes.
+- Le gain d'erreur est **infime** : −0,03 % en entraînement, −0,05 % en
+  validation, contre −2,2 % au premier tour de la campagne §72. Les termes
+  portent très peu de signal dans ce jeu de données.
+
+### 98.3 Écran de validation (2 000 parties en nœuds fixes)
+
+Valeurs du tuner contre 0 (défauts) : 769–721–510, score 51,2 %,
+**+8,34 ± 12,73 Elo**, LLR +0,62. **Non tranché**, mais à comparer aux deux
+réglages manuels de §97 : −11,47 ± 10,99 et −16,17 ± 11,64. Le tuner a donc trouvé
+une configuration qui **n'abîme pas** l'évaluation là où les valeurs choisies à la
+main la dégradaient nettement.
+
+### 98.4 État
+
+Les quatre paramètres restent à **0** : +8,3 ± 12,7 ne prouve rien, et la règle du
+projet est d'adopter seulement quand l'intervalle exclut 0. Ce qui est acquis :
+
+- les valeurs du tuner (20 / −12 / 6 / 20) sont **consignées** ici : une prochaine
+  campagne doit partir **de là**, pas de zéro, ce qui évite au tuner de refaire le
+  chemin ;
+- `scripts/gen_balanced_openings.py` reste dans l'outillage — sans lui, tout
+  réglage Texel sur ce moteur travaille sur un jeu de données corrélé.
+
+Pour trancher, il faut la confirmation à `10+0.1` : 3 000 parties (~5 h) avec
+`P_OUTPOST_OP 20 / P_OUTPOST_EG -12 / P_ROOKBEHIND_OP 6 / P_ROOKBEHIND_EG 20`
+contre les défauts. Attente réaliste, vu le gain d'erreur infime et la façon dont
+les écrans en nœuds fixes surestiment (§94.6) : quelques Elo au mieux.
+
+**Vérification** : `--selftest` 146/146 ; les paramètres restent à 0 dans le
+défaut (`--bench 9/12` inchangés, 455 176 / 1 784 546) ; `scripts/check_docs.py`
+OK.

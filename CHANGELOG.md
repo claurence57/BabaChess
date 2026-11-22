@@ -8,6 +8,18 @@
 
 ## Non publié
 
+**Texel : valeurs des deux termes d'éval trouvées, effet non tranché ; nouvel
+outil `gen_balanced_openings.py`.** Auto-jeu depuis une suite de 2 500 ouvertures
+générées (positions aléatoires 6-10 plis, matériel ±1 pion, `|Static| ≤ 60`) :
+5 000 parties, **50 504 positions**. Le tuner (`texel.py --only`, 21 s) retient
+`P_OUTPOST_OP 20`, `P_OUTPOST_EG −12`, `P_ROOKBEHIND_OP 6`,
+`P_ROOKBEHIND_EG 20` — valeurs plausibles (outpost négatif en finale, tour
+surtout utile en finale) mais gain d'erreur **infime** (−0,05 % en validation).
+Écran : **+8,34 ± 12,73** Elo sur 2 000 parties, non tranché — à comparer aux
+valeurs manuelles de §97 (−11,5 et −16,2) : le tuner n'abîme pas l'évaluation, il
+ne la bonifie pas de façon prouvée. Défauts laissés à 0, valeurs consignées dans
+`DEVELOPMENT.md` §98.4 pour la prochaine campagne.
+
 **Évaluation : deux termes ajoutés (`P_Outpost_*`, `P_RookBehind_*`), tous deux
 mesurés négatifs.** Outposts (cavalier/fou défendu par un pion, hors de portée
 des pions adverses) : **−11,47 ± 10,99** Elo ; tour derrière un pion passé :
