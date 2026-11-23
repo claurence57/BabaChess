@@ -142,6 +142,13 @@ rounded down to a power of two; default 64), `Clear Hash`, `Threads`,
 searches the predicted position and holds its `bestmove` until `ponderhit` or
 `stop`.
 
+Beyond the bare protocol, `go` accepts `searchmoves <moves...>` (restricts the
+root move list; unknown moves are reported as `info string`) and `perft <n>`
+(per-root-move leaf counts then the total, no `bestmove`), and the non-standard
+`d` command prints the current position as a board diagram plus its FEN. The
+`info` line carries `depth`, `seldepth`, `score`, `nodes`, `nps`, `hashfull`,
+`tbhits` and the `pv`.
+
 ## Known limitations
 
 - **DTZ at the root is opt-in.** By default Syzygy probing is WDL-only, so the

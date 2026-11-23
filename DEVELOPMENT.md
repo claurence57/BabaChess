@@ -2839,3 +2839,98 @@ pour mémoire. Conclusion de l'item 8 : sur cette évaluation, ni la main ni le
 réglage ne font gagner quoi que ce soit avec ces deux termes — le terme gagnant
 de §73 n'avait d'ailleurs gagné qu'après un réglage **complet** (274 paramètres),
 pas un réglage à quatre.
+
+---
+
+## §99 Protocole UCI : les cinq manques comblés (2026-11-23)
+
+Rien de la force ici, uniquement de la conformité et du confort de diagnostic :
+`--bench 9` reste à **455 176** nœuds (le suivi de `seldepth` est une
+comparaison par nœud, l'arbre est identique) et `--selftest` passe de 146 à
+**149** vérifications.
+
+| Point | Désormais | Fichiers |
+|---|---|---|
+| 1 | `Clear Hash` annoncé en `type button` ; `id author claurence57` | `bbchess-protocol.adb`, `bbchess-protocol-self_tests.adb` |
+| 2 | `seldepth` et `tbhits` dans la ligne `info` | `bbchess-search.adb` |
+| 3 | `go searchmoves <coups…>` filtrant la racine | `bbchess-protocol-uci.{ads,adb}`, `bbchess-search.{ads,adb}`, `bbchess-protocol.adb` |
+| 4 | commande `d` (échiquier + FEN + trait + roques) | `bbchess-protocol.adb`, nouveau `BBChess.Fen.To_String` |
+| 5 | `go perft <n>` (1 à 7), comptes par coup racine puis total | `bbchess-protocol.adb` |
+
+### 99.1 Poignée de main
+
+`Clear Hash` était accepté depuis 1.2.0 mais jamais annoncé : aucun GUI ne
+pouvait l'appeler. L'option est émise juste après `Hash`, donc les GUI qui
+prennent la première option `spin` comme taille de table ne changent pas de
+comportement. La poignée de main passe de **9 à 10 lignes** : les assertions du
+self-test bougent (`N_Lines = 10`, `Captured (10) = "uciok"`) et **une
+assertion s'ajoute** sur la nouvelle ligne, conformément à la règle « on déplace
+ces assertions, on ne les supprime pas ».
+
+`id author` passe de `BabaChess` à `claurence57`, l'identité du dépôt : c'est la
+seule chaîne inventable ici, une ligne à changer si un nom réel est préféré.
+
+### 99.2 `seldepth` et `tbhits`
+
+`seldepth` est la plie la plus profonde réellement atteinte, extensions et
+quiescence comprises : un `Natural` dans `Search_Context`, mis à jour à l'entrée
+de `Negamax` **et** de `Quiescence` (plafonné à `Max_Ply`), remis à zéro par
+`Init_Context`. Chaque fil Lazy SMP tient le sien et c'est celui du fil principal
+qui est rapporté, comme pour le nœud de meilleure ligne.
+
+`tbhits` compte les sondes Syzygy **WDL réussies** (`Probe_WDL` ≥ 0). Les sondes
+sont rares (un nœud de finale couvert par les tables), donc un compteur protégé
+est gratuit et donne un compte exact sous Lazy SMP ; il est remis à zéro aux deux
+points d'entrée de recherche (`Best_Move_Impl` et `Best_Move` à profondeur fixe),
+avec le compteur SMP de nœuds.
+
+### 99.3 `go searchmoves`
+
+Le parseur `Parse_Go` ne connaît pas la position ; il conserve donc les jetons de
+`searchmoves` en texte, jusqu'au prochain mot-clé (`wtime`, `btime`, `depth`,
+`nodes`, `perft`…). Le protocole les résout ensuite contre `Pos` (`From_String`)
+et transmet la liste à `Set_Search_Moves`.
+
+`Root_Search` compacte sa liste après `Generate_Legal_Moves`, en comparant
+**uniquement `From` et `To`** : un drapeau de promotion mal encodé ne peut pas
+faire échouer la correspondance, et demander `e7e8` admet les quatre pièces de
+promotion. Un coup inconnu est signalé (`info string searchmoves: unknown move
+…`) et ignoré ; un filtre qui ne laisse aucun coup légal rend `Empty_Move` au
+lieu de chercher sur une liste vide.
+
+Le filtre est global (`Root_Filter`, `Root_Filter_N`), posé **avant** le départ
+de la recherche et retiré par le `go` suivant, donc écrit seulement quand aucune
+recherche ne tourne — même règle que les `setoption` destructifs.
+
+### 99.4 Commande `d` et écrivain FEN
+
+`d` est non standard mais attendu par quiconque met au point un moteur. Il imprime
+l'échiquier (17 lignes de diagramme), `Fen:`, le trait et les droits de roque.
+
+Cela demandait l'inverse de `BBChess.Fen.Load`, absent jusqu'ici : `To_String`
+écrit les six champs, les roques depuis `Position.Castle` et les compteurs depuis
+`Halfmove`/`Fullmove`. Testé en aller-retour sur la position de Kiwipete
+(roques des deux couleurs, 32 pièces) et sur une position avec case en passant
+réelle : `Load (To_String (P))` redonne la même clé de Zobrist.
+
+### 99.5 `go perft`
+
+Comptes de feuilles par coup racine puis total, sans `bestmove` — la sortie
+qu'attendent les auteurs de moteurs, et le seul moyen de lancer un perft depuis
+un GUI sans passer par la ligne de commande. Profondeur limitée à **1..7** :
+`Perft.Nodes` rend un `Natural`, donc un compte au-delà de 2³¹ serait faux
+plutôt que lent.
+
+### 99.6 Vérifications
+
+`--selftest` **149/149** en debug (`-gnatwe`), release, portable et checked ;
+`--bench 9` **455 176** ; poignée de main relue sur une session réelle (`info
+depth … seldepth … tbhits …`), `go searchmoves e1g1 d5e6` rendant bien un
+`bestmove` parmi les deux coups demandés, `go perft 1` sur Kiwipete rendant
+**48** et `d` la FEN exacte de départ.
+
+**Piège de comptage** : les assertions de `BBChess.Protocol.Self_Tests` **lèvent**
+(`PROGRAM_ERROR`) au lieu d'incrémenter le compteur du harnais. Onze assertions
+protocolaires ont été ajoutées, le total affiché n'a bougé que de trois (les
+assertions FEN de `bbchess-self-tests.adb`). Ne pas interpréter le total comme le
+nombre d'assertions protocolaires.

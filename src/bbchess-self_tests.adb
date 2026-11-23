@@ -371,6 +371,31 @@ package body BBChess.Self_Tests is
          Assert (Rejected, "FEN without one king per side must be rejected");
       end;
 
+      -- To_String is the inverse of Load: castling rights, both colours and a
+      -- full board survive the round trip, and the reloaded position has the
+      -- same Zobrist key.
+      declare
+         P, Q : Position_Type;
+         F    : constant String :=
+           "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+      begin
+         Load (P, F);
+         Assert (To_String (P) = F, "FEN round-trip must reproduce the string");
+         Load (Q, To_String (P));
+         Assert (Q.Key = P.Key and then Q.Side = P.Side
+                 and then Q.Castle = P.Castle,
+                 "FEN round-trip must reload the same position");
+      end;
+
+      -- The en-passant square is written back (it is a real FEN field here).
+      declare
+         P : Position_Type;
+      begin
+         Load (P, "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1");
+         Assert (To_String (P) = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+                 "FEN round-trip must keep the en-passant square");
+      end;
+
       Ada.Text_IO.Put_Line ("FEN validation OK");
    end Test_Fen_Validation;
 

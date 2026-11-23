@@ -15,6 +15,8 @@ use BBChess.Board;
 with BBChess.Moves;
 use BBChess.Moves;
 
+with BBChess.Movegen;
+
 with Ada.Exceptions;
 
 package BBChess.Search is
@@ -91,6 +93,12 @@ package BBChess.Search is
 
    procedure Clear_Stop;
    -- Cancel a pending stop request before starting a new search.
+
+   procedure Set_Search_Moves (Moves : in BBChess.Movegen.Move_List;
+                               Count : in Natural);
+   -- Restrict the next search's root move list to Moves (1 .. Count), the
+   -- UCI "go searchmoves" command. Called with the search's position and
+   -- before it starts; Count = 0 restores the full list.
 
    function Stop_Requested return Boolean;
    -- True once Request_Stop has been called (and not yet cleared).

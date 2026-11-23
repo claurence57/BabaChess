@@ -96,6 +96,36 @@ package body BBChess.Protocol.UCI is
                Result.Infinite := True;
             elsif Name = "ponder" then
                Result.Ponder := True;
+            elsif Name = "perft" then
+               Result.Has_Perft := True;
+               Result.Perft_Depth := Parse_Natural (Next, 0);
+            elsif Name = "searchmoves" then
+               --  The move tokens that follow, up to the next keyword. They
+               --  are kept as text: turning them into moves needs a position.
+               Result.Has_Searchmoves := True;
+               declare
+                  Move_Text : Unbounded_String := Null_Unbounded_String;
+                  K         : Natural := I + 1;
+               begin
+                  while K <= N loop
+                     declare
+                        T : constant String := Token (Parameter, K);
+                     begin
+                        exit when T = "wtime" or else T = "btime"
+                          or else T = "winc" or else T = "binc"
+                          or else T = "movestogo" or else T = "movetime"
+                          or else T = "depth" or else T = "nodes"
+                          or else T = "infinite" or else T = "ponder"
+                          or else T = "perft";
+                        if Length (Move_Text) > 0 then
+                           Append (Move_Text, ' ');
+                        end if;
+                        Append (Move_Text, T);
+                        K := K + 1;
+                     end;
+                  end loop;
+                  Result.Searchmoves := Move_Text;
+               end;
             end if;
          end;
          I := I + 1;

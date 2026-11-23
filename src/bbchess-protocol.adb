@@ -22,6 +22,9 @@ use BBChess.Pieces;
 with BBChess.Hash;
 with BBChess.Fen;
 use BBChess.Fen;
+with BBChess.Movegen;
+use BBChess.Movegen;
+with BBChess.Perft;
 with BBChess.Notation;
 use BBChess.Notation;
 with BBChess.Search;
@@ -370,7 +373,8 @@ package body BBChess.Protocol is
       entry Start (P : in Position_Type; D : in Natural;
                    Soft : in Duration; Hard : in Duration;
                    Node_Cap : in BBChess.Search.Node_Count_Type;
-                   Infinite : in Boolean; Ponder : in Boolean);
+                   Infinite : in Boolean; Ponder : in Boolean;
+                   Moves : in Move_List; Num_Moves : in Natural);
       entry Stop_Now;
    end UCI_Search_Task;
 
@@ -389,7 +393,8 @@ package body BBChess.Protocol is
             accept Start (P : in Position_Type; D : in Natural;
                           Soft : in Duration; Hard : in Duration;
                           Node_Cap : in BBChess.Search.Node_Count_Type;
-                          Infinite : in Boolean; Ponder : in Boolean)
+                          Infinite : in Boolean; Ponder : in Boolean;
+                          Moves : in Move_List; Num_Moves : in Natural)
             do
                Inf := Infinite;
                Pond := Ponder;
@@ -398,6 +403,10 @@ package body BBChess.Protocol is
                Soft_Alloc := Soft;
                Hard_Alloc := Hard;
                Cap    := Node_Cap;
+               --  Installed here, inside the rendezvous: the previous search
+               --  has ended and no worker is running, so the filter is never
+               --  written while another search reads it.
+               Set_Search_Moves (Moves, Num_Moves);
                Ponder_Hit.Clear;
                UCI_Busy.Set_Busy (True);
                Clear_Stop;
@@ -580,13 +589,149 @@ package body BBChess.Protocol is
       end loop;
    end Apply_UCI_Position;
 
+   ------------------
+   --  UCI "d"     --
+   ------------------
+
+   --  Unofficial but expected by every engine author: print the position as a
+   --  board diagram and as a FEN, so a session can be inspected without a GUI.
+   procedure Handle_UCI_Display is
+      P : Piece_Type;
+
+      function Letter (X : in Piece_Type) return Character is
+        (case Kind (X) is
+           when Pawn   => (if Color (X) = White then 'P' else 'p'),
+           when Knight => (if Color (X) = White then 'N' else 'n'),
+           when Bishop => (if Color (X) = White then 'B' else 'b'),
+           when Rook   => (if Color (X) = White then 'R' else 'r'),
+           when Queen  => (if Color (X) = White then 'Q' else 'q'),
+           when King   => (if Color (X) = White then 'K' else 'k'));
+
+      function Img (N : in Natural) return String is
+         S : constant String := Natural'Image (N);
+      begin
+         return S (S'First + 1 .. S'Last);
+      end Img;
+   begin
+      Emit (" +---+---+---+---+---+---+---+---+");
+      for Rank in reverse 0 .. 7 loop
+         declare
+            Line : Unbounded_String := Null_Unbounded_String;
+         begin
+            for File in 0 .. 7 loop
+               Append (Line, " | ");
+               if Piece_At (Pos, Rank * 8 + File, P) then
+                  Append (Line, Letter (P));
+               else
+                  Append (Line, '.');
+               end if;
+            end loop;
+            Append (Line, " | " & Img (Rank + 1));
+            Emit (To_String (Line));
+            Emit (" +---+---+---+---+---+---+---+---+");
+         end;
+      end loop;
+      Emit ("   a   b   c   d   e   f   g   h");
+      Emit ("Fen: " & BBChess.Fen.To_String (Pos));
+      Emit ((if Pos.Side = White then "White" else "Black") & " to move");
+      Emit ("Castling: "
+            & (if Pos.Castle (White, King_Side) then "K" else "")
+            & (if Pos.Castle (White, Queen_Side) then "Q" else "")
+            & (if Pos.Castle (Black, King_Side) then "k" else "")
+            & (if Pos.Castle (Black, Queen_Side) then "q" else "")
+            & (if not (Pos.Castle (White, King_Side)
+                       or else Pos.Castle (White, Queen_Side)
+                       or else Pos.Castle (Black, King_Side)
+                       or else Pos.Castle (Black, Queen_Side))
+               then "-" else ""));
+   end Handle_UCI_Display;
+
+   ------------------
+   --  UCI perft   --
+   ------------------
+
+   --  "go perft N": per-root-move leaf counts then the total, the layout other
+   --  engines print. Perft.Nodes returns a Natural, so a depth whose count
+   --  exceeds 2**31 is refused rather than reported wrong.
+   procedure Handle_UCI_Perft (Depth : in Natural) is
+      Work  : Position_Type := Pos;
+      Total : Natural := 0;
+
+      function Img (N : in Natural) return String is
+         S : constant String := Natural'Image (N);
+      begin
+         return S (S'First + 1 .. S'Last);
+      end Img;
+   begin
+      if Depth = 0 or else Depth > 7 then
+         Emit ("info string perft: depth must be 1 .. 7");
+         return;
+      end if;
+
+      declare
+         Moves : Move_List;
+         Count : Natural;
+      begin
+         Generate_Legal_Moves (Work, Moves, Count);
+         for I in 1 .. Count loop
+            declare
+               Undo : Undo_Info;
+               N    : Natural;
+            begin
+               Make_Move (Work, Moves (I), Undo);
+               N := BBChess.Perft.Nodes (Work, Depth - 1);
+               Unmake_Move (Work, Moves (I), Undo);
+               Total := Total + N;
+               Emit ("info string " & To_String (Moves (I)) & " " & Img (N));
+            end;
+         end loop;
+      end;
+      Emit ("info string nodes searched " & Img (Total));
+      Emit ("info string perft " & Img (Depth) & " " & Img (Total));
+   end Handle_UCI_Perft;
+
    -----------------
    --  UCI go      --
    -----------------
 
    procedure Handle_UCI_Go (Par : in String) is
       Go : constant UCI.Go_Params := UCI.Parse_Go (Par);
+      --  Root move filter for this search ("go searchmoves"); empty means the
+      --  full list. Installed by the search task at the start rendezvous.
+      Filter_Moves : Move_List;
+      Filter_N     : Natural := 0;
    begin
+      --  "go perft N": leaf count instead of a search (unofficial, but the
+      --  spelling other engines accept). No bestmove is emitted.
+      if Go.Has_Perft then
+         Handle_UCI_Perft (Go.Perft_Depth);
+         return;
+      end if;
+
+      --  "go searchmoves ...": restrict the root list for this search only.
+      --  The tokens are resolved against the current position; an unknown or
+      --  illegal move is reported and dropped.
+      if Go.Has_Searchmoves then
+         declare
+            Text : constant String := To_String (Go.Searchmoves);
+            N    : constant Natural := UCI.Token_Count (Text);
+         begin
+            for I in 1 .. N loop
+               declare
+                  M : constant Move_Type := From_String (Pos, Token (Text, I));
+               begin
+                  if M = Empty_Move then
+                     Emit ("info string searchmoves: unknown move "
+                           & Token (Text, I));
+                  elsif Filter_N < Filter_Moves'Length then
+                     Filter_N := Filter_N + 1;
+                     Filter_Moves (Filter_N) := M;
+                  end if;
+               end;
+            end loop;
+         end;
+      end if;
+
       Fixed_Time := False;
       Clock_Left := 0.0;
       Time_Increment := 0.0;
@@ -609,6 +754,7 @@ package body BBChess.Protocol is
 
       if not Go.Infinite and then not Go.Ponder
         and then Go.Nodes = 0 and then not UCI_Busy.Busy
+        and then Filter_N = 0
       then
          declare
             BM : Move_Type;
@@ -640,7 +786,8 @@ package body BBChess.Protocol is
 
          Ensure_UCI_Task;
          Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Go.Nodes, Go.Infinite, Go.Ponder);
+                            Go.Nodes, Go.Infinite, Go.Ponder,
+                            Filter_Moves, Filter_N);
       end;
    end Handle_UCI_Go;
 
@@ -653,9 +800,10 @@ package body BBChess.Protocol is
         Trim_Both (Natural'Image (Transposition_Size_MB));
    begin
       Emit ("id name BabaChess " & BabaChess_Version);
-      Emit ("id author BabaChess");
+      Emit ("id author claurence57");
       Emit ("option name Hash type spin default " & Size
             & " min 1 max 1024");
+      Emit ("option name Clear Hash type button");
       Emit ("option name Threads type spin default 1 min 1 max 16");
       Emit ("option name Move Overhead type spin default 10 min 0 max 5000");
       Emit ("option name OwnBook type check default true");
@@ -816,6 +964,10 @@ package body BBChess.Protocol is
               and then (Cmd = "debug" or else Cmd = "register")
             then
                null;
+
+            --  Unofficial "d": print the position (board diagram + FEN).
+            elsif Cmd = "d" and then UCI_Mode then
+               Handle_UCI_Display;
 
             elsif Cmd = "setoption" and then UCI_Mode then
                Handle_UCI_Setoption (Par);

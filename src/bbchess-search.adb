@@ -738,6 +738,8 @@ package body BBChess.Search is
          --  only the new ones are added at each poll (exact, no double count).
          Flushed          : Node_Count_Type := 0;
          Next_Checkpoint  : Node_Count_Type := Check_Interval;
+         --  Deepest ply reached so far in this thread's tree (UCI "seldepth").
+         Sel_Depth        : Natural := 0;
          Time_Limit_Armed : Boolean := False;
          Node_Limit       : Node_Count_Type := 0;
          --  True when this context runs as one of several Lazy SMP workers:
@@ -767,6 +769,48 @@ package body BBChess.Search is
    -- Set by the primary thread to stop the helpers promptly.
    Stop_Search : Boolean := False;
    pragma Atomic (Stop_Search);
+
+   --  Root move filter ("go searchmoves"). When Root_Filter_N > 0, Root_Search
+   --  only searches the moves it lists. Set before a search starts and read by
+   --  every worker, so it is written only while no search is running.
+   Root_Filter   : Move_List;
+   Root_Filter_N : Natural := 0;
+
+   procedure Set_Search_Moves (Moves : in Move_List; Count : in Natural) is
+   begin
+      Root_Filter_N := Natural'Min (Count, Root_Filter'Length);
+      for I in 1 .. Root_Filter_N loop
+         Root_Filter (I) := Moves (I);
+      end loop;
+   end Set_Search_Moves;
+
+   --  Successful Syzygy WDL probes (UCI "tbhits"). Probes are rare (one per
+   --  endgame node covered by the tables), so a protected counter is cheap and
+   --  keeps the count exact under Lazy SMP.
+   protected TB_Hits is
+      procedure Reset;
+      procedure Add;
+      function  Value return Natural;
+   private
+      Count : Natural := 0;
+   end TB_Hits;
+
+   protected body TB_Hits is
+      procedure Reset is
+      begin
+         Count := 0;
+      end Reset;
+
+      procedure Add is
+      begin
+         Count := Count + 1;
+      end Add;
+
+      function Value return Natural is
+      begin
+         return Count;
+      end Value;
+   end TB_Hits;
 
    -- External stop request (UCI "stop"/"quit"). Kept separate from
    -- Stop_Search, which the Lazy SMP primary thread clears between searches:
@@ -837,6 +881,7 @@ package body BBChess.Search is
       end loop;
       Ctx.Nodes_Count := 0;
       Ctx.Flushed := 0;
+      Ctx.Sel_Depth := 0;
       --  The node cap must be checked at the cap itself, not only at the
       --  next Check_Interval multiple, or "go nodes N" would overshoot N by
       --  up to Check_Interval - 1 nodes (per worker).
@@ -1217,6 +1262,7 @@ package body BBChess.Search is
 
    procedure Report_Iteration (Root       : in Position_Type;
                                Depth      : in Natural;
+                               Sel_Depth  : in Natural;
                                Score      : in Score_Type;
                                Elapsed    : in Duration;
                                Nodes      : in Node_Count_Type;
@@ -1276,6 +1322,7 @@ package body BBChess.Search is
 
       if UCI_Output then
          Append ("info depth" & Natural'Image (Depth));
+         Append (" seldepth" & Natural'Image (Sel_Depth));
          if Score >= Mate_Threshold then
             Append_Mate (True, Mate_Score - Score);
          elsif Score <= -Mate_Threshold then
@@ -1291,6 +1338,7 @@ package body BBChess.Search is
                     else
                       Long_Integer (Nodes) * 1000));
          Append (" hashfull " & Img_Nat (Transposition_Hashfull));
+         Append (" tbhits" & Natural'Image (TB_Hits.Value));
          if Pv_Len > 0 then
             Append (" pv");
             for I in 1 .. Pv_Len loop
@@ -1486,6 +1534,12 @@ package body BBChess.Search is
       end Finish;
    begin
       Poll_Time (Ctx);
+
+      --  Deepest ply reached (UCI "seldepth"). One comparison per node; the
+      --  value is only ever reported, never used by the search.
+      if Ply > Ctx.Sel_Depth then
+         Ctx.Sel_Depth := Natural'Min (Max_Ply, Ply);
+      end if;
 
       -- Depth bound: stop expanding once the quiescence cap is reached.
       if QDepth >= Max_Q_Depth then
@@ -1860,6 +1914,11 @@ package body BBChess.Search is
    begin
       Poll_Time (Ctx);
 
+      --  Deepest ply reached (UCI "seldepth"), same as in Quiescence.
+      if Ply > Ctx.Sel_Depth then
+         Ctx.Sel_Depth := Natural'Min (Max_Ply, Ply);
+      end if;
+
       -- Recover the previous move from this thread's per-ply move path. The
       -- value is a by-value copy and every parent writes its own slot just
       -- before recursing, so no stale pointer survives an Unmake.
@@ -1921,6 +1980,9 @@ package body BBChess.Search is
          declare
             W : constant Integer := BBChess.Syzygy.Probe_WDL (Position);
          begin
+            if W >= 0 then
+               TB_Hits.Add;
+            end if;
             case W is
                when 4 =>                     -- TB_WIN
                   return BBChess.Syzygy.TB_Win - Ply;
@@ -2394,6 +2456,29 @@ package body BBChess.Search is
    begin
       Generate_Legal_Moves (Position, Root_Moves, Count);
 
+      --  "go searchmoves": keep only the requested root moves. Compared on
+      --  origin/destination only, so a requested promotion square admits every
+      --  promotion piece and no Flag encoding detail can make a legal move
+      --  unmatched.
+      if Root_Filter_N > 0 then
+         declare
+            Kept : Natural := 0;
+         begin
+            for I in 1 .. Count loop
+               for J in 1 .. Root_Filter_N loop
+                  if Root_Moves (I).From = Root_Filter (J).From
+                    and then Root_Moves (I).To = Root_Filter (J).To
+                  then
+                     Kept := Kept + 1;
+                     Root_Moves (Kept) := Root_Moves (I);
+                     exit;
+                  end if;
+               end loop;
+            end loop;
+            Count := Kept;
+         end;
+      end if;
+
       if Count = 0 then
          Best_Score := 0;
          return Empty_Move;
@@ -2696,7 +2781,7 @@ package body BBChess.Search is
                --  Single-thread: report the exact counter. Lazy SMP: report
                --  the shared total, never below this worker's own count (it
                --  may already be ahead of the last poll flush).
-               Report_Iteration (Work, D, Best_Score,
+               Report_Iteration (Work, D, Ctx.Sel_Depth, Best_Score,
                                  To_Duration (Clock - T0),
                                  (if Ctx.Shared_Report
                                   then Node_Count_Type'Max (SMP_Counter.Value,
@@ -2903,6 +2988,7 @@ package body BBChess.Search is
       TT_Generation := TT_Generation + 1;
       Stop_Search := False;
       SMP_Counter.Reset;
+      TB_Hits.Reset;
 
       declare
          Ctx : Context_Access := new Search_Context;
@@ -3087,6 +3173,7 @@ package body BBChess.Search is
       -- (which never clears it) would otherwise abort at the first poll.
       Stop_Search := False;
       SMP_Counter.Reset;
+      TB_Hits.Reset;
 
       if Num_Threads <= 1 then
          declare

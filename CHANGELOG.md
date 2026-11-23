@@ -6,6 +6,35 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## Unreleased — protocole UCI (points 1 à 5)
+
+**Cinq ajouts protocolaires, aucun effet sur la force** : `--bench 9` reste à
+**455 176** nœuds, `--selftest` passe de 146 à **149** vérifications (les trois
+assertions FEN ajoutées ; les assertions du paquet `BBChess.Protocol.Self_Tests`
+lèvent au lieu de compter, elles ne gonflent pas le total).
+
+- **`Clear Hash` annoncé.** L'option existait et était acceptée, mais absente de
+  la poignée de main : aucun GUI ne pouvait la proposer. Elle est maintenant
+  émise en `type button`, juste après `Hash` (les GUI qui lisent la première
+  option `spin` sont inchangés), et la poignée de main passe de 9 à 10 lignes.
+- **`id author` renseigné** : `BabaChess` → `claurence57` (identité du dépôt ;
+  une seule ligne à changer dans `bbchess-protocol.adb`).
+- **`info` porte `seldepth` et `tbhits`** : plie la plus profonde réellement
+  atteinte par la recherche (extension et quiescence comprises), et nombre de
+  sondes Syzygy WDL réussies. Les deux sont remis à zéro au début de chaque
+  recherche ; `tbhits` est un compteur protégé, exact sous Lazy SMP.
+- **`go searchmoves <coups…>`** restreint la liste de coups à la racine. Les
+  jetons sont résolus contre la position courante (un coup inconnu donne
+  `info string searchmoves: unknown move …` et est ignoré) ; le filtre est posé
+  avant le départ de la recherche et retiré au `go` suivant.
+- **`go perft <n>`** (1 à 7) : comptes de feuilles par coup racine puis total,
+  sans `bestmove`, comme les autres moteurs.
+- **Commande `d`** (non standard, attendue par les auteurs de moteurs) :
+  échiquier, `Fen:`, trait et droits de roque.
+- **`BBChess.Fen.To_String`**, inverse de `Load` (six champs, roques et case en
+  passant compris), testé en aller-retour et réutilisable pour journaliser une
+  position.
+
 ## 1.5.0 (2026-11-23)
 
 **Force mesurée : +19,0 ± 9,4 Elo à `10+0.1` contre la 1.4.0** (3 000 parties,

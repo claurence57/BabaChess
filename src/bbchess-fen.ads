@@ -16,4 +16,9 @@ package BBChess.Fen is
    -- and on illegal positions: the board must contain exactly one king per
    -- side and the side that does not have the move must not be in check.
 
+   function To_String (Position : in Position_Type) return String;
+   -- Six-field FEN of Position, the inverse of Load: castling rights and the
+   -- en-passant square come from the record, the halfmove and fullmove clocks
+   -- from their fields. Load (To_String (P)) reproduces P.
+
 end BBChess.Fen;

@@ -313,4 +313,106 @@ package body BBChess.Fen is
       Position.Material := Compute_Material (Position);
    end Load;
 
+   ----------------
+   -- To_String  --
+   ----------------
+
+   --  Piece letters: upper case for White, lower for Black (FEN convention).
+   function Piece_Letter (P : in Piece_Type) return Character is
+     (case Kind (P) is
+        when Pawn   => (if Color (P) = White then 'P' else 'p'),
+        when Knight => (if Color (P) = White then 'N' else 'n'),
+        when Bishop => (if Color (P) = White then 'B' else 'b'),
+        when Rook   => (if Color (P) = White then 'R' else 'r'),
+        when Queen  => (if Color (P) = White then 'Q' else 'q'),
+        when King   => (if Color (P) = White then 'K' else 'k'));
+
+   function To_String (Position : in Position_Type) return String is
+      --  Board: 8 ranks of at most 8 letters plus 7 digit runs, then the six
+      --  fields. 96 characters is ample for any legal position.
+      Buf : String (1 .. 96);
+      Last : Natural := 0;
+      P   : Piece_Type;
+
+      procedure Put (C : in Character) is
+      begin
+         Last := Last + 1;
+         Buf (Last) := C;
+      end Put;
+
+      function Img (N : in Natural) return String is
+         S : constant String := Natural'Image (N);
+      begin
+         return S (S'First + 1 .. S'Last);
+      end Img;
+   begin
+      --  Ranks from the 8th down, files from a to h.
+      for Rank in reverse 0 .. 7 loop
+         declare
+            Empty : Natural := 0;
+         begin
+            for File in 0 .. 7 loop
+               if Piece_At (Position, Rank * 8 + File, P) then
+                  if Empty > 0 then
+                     Put (Character'Val (Character'Pos ('0') + Empty));
+                     Empty := 0;
+                  end if;
+                  Put (Piece_Letter (P));
+               else
+                  Empty := Empty + 1;
+               end if;
+            end loop;
+            if Empty > 0 then
+               Put (Character'Val (Character'Pos ('0') + Empty));
+            end if;
+            if Rank > 0 then
+               Put ('/');
+            end if;
+         end;
+      end loop;
+
+      Put (' ');
+      Put ((if Position.Side = White then 'w' else 'b'));
+      Put (' ');
+
+      if not Position.Castle (White, King_Side)
+        and then not Position.Castle (White, Queen_Side)
+        and then not Position.Castle (Black, King_Side)
+        and then not Position.Castle (Black, Queen_Side)
+      then
+         Put ('-');
+      else
+         if Position.Castle (White, King_Side) then Put ('K'); end if;
+         if Position.Castle (White, Queen_Side) then Put ('Q'); end if;
+         if Position.Castle (Black, King_Side) then Put ('k'); end if;
+         if Position.Castle (Black, Queen_Side) then Put ('q'); end if;
+      end if;
+
+      Put (' ');
+      if Position.En_Passant = Ep_None then
+         Put ('-');
+      else
+         Put (Character'Val
+                (Character'Pos ('a') + (Position.En_Passant mod 8)));
+         Put (Character'Val
+                (Character'Pos ('1') + (Position.En_Passant / 8)));
+      end if;
+
+      Put (' ');
+      declare
+         H : constant String := Img (Position.Halfmove);
+         F : constant String := Img (Position.Fullmove);
+      begin
+         for C of H loop
+            Put (C);
+         end loop;
+         Put (' ');
+         for C of F loop
+            Put (C);
+         end loop;
+      end;
+
+      return Buf (1 .. Last);
+   end To_String;
+
 end BBChess.Fen;

@@ -31,6 +31,14 @@ package BBChess.Protocol.UCI is
          Nodes        : BBChess.Search.Node_Count_Type := 0;
          Infinite     : Boolean  := False;
          Ponder       : Boolean  := False;
+         --  "searchmoves <m1> <m2> ...": the move tokens, as sent, up to the
+         --  next keyword. Parsed into moves by the caller, which owns the
+         --  position.
+         Has_Searchmoves : Boolean := False;
+         Searchmoves     : Unbounded_String := Null_Unbounded_String;
+         --  "perft <n>": count the leaves at depth n instead of searching.
+         Has_Perft    : Boolean  := False;
+         Perft_Depth  : Natural  := 0;
       end record;
 
    function Parse_Go (Parameter : in String) return Go_Params;

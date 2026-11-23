@@ -149,6 +149,13 @@ pour la latence GUI/OS, 10 par défaut), `OwnBook`, `BookFile`, `SyzygyPath`.
 `go ponder` est pris en charge : le moteur cherche la position prédite et
 retient son `bestmove` jusqu'à `ponderhit` ou `stop`.
 
+Au-delà du protocole de base, `go` accepte `searchmoves <coups...>` (restreint
+la liste de coups à la racine ; un coup inconnu est signalé par
+`info string`) et `perft <n>` (comptes de feuilles par coup racine puis total,
+sans `bestmove`), et la commande non standard `d` affiche la position courante
+sous forme d'échiquier et de FEN. La ligne `info` porte `depth`, `seldepth`,
+`score`, `nodes`, `nps`, `hashfull`, `tbhits` et la `pv`.
+
 ## Limitations connues
 
 - **Le DTZ à la racine est optionnel.** Par défaut, la sonde Syzygy est WDL

@@ -101,6 +101,24 @@ package body BBChess.Protocol.Self_Tests is
       -- Unknown keywords are ignored.
       G := BBChess.Protocol.UCI.Parse_Go ("ponder wtime 1000");
       Assert (G.Wtime = 1.0, "go: unknown keyword ignored");
+
+      -- searchmoves: the move tokens, up to the next keyword.
+      G := BBChess.Protocol.UCI.Parse_Go
+        ("searchmoves e2e4 d2d4 btime 6000 depth 8");
+      Assert (G.Has_Searchmoves, "go: searchmoves flag");
+      Assert (To_String (G.Searchmoves) = "e2e4 d2d4",
+              "go: searchmoves tokens stop at the next keyword");
+      Assert (G.Btime = 6.0 and then G.Has_Depth and then G.Depth = 8,
+              "go: keywords after searchmoves still parsed");
+
+      -- searchmoves last on the line.
+      G := BBChess.Protocol.UCI.Parse_Go ("go depth 5 searchmoves g1f3");
+      Assert (To_String (G.Searchmoves) = "g1f3",
+              "go: searchmoves at end of line");
+
+      -- perft mode.
+      G := BBChess.Protocol.UCI.Parse_Go ("perft 4");
+      Assert (G.Has_Perft and then G.Perft_Depth = 4, "go: perft 4");
    end Test_Parse_Go;
 
    procedure Test_Parse_Setoption is
@@ -178,10 +196,12 @@ package body BBChess.Protocol.Self_Tests is
       Reset_Capture;
       BBChess.Protocol.Initialize (Capture'Access);
       BBChess.Protocol.Process ("uci");
-      Assert (N_Lines = 9, "uci handshake emits 9 lines");
+      Assert (N_Lines = 10, "uci handshake emits 10 lines");
       Assert (Captured (1) = "id name BabaChess " & BabaChess_Version,
               "uci: id name");
-      Assert (Captured (9) = "uciok", "uci: final uciok");
+      Assert (Captured (4) = "option name Clear Hash type button",
+              "uci: Clear Hash advertised");
+      Assert (Captured (10) = "uciok", "uci: final uciok");
       Assert (BBChess.Protocol.Is_UCI, "uci: mode flag set");
 
       -- isready answers readyok.
@@ -224,6 +244,25 @@ package body BBChess.Protocol.Self_Tests is
       Reset_Capture;
       BBChess.Protocol.Process ("setoption name Threads value 3");
       Assert (N_Lines = 0, "setoption threads: no output");
+
+      -- "d": 17 diagram lines, the file letters, the FEN, side and castling.
+      Reset_Capture;
+      BBChess.Protocol.Process ("position startpos");
+      BBChess.Protocol.Process ("d");
+      Assert (N_Lines = 21, "d: 21 lines (diagram, FEN, side, castling)");
+      Assert (Captured (19) = "Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+              & " w KQkq - 0 1", "d: startpos FEN");
+      Assert (Captured (20) = "White to move", "d: side to move");
+      Assert (Captured (21) = "Castling: KQkq", "d: castling rights");
+
+      -- "go perft N": per-move counts then the total, and no bestmove.
+      Reset_Capture;
+      BBChess.Protocol.Process ("position startpos");
+      BBChess.Protocol.Process ("go perft 2");
+      Assert (Captured (1) = "info string a2a3 20",
+              "perft: first root move and its count");
+      Assert (Captured (N_Lines) = "info string perft 2 400",
+              "perft 2 from the start position = 400");
 
       -- XBoard protover: exact feature set.
       Reset_Capture;
