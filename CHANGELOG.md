@@ -6,7 +6,7 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## 1.5.0 (2026-11-09)
+## 1.5.0 (2026-11-23)
 
 **Force mesurée : +19,0 ± 9,4 Elo à `10+0.1` contre la 1.4.0** (3 000 parties,
 LOS 100 %, intervalle excluant 0). Résumé et rupture d'outillage :
