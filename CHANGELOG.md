@@ -6,7 +6,11 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Non publié
+## 1.5.0 (2026-11-09)
+
+**Force mesurée : +19,0 ± 9,4 Elo à `10+0.1` contre la 1.4.0** (3 000 parties,
+LOS 100 %, intervalle excluant 0). Résumé et rupture d'outillage :
+`RELEASE_NOTES_1.5.0.md` ; détail des mesures : `DEVELOPMENT.md` §92-§99.
 
 **Texel : valeurs des deux termes d'éval trouvées, effet non tranché ; nouvel
 outil `gen_balanced_openings.py`.** Auto-jeu depuis une suite de 2 500 ouvertures

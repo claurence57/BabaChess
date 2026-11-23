@@ -2774,3 +2774,38 @@ les écrans en nœuds fixes surestiment (§94.6) : quelques Elo au mieux.
 **Vérification** : `--selftest` 146/146 ; les paramètres restent à 0 dans le
 défaut (`--bench 9/12` inchangés, 455 176 / 1 784 546) ; `scripts/check_docs.py`
 OK.
+
+---
+
+## 99. Release 1.5.0 — deux gains de recherche, sept mesures
+
+Version `1.5.0` (`BBChess.Text.BabaChess_Version`), notes
+`RELEASE_NOTES_1.5.0.md`. Pour la première fois depuis 1.3.x, la release
+revendique une **force mesurée** : +19,0 ± 9,4 Elo à `10+0.1` contre 1.4.0
+(3 000 parties, LOS 100 %, intervalle excluant 0 — §95).
+
+Contenu moteur :
+
+- **ProbCut** aux nœuds non PV (§94) : +38,20 ± 14,29 Elo en nœuds fixes
+  (SPRT PASS), +13,0 ± 18,2 à `10+0.1`.
+- **Politique de remplacement de la TT** scorée (§93) : +8,08 ± 2,91 Elo en table
+  saturée (SPRT PASS), +8,7 ± 17,7 à `10+0.1`.
+- **Allocation de temps réglable** (§96) : infrastructure, `div 20` mesuré
+  **négatif** (−5,7 ± 15,9) et non activé. Défauts 30 / 200 / 75.
+- **Deux termes d'éval** (`P_Outpost_*`, `P_RookBehind_*`, §97-§98) : livrés
+  **désactivés** (défaut 0). À la main ils perdent (−11,5 et −16,2) ; aux valeurs
+  trouvées par Texel l'écran donne +8,3 ± 12,7, non tranché.
+- **Élagage SEE** (§92) : essayé, mesuré non concluant (+10,4 ± 18,1), **code
+  retiré**.
+- **Outil** : `scripts/gen_balanced_openings.py` (§98.1).
+
+**Rupture d'outillage** : `--bench 9/12/14` passe à
+**455 176 / 1 784 546 / 5 214 141** (ProbCut élague par construction) ; les
+compteurs de 1.4.0 (488 704 / 2 467 322 / 5 454 471) reviennent avec
+`S_Probcut 0`. Tout script externe qui compare des compteurs de nœuds à 1.4.0
+doit en tenir compte.
+
+**Vérification** : `--selftest` **146/146** en release, portable, checked et
+debug (`-gnatwe`) ; symétrie de l'évaluation 0 écart ; `scripts/check_docs.py`
+vert. Les six mesures de la session (deux gains, quatre rejets) sont dans les
+sections 92 à 98 avec protocole, binaires et comptes W–L–D.
