@@ -2809,3 +2809,33 @@ doit en tenir compte.
 debug (`-gnatwe`) ; symétrie de l'évaluation 0 écart ; `scripts/check_docs.py`
 vert. Les six mesures de la session (deux gains, quatre rejets) sont dans les
 sections 92 à 98 avec protocole, binaires et comptes W–L–D.
+
+### 98.5 Confirmation à `10+0.1` : les valeurs du tuner valent zéro
+
+Même protocole que §95 : 3 000 parties `10+0.1`, `Hash 64`, ouvertures jouées
+avec les deux couleurs, livre neutralisé, binaires figés. NEW porte les quatre
+valeurs du tuner, OLD les défauts à 0.
+
+| W–L–D | Score | Élo | nElo | LOS | LLR | Durée |
+|---|---|---|---|---|---|---|
+| 871–856–1273 | 50,25 % | **+1,74 ± 9,24** | +2,34 ± 12,43 | 64,4 % | −0,02 | 4 h 47 |
+
+3 pertes au temps, 0 crash. **Zéro**, mesuré à ±9,2 : la variante ne vaut rien à
+cette cadence. La courbe a d'ailleurs été instructive : +8 au premier dixième,
++4 à mi-parcours, +0,5 au dernier tiers — l'écran en nœuds fixes (+8,34 ± 12,73)
+avait donc bien vu une direction, mais l'ampleur réelle est nulle.
+
+Récapitulatif des trois réglages testés pour ces deux termes :
+
+| Réglage | Protocole | Élo |
+|---|---|---|
+| manuel, outpost 30/15 | écran 2 000 p., nœuds fixes | −11,47 ± 10,99 |
+| manuel, tour 20/30 | écran 2 000 p., nœuds fixes | −16,17 ± 11,64 |
+| tuner (20 / −12 / 6 / 20) | écran 2 000 p., nœuds fixes | +8,34 ± 12,73 |
+| tuner (20 / −12 / 6 / 20) | **3 000 p., `10+0.1`** | **+1,74 ± 9,24** |
+
+Les quatre paramètres restent donc à **0**, valeurs du tuner consignées en §98.4
+pour mémoire. Conclusion de l'item 8 : sur cette évaluation, ni la main ni le
+réglage ne font gagner quoi que ce soit avec ces deux termes — le terme gagnant
+de §73 n'avait d'ailleurs gagné qu'après un réglage **complet** (274 paramètres),
+pas un réglage à quatre.

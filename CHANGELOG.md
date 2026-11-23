@@ -21,8 +21,9 @@ générées (positions aléatoires 6-10 plis, matériel ±1 pion, `|Static| ≤ 
 surtout utile en finale) mais gain d'erreur **infime** (−0,05 % en validation).
 Écran : **+8,34 ± 12,73** Elo sur 2 000 parties, non tranché — à comparer aux
 valeurs manuelles de §97 (−11,5 et −16,2) : le tuner n'abîme pas l'évaluation, il
-ne la bonifie pas de façon prouvée. Défauts laissés à 0, valeurs consignées dans
-`DEVELOPMENT.md` §98.4 pour la prochaine campagne.
+ne la bonifie pas de façon prouvée. **Confirmation à `10+0.1` (3 000 parties) :
++1,74 ± 9,24 Elo, zéro** — rien à activer. Défauts laissés à 0, valeurs consignées
+dans `DEVELOPMENT.md` §98.4-98.5.
 
 **Évaluation : deux termes ajoutés (`P_Outpost_*`, `P_RookBehind_*`), tous deux
 mesurés négatifs.** Outposts (cavalier/fou défendu par un pion, hors de portée
