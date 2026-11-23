@@ -100,6 +100,27 @@ package BBChess.Search is
    -- UCI "go searchmoves" command. Called with the search's position and
    -- before it starts; Count = 0 restores the full list.
 
+   Max_MultiPV : constant := 8;
+
+   procedure Set_MultiPV (K : in Natural);
+   -- UCI MultiPV: the number of principal variations reported per iteration
+   -- (1 .. Max_MultiPV; 1, the default, is the historical single line). With
+   -- K > 1 the reporting thread searches every root move with a full window
+   -- -- so each reported score is exact, not a bound -- and reports the K
+   -- best with "multipv" indices. Analysis only: K root moves at full width
+   -- cost more than the single PVS pass.
+
+   procedure Set_Mate_Limit (Moves : in Natural);
+   -- UCI "go mate N": stop the iterative deepening as soon as a mate in at
+   -- most N moves is proven (0 = no limit, the default).
+
+   function MultiPV_Line_Count return Natural;
+   function MultiPV_Line_Move (I : in Positive) return Move_Type;
+   function MultiPV_Line_Score (I : in Positive) return Integer;
+   -- The root lines collected by the last search of the reporting thread
+   -- (empty when MultiPV is 1). Observability for the self test; scores are
+   -- centipawns from the root side's point of view, best first.
+
    function Stop_Requested return Boolean;
    -- True once Request_Stop has been called (and not yet cleared).
 

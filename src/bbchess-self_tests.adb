@@ -64,6 +64,8 @@ use BBChess.Polyglot;
 with BBChess.Text;
 use BBChess.Text;
 
+with BBChess.Notation;
+
 with BBChess.Test_Harness;
 
 with BBChess.Protocol.Self_Tests;
@@ -568,6 +570,60 @@ package body BBChess.Self_Tests is
 
       Ada.Text_IO.Put_Line ("search OK");
    end Test_Search;
+
+   ------------------
+   --  MultiPV     --
+   ------------------
+
+   procedure Test_MultiPV is
+   begin
+      -- MultiPV 3 at a fixed depth: three root lines, best first, each a
+      -- legal move, and the reported best move is the first line. The lines
+      -- are collected by the fixed-depth entry point exactly as the UCI
+      -- reporting thread collects them.
+      declare
+         Pos        : constant Position_Type := Start_Position;
+         Best       : Move_Type;
+         List       : Move_List;
+         Count      : Natural;
+         Found      : Boolean;
+         Prev_Score : Integer := Integer'Last;
+      begin
+         Reset_Search;
+         Set_MultiPV (3);
+         Best := Best_Move (Pos, 4);
+
+         Assert (MultiPV_Line_Count = 3,
+                 "MultiPV 3 must report three root lines");
+         Assert (Best = MultiPV_Line_Move (1),
+                 "the best move must be the first MultiPV line");
+
+         Generate_Legal_Moves (Pos, List, Count);
+         for I in 1 .. 3 loop
+            Found := False;
+            for J in 1 .. Count loop
+               if List (J) = MultiPV_Line_Move (I) then
+                  Found := True;
+                  exit;
+               end if;
+            end loop;
+            Assert (Found, "a MultiPV line must be a legal root move");
+            Assert (MultiPV_Line_Score (I) <= Prev_Score,
+                    "MultiPV lines must be ordered best first");
+            Prev_Score := MultiPV_Line_Score (I);
+         end loop;
+
+         Ada.Text_IO.Put_Line
+           ("MultiPV: " & Natural'Image (MultiPV_Line_Count) & " lines, best "
+            & BBChess.Notation.To_String (MultiPV_Line_Move (1))
+            & " / " & Integer'Image (MultiPV_Line_Score (1)));
+
+         -- Restore the default before the later search tests run.
+         Set_MultiPV (1);
+         Reset_Search;
+      end;
+      Ada.Text_IO.Put_Line ("MultiPV OK");
+   end Test_MultiPV;
 
    -------------------------
    --  Time management    --
@@ -1093,6 +1149,11 @@ package body BBChess.Self_Tests is
                  "append on a full buffer must stay bounded");
       end;
 
+      -- The Zobrist key printer: 16 lower-case hex digits, zero padded.
+      Assert (Hex_Image (16#0123_4567_89AB_CDEF#) = "0123456789abcdef",
+              "hex: 64-bit key image");
+      Assert (Hex_Image (0) = "0000000000000000", "hex: zero padding");
+
       Ada.Text_IO.Put_Line ("long-token handling OK");
    end Test_Text_Handling;
 
@@ -1204,6 +1265,7 @@ package body BBChess.Self_Tests is
       Test_Ep_Arithmetic;
       Test_Eval;
       Test_Search;
+      Test_MultiPV;
       Test_Time_Management;
       Test_Soft_Hard_Search;
       Test_Repetition;

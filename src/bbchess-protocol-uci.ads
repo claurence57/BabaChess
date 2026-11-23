@@ -39,6 +39,10 @@ package BBChess.Protocol.UCI is
          --  "perft <n>": count the leaves at depth n instead of searching.
          Has_Perft    : Boolean  := False;
          Perft_Depth  : Natural  := 0;
+         --  "mate <n>": stop the iterative deepening once a mate in n moves
+         --  is proven (the caller also caps the depth at 2n plies).
+         Has_Mate     : Boolean  := False;
+         Mate_Moves   : Natural  := 0;
       end record;
 
    function Parse_Go (Parameter : in String) return Go_Params;

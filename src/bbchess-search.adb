@@ -784,6 +784,42 @@ package body BBChess.Search is
       end loop;
    end Set_Search_Moves;
 
+   --  UCI MultiPV and "go mate N" requests. Both are written by the command
+   --  loop before a search starts (never while one runs, like every other
+   --  search setting) and read by the workers.
+   MultiPV_Value : Natural := 1;
+   Mate_Limit    : Natural := 0;
+
+   type Root_Line_Type is
+      record
+         Move  : Move_Type := Empty_Move;
+         Score : Score_Type := -Infinity;
+      end record;
+
+   --  Root lines of the last MultiPV search, best first. Collected and read
+   --  by the reporting thread only (every other worker searches with
+   --  Collect => False), so no lock is needed.
+   Root_Lines  : array (1 .. Max_MultiPV) of Root_Line_Type;
+   Root_Line_N : Natural := 0;
+
+   procedure Set_MultiPV (K : in Natural) is
+   begin
+      MultiPV_Value := Natural'Max (1, Natural'Min (K, Max_MultiPV));
+   end Set_MultiPV;
+
+   procedure Set_Mate_Limit (Moves : in Natural) is
+   begin
+      Mate_Limit := Moves;
+   end Set_Mate_Limit;
+
+   function MultiPV_Line_Count return Natural is (Root_Line_N);
+
+   function MultiPV_Line_Move (I : in Positive) return Move_Type is
+     (if I <= Root_Line_N then Root_Lines (I).Move else Empty_Move);
+
+   function MultiPV_Line_Score (I : in Positive) return Integer is
+     (if I <= Root_Line_N then Integer (Root_Lines (I).Score) else 0);
+
    --  Successful Syzygy WDL probes (UCI "tbhits"). Probes are rare (one per
    --  endgame node covered by the tables), so a protected counter is cheap and
    --  keeps the count exact under Lazy SMP.
@@ -1136,15 +1172,16 @@ package body BBChess.Search is
 
    PV_Max : constant := 32;
 
-   -- Extract the principal variation from the transposition table, starting
-   -- from Root (a by-value copy). Stops at the first missing / empty /
-   -- illegal entry, at a repeated position (cycle) or at PV_Max moves.
-   -- Never raises: an illegal TT move is simply dropped.
-   procedure Extract_PV (Root : in Position_Type;
-                         Pv   : out Move_List;
-                         Len  : out Natural) is
-      Work      : Position_Type := Root;
-      Seen      : array (1 .. PV_Max + 1) of Bitboard;
+   -- Walk the transposition table from Work and append the line to Pv,
+   -- starting at index 1 (Len returns the number of moves). Stops at the
+   -- first missing / empty / illegal entry, at a repeated position (cycle,
+   -- including Also_Seen when it is not zero) or at PV_Max moves. Never
+   -- raises: an illegal TT move is simply dropped.
+   procedure Walk_TT_PV (Work      : in out Position_Type;
+                         Pv        : out Move_List;
+                         Len       : out Natural;
+                         Also_Seen : in Bitboard := 0) is
+      Seen      : array (1 .. PV_Max + 2) of Bitboard;
       Seen_N    : Natural := 1;
       Moves     : Move_List;
       Count     : Natural;
@@ -1153,6 +1190,10 @@ package body BBChess.Search is
    begin
       Len := 0;
       Seen (1) := Work.Key;
+      if Also_Seen /= 0 then
+         Seen_N := 2;
+         Seen (2) := Also_Seen;
+      end if;
       for Step in 1 .. PV_Max loop
          declare
             Bk : constant Natural := TT_Bucket (Work);
@@ -1197,7 +1238,40 @@ package body BBChess.Search is
             Seen (Seen_N) := Work.Key;
          end;
       end loop;
+   end Walk_TT_PV;
+
+   -- Extract the principal variation from the transposition table, starting
+   -- from Root (a by-value copy).
+   procedure Extract_PV (Root : in Position_Type;
+                         Pv   : out Move_List;
+                         Len  : out Natural) is
+      Work : Position_Type := Root;
+   begin
+      Walk_TT_PV (Work, Pv, Len);
    end Extract_PV;
+
+   -- The PV of one root move: the move itself followed by the continuation
+   -- the TT holds after it. Used by the MultiPV report, where every root line
+   -- needs its own PV (the root TT entry only stores the best one).
+   procedure Extract_Line_PV (Root  : in Position_Type;
+                              First : in Move_Type;
+                              Pv    : out Move_List;
+                              Len   : out Natural) is
+      Work : Position_Type := Root;
+      Undo : Undo_Info;
+      Rest : Move_List;
+      N    : Natural;
+   begin
+      Len := 1;
+      Pv (1) := First;
+      Make_Move (Work, First, Undo);
+      Walk_TT_PV (Work, Rest, N, Also_Seen => Root.Key);
+      for I in 1 .. N loop
+         exit when Len = Pv'Length;
+         Len := Len + 1;
+         Pv (Len) := Rest (I);
+      end loop;
+   end Extract_Line_PV;
 
    -- Single console lock shared by the command loop and the search threads
    -- (Ada.Text_IO is not task-safe). Both the XBoard "post" iteration reports
@@ -1302,6 +1376,48 @@ package body BBChess.Search is
       begin
          Append (" score mate " & Img (if Positive_Mate then M else -M));
       end Append_Mate;
+
+      --  One UCI "info" line. Multi = 0 is the historical single line (no
+      --  "multipv" token, byte-identical output); Multi > 0 adds the index
+      --  right after "seldepth", where the UCI specification puts it.
+      procedure Emit_UCI_Line (Line_Score : in Score_Type;
+                               Line_Pv    : in Move_List;
+                               Line_Len   : in Natural;
+                               Multi      : in Natural) is
+      begin
+         Last := 0;
+         Append ("info depth" & Natural'Image (Depth));
+         Append (" seldepth" & Natural'Image (Sel_Depth));
+         if Multi > 0 then
+            Append (" multipv" & Natural'Image (Multi));
+         end if;
+         if Line_Score >= Mate_Threshold then
+            Append_Mate (True, Mate_Score - Line_Score);
+         elsif Line_Score <= -Mate_Threshold then
+            Append_Mate (False, Mate_Score + Line_Score);
+         else
+            Append (" score cp " & Img (Line_Score));
+         end if;
+         Append (" time" & Long_Integer'Image (Millis));
+         Append (" nodes" & Node_Count_Type'Image (Nodes));
+         Append (" nps" & Long_Integer'Image
+                   (if Millis > 0 then
+                      Long_Integer (Nodes) * 1000 / Millis
+                    else
+                      Long_Integer (Nodes) * 1000));
+         Append (" hashfull " & Img_Nat (Transposition_Hashfull));
+         Append (" tbhits" & Natural'Image (TB_Hits.Value));
+         if Line_Len > 0 then
+            Append (" pv");
+            for I in 1 .. Line_Len loop
+               Append (" " & To_String (Line_Pv (I)));
+            end loop;
+         elsif Best /= Empty_Move then
+            -- The TT gave nothing usable: fall back to the iteration's move.
+            Append (" pv " & To_String (Best));
+         end if;
+         Locked_Put_Line (Line (1 .. Last));
+      end Emit_UCI_Line;
    begin
       if not UCI_Output and then not Post_Output then
          return;
@@ -1321,34 +1437,22 @@ package body BBChess.Search is
       end if;
 
       if UCI_Output then
-         Append ("info depth" & Natural'Image (Depth));
-         Append (" seldepth" & Natural'Image (Sel_Depth));
-         if Score >= Mate_Threshold then
-            Append_Mate (True, Mate_Score - Score);
-         elsif Score <= -Mate_Threshold then
-            Append_Mate (False, Mate_Score + Score);
-         else
-            Append (" score cp " & Img (Score));
-         end if;
-         Append (" time" & Long_Integer'Image (Millis));
-         Append (" nodes" & Node_Count_Type'Image (Nodes));
-         Append (" nps" & Long_Integer'Image
-                   (if Millis > 0 then
-                      Long_Integer (Nodes) * 1000 / Millis
-                    else
-                      Long_Integer (Nodes) * 1000));
-         Append (" hashfull " & Img_Nat (Transposition_Hashfull));
-         Append (" tbhits" & Natural'Image (TB_Hits.Value));
-         if Pv_Len > 0 then
-            Append (" pv");
-            for I in 1 .. Pv_Len loop
-               Append (" " & To_String (Pv (I)));
+         if MultiPV_Value > 1 and then Root_Line_N > 0 then
+            --  One line per reported root move, best first (MultiPV). Each
+            --  line's PV starts with its own root move; Extract_Line_PV reads
+            --  the continuation the TT holds after it.
+            for I in 1 .. Root_Line_N loop
+               declare
+                  Line_Pv : Move_List;
+                  Line_N  : Natural;
+               begin
+                  Extract_Line_PV (Root, Root_Lines (I).Move, Line_Pv, Line_N);
+                  Emit_UCI_Line (Root_Lines (I).Score, Line_Pv, Line_N, I);
+               end;
             end loop;
-         elsif Best /= Empty_Move then
-            -- The TT gave nothing usable: fall back to the iteration's move.
-            Append (" pv " & To_String (Best));
+         else
+            Emit_UCI_Line (Score, Pv, Pv_Len, 0);
          end if;
-         Locked_Put_Line (Line (1 .. Last));
       else
          -- XBoard "post": depth score centiseconds nodes, then the full PV
          -- (or the best move when the PV is empty). Mate scores use the
@@ -1426,6 +1530,7 @@ package body BBChess.Search is
       Clear_Transposition_Table;
       Init_Game_Key_Count := 0;
       TT_Generation := 0;
+      Root_Line_N := 0;
    end Reset_Search;
 
    function Has_Non_Pawn (Position : in Position_Type; Color : in Color_Type)
@@ -2435,6 +2540,29 @@ package body BBChess.Search is
       return A;
    end Negamax;
 
+   --  Emit a running "currmove" line so a GUI can show what the search is
+   --  doing. Only above this depth: at shallower depths the root moves are
+   --  re-visited by every iteration and the stream would be pure noise.
+   Current_Move_Report_Depth : constant := 8;
+
+   procedure Report_Current_Move (Depth : in Natural;
+                                  Move  : in Move_Type;
+                                  Index : in Natural) is
+      function Trim_Image (X : in Natural) return String is
+         S : constant String := Natural'Image (X);
+      begin
+         return S (S'First + 1 .. S'Last);
+      end Trim_Image;
+   begin
+      if Move = Empty_Move then
+         return;
+      end if;
+      Locked_Put_Line
+        ("info depth " & Trim_Image (Depth)
+         & " currmove " & To_String (Move)
+         & " currmovenumber " & Trim_Image (Index));
+   end Report_Current_Move;
+
    -------------
    -- Root    --
    -------------
@@ -2445,14 +2573,24 @@ package body BBChess.Search is
                          Prev_Best  : in Move_Type;
                          Alpha      : in Score_Type;
                          Beta       : in Score_Type;
-                         Best_Score : out Score_Type) return Move_Type
+                         Best_Score : out Score_Type;
+                         Collect    : in Boolean) return Move_Type
    is
       Root_Moves : Move_List;
       Count      : Natural;
+      --  MultiPV: the reporting thread searches every root move with a full
+      --  window, so each score is exact and the K best can be reported. The
+      --  historical PVS pass (window narrowing, root cutoff) is untouched
+      --  when MultiPV is 1 or when this worker does not report.
+      Search_All : constant Boolean := Collect and then MultiPV_Value > 1;
       A          : Score_Type := Alpha;
       B          : constant Score_Type := Beta;
+      Lo         : Score_Type := Alpha;
+      Hi         : Score_Type := Beta;
       Best       : Move_Type := Empty_Move;
       Best_Sc    : Score_Type := -Infinity;
+      Scores     : array (Root_Moves'Range) of Score_Type :=
+        (others => -Infinity);
    begin
       Generate_Legal_Moves (Position, Root_Moves, Count);
 
@@ -2481,7 +2619,15 @@ package body BBChess.Search is
 
       if Count = 0 then
          Best_Score := 0;
+         if Collect then
+            Root_Line_N := 0;
+         end if;
          return Empty_Move;
+      end if;
+
+      if Search_All then
+         Lo := -Infinity;
+         Hi := Infinity;
       end if;
 
       declare
@@ -2520,14 +2666,20 @@ package body BBChess.Search is
                Undo  : Undo_Info;
                Score : Score_Type;
             begin
+               if Collect and then UCI_Output
+                 and then Depth >= Current_Move_Report_Depth
+               then
+                  Report_Current_Move (Depth, Root_Moves (I), I);
+               end if;
+
                Make_Move (Position, Root_Moves (I), Undo);
 
                -- Publish the root move so the children at ply 1 see it as their
                -- previous move (counter-move / continuation-history lookup).
                Ctx.Move_Path (0) := Root_Moves (I);
 
-               if I = 1 then
-                  Score := -Negamax (Ctx, Position, Depth - 1, 1, -B, -A);
+               if I = 1 or else Search_All then
+                  Score := -Negamax (Ctx, Position, Depth - 1, 1, -Hi, -Lo);
                else
                   Score := -Negamax (Ctx, Position, Depth - 1, 1, -A - 1, -A);
                   if Score > A and then Score < B then
@@ -2537,11 +2689,12 @@ package body BBChess.Search is
 
                Unmake_Move (Position, Root_Moves (I), Undo);
 
+               Scores (I) := Score;
                if Score > Best_Sc then
                   Best_Sc := Score;
                   Best    := Root_Moves (I);
                end if;
-               if Score > A then
+               if not Search_All and then Score > A then
                   A := Score;
                end if;
                if A >= B then
@@ -2551,11 +2704,41 @@ package body BBChess.Search is
          end loop;
       end;
 
+      if Search_All then
+         --  Rank the searched root moves by their exact score (selection
+         --  sort, the same pattern as the ordering pass above) so the K best
+         --  can be reported.
+         for I in 1 .. Count loop
+            declare
+               Best_J : Natural := I;
+            begin
+               for J in I + 1 .. Count loop
+                  if Scores (J) > Scores (Best_J) then
+                     Best_J := J;
+                  end if;
+               end loop;
+               if Best_J /= I then
+                  declare
+                     Tmp_M : constant Move_Type := Root_Moves (I);
+                     Tmp_S : constant Score_Type := Scores (I);
+                  begin
+                     Root_Moves (I) := Root_Moves (Best_J);
+                     Scores (I)     := Scores (Best_J);
+                     Root_Moves (Best_J) := Tmp_M;
+                     Scores (Best_J)     := Tmp_S;
+                  end;
+               end if;
+            end;
+         end loop;
+      end if;
+
       if Best /= Empty_Move then
          declare
             Bound : Bound_Type;
          begin
-            if Best_Sc >= B then
+            if Search_All then
+               Bound := Exact;   -- every root move was searched full width
+            elsif Best_Sc >= B then
                Bound := Lower_Bound;
             elsif Best_Sc <= Alpha then
                Bound := Upper_Bound;
@@ -2564,6 +2747,18 @@ package body BBChess.Search is
             end if;
             Store (Position, Depth, Bound, Best_Sc, Best, 0);
          end;
+      end if;
+
+      if Collect then
+         if Search_All then
+            Root_Line_N := Natural'Min (MultiPV_Value, Count);
+            for I in 1 .. Root_Line_N loop
+               Root_Lines (I).Move  := Root_Moves (I);
+               Root_Lines (I).Score := Scores (I);
+            end loop;
+         else
+            Root_Line_N := 0;
+         end if;
       end if;
 
       Best_Score := Best_Sc;
@@ -2587,7 +2782,8 @@ package body BBChess.Search is
                               Max_Depth  : in Natural;
                               Time_Alloc : in Duration;
                               Soft_Alloc : in Duration;
-                              Report     : in Boolean) return Thread_Result
+                              Report     : in Boolean;
+                              Collect    : in Boolean := False) return Thread_Result
    is
       Result      : Thread_Result;
       Work        : Position_Type := Position;
@@ -2703,11 +2899,13 @@ package body BBChess.Search is
             if D = 1 then
                Alpha := -Infinity;
                Beta  := Infinity;
-               Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score);
+               Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score,
+                                    Collect);
             else
                Alpha := Best_Score - Aspiration_Window;
                Beta  := Best_Score + Aspiration_Window;
-               Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score);
+               Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score,
+                                    Collect);
                if Search_Params (S_Asp_Grow) /= 0 then
                   --  Widen only the failing side, doubling the margin, and
                   --  fall back to the full window once it gets large.
@@ -2725,14 +2923,15 @@ package body BBChess.Search is
                            Beta := Score_Type'Min (Infinity, Score + Delta_W);
                         end if;
                         Best := Root_Search (Ctx, Work, D, Best,
-                                             Alpha, Beta, Score);
+                                             Alpha, Beta, Score, Collect);
                         exit when Alpha = -Infinity and then Beta = Infinity;
                      end loop;
                   end;
                elsif Score <= Alpha or else Score >= Beta then
                   Alpha := -Infinity;
                   Beta  := Infinity;
-                  Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score);
+                  Best := Root_Search (Ctx, Work, D, Best, Alpha, Beta, Score,
+                                       Collect);
                end if;
             end if;
             Best_Score := Score;
@@ -2791,7 +2990,11 @@ package body BBChess.Search is
             end if;
 
             exit when Abs (Best_Score) >= Mate_Score - 200
-              or else Abs (Best_Score) >= BBChess.Syzygy.TB_Win - 100;
+              or else Abs (Best_Score) >= BBChess.Syzygy.TB_Win - 100
+              --  "go mate N": a mate within N moves is proven, stop here.
+              or else (Mate_Limit > 0
+                       and then Abs (Best_Score)
+                         >= Mate_Score - Score_Type (2 * Mate_Limit));
          end loop;
       exception
          when Search_Interrupted =>
@@ -2994,7 +3197,8 @@ package body BBChess.Search is
          Ctx : Context_Access := new Search_Context;
       begin
          Init_Context (Ctx, Arm => False, Budget => 0.0);
-         Result := Iterative_Search (Ctx, Position, Depth, 0.0, 0.0, False);
+         Result := Iterative_Search (Ctx, Position, Depth, 0.0, 0.0, False,
+                                     Collect => True);
          Accum_Nodes := Accum_Nodes + Ctx.Nodes_Count;
          Free_Context (Ctx);
       end;
@@ -3102,7 +3306,8 @@ package body BBChess.Search is
                        Node_Cap => Root_Node_Cap, Shared_Report => True);
          Results (Id) := Iterative_Search (Ctx, Root_Position,
                                            Root_Max_Depth, Root_Time, Root_Soft,
-                                           Report => (Id = 1));
+                                           Report => (Id = 1),
+                                           Collect => (Id = 1));
       exception
          when E : others =>
             Log_Worker_Exception ("search worker exception", E);
@@ -3183,7 +3388,8 @@ package body BBChess.Search is
             Init_Context (Ctx, Arm => Hard_Alloc > 0.0, Budget => Hard_Alloc,
                           Node_Cap => Node_Cap);
             Result := Iterative_Search (Ctx, Position, Max_Depth,
-                                        Hard_Alloc, Soft_Alloc, True);
+                                        Hard_Alloc, Soft_Alloc, True,
+                                        Collect => True);
             Accum_Nodes := Accum_Nodes + Ctx.Nodes_Count;
             Free_Context (Ctx);
             if Result.Best = Empty_Move then

@@ -2934,3 +2934,127 @@ depth … seldepth … tbhits …`), `go searchmoves e1g1 d5e6` rendant bien un
 protocolaires ont été ajoutées, le total affiché n'a bougé que de trois (les
 assertions FEN de `bbchess-self-tests.adb`). Ne pas interpréter le total comme le
 nombre d'assertions protocolaires.
+
+## 100. Surface UCI, seconde passe : MultiPV, currmove, mate, UCI_Elo, `eval`
+
+Les points 6 à 12 de la liste `~/notes/uci-propositions.md`. **Aucun effet sur
+la force** : les nouveaux chemins ne s'activent que sur demande explicite, et
+`--bench 9/12/14` reste à **455 176 / 1 784 546 / 5 214 141** (MultiPV 1,
+limiteur éteint, défauts inchangés).
+
+### 100.1 MultiPV (`option name MultiPV`, 1..8)
+
+`MultiPV K` fait chercher **chaque coup racine en fenêtre pleine** par le fil
+rapporteur, puis rapporte les K meilleurs en lignes `info … multipv i …`. C'est
+la seule façon que chaque score soit exact : un balayage PVS classique ne donne
+qu'une borne aux coups qui échouent bas, et afficher K bornes identiques n'a
+aucun intérêt. Coût assumé : l'analyse est plus lente qu'en PVS à la racine
+(c'est un mode analyse, pas un mode jeu).
+
+- La PV de chaque ligne est reconstruite par `Extract_Line_PV` : le coup racine
+  puis la continuation lue dans la TT **après** ce coup — l'entrée TT racine ne
+  stocke que le meilleur coup. `Extract_PV` a été factorisé en `Walk_TT_PV` +
+  enveloppe pour partager la marche et la détection de cycle.
+- Le tri des coups racine par score est une sélection stable : à scores égaux,
+  l'ordre de recherche est conservé, donc `MultiPV_Line_Move (1)` est toujours
+  le coup rendu par `bestmove`.
+- Seul le fil rapporteur collecte (`Collect => Id = 1` dans Lazy SMP) : les
+  autres auxiliaires gardent le PVS historique. Pas de verrou, pas de course.
+- Le filtre `searchmoves` s'applique avant le tri : `go searchmoves …` +
+  `MultiPV K` rapporte les K meilleurs **parmi les coups demandés**.
+
+### 100.2 `currmove` / `currmovenumber`
+
+Émis à partir de la profondeur 8 (`Current_Move_Report_Depth`) par le fil
+rapporteur, un par coup racine, au moment où il le cherche. En dessous de 8 les
+itérations repassent sur la même liste en quelques microsecondes : les lignes
+ne seraient que du bruit. Coût nul quand `UCI_Output` est éteint (bench,
+selftest).
+
+### 100.3 `go mate N`
+
+`Set_Mate_Limit (N)` arrête l'approfondissement dès qu'un mat en ≤ N coups est
+prouvé (`|score| >= Mate_Score - 2N`), et le protocole plafonne la profondeur à
+`2N` plies quand le GUI n'en donne pas. Mesuré sur `6k1/5ppp/8/8/8/8/5PPP/R5K1
+w` : `go mate 1` rend `a1a8` après **50 nœuds** (`score mate 1`), là où la
+recherche complète aurait continué à approfondir. Un `mate` sans mat trouvé
+s'arrête au plafond de profondeur et rend un `bestmove` normal.
+
+### 100.4 `UCI_LimitStrength` + `UCI_Elo` (1200..2800)
+
+Quand le limiteur est actif, chaque recherche est plafonnée en **nœuds** (pas en
+profondeur ni en temps) : `Nodes_For_Elo` interpole une table
+1 000 → 10 000 000 nœuds entre 1200 et 2800 Élo (pas de 200). Un plafond de
+nœuds est indépendant de la cadence, donc le réglage garde le même sens à
+`1+0` et à `40/2h`.
+
+**Avertissement honnête** : la courbe est monotone et jouable, **pas calibrée**.
+Un `UCI_Elo 1800` veut dire « environ 18 000 nœuds par coup », pas « 1800 Élo
+mesurés » ; l'ancrage réel demanderait une campagne de gauntlet contre le
+moteur complet à plusieurs budgets. Écrit comme tel dans le README.
+
+Le livre est court-circuité quand le limiteur est actif (sinon les coups de
+livre échapperaient au plafond et le réglage ne binderait pas en ouverture), et
+le plafond est ignoré pour `go infinite` / `go ponder`.
+
+Mesure de monotonie (startpos, `go depth 30`, 4 s d'attente) : 1200 → plie 3 /
+643 nœuds, 1600 → plie 5 / 3 683, 2000 → plie 11, 2400 → plie 15 = recherche
+libre. La granularité du poll (1 024 nœuds) explique le dépassement à 643 pour
+un plafond de 1 000.
+
+### 100.5 Commande `eval` (détail par terme)
+
+`BBChess.Eval.Breakdown` renvoie le même score que `Static` **plus** la
+contribution de chaque terme nommé, blanc-positive, interpolée à la phase
+courante. L'instrumentation passe par un `access Trace_Array` nul dans le
+chemin chaud : `Static` appelle `Static_Core (Position, null)`, la recherche ne
+paie qu'un test par terme et par évaluation (les résultats sont identiques au
+centième, prouvé par `--bench` inchangé).
+
+La sortie (`eval` dans une session UCI) :
+
+```
+Static: +0 (White's point of view, phase 100/100)
+  material + PST      +0
+  bishop pair         +0
+  mobility & threats  +0
+  ...
+  drawish scaling     +0
+  minor imbalance     +0
+Evaluate: +10 (side to move, tempo +10)
+```
+
+Les termes sont arrondis **un par un** alors que le moteur interpole la somme
+taperée une seule fois : la somme des lignes peut donc différer du total d'un
+ou deux centièmes. C'est documenté dans la spec du paquet et dans l'en-tête de
+`Breakdown` — mieux vaut un écart expliqué qu'une fausse exactitude.
+
+### 100.6 Clé Zobrist dans `d`
+
+`BBChess.Text.Hex_Image` (16 chiffres hexadécimaux, minuscules, zéro-paddés)
+affiche `Key: <hex>` après les droits de roque. La clé est **recalculée**
+(`Hash.Compute`) et non lue dans `Pos.Key`, dont la mise à jour dépend de
+`Set_Keys_Enabled` : un affichage de debug ne doit pas dépendre de l'état
+interne de la table.
+
+### 100.7 Vérifications
+
+- `--selftest` **159/159** en debug (`-gnatwe`), release, portable et checked
+  (10 assertions de plus : 2 sur `Hex_Image`, 6 sur MultiPV, 2 sur le parseur
+  `mate` ; les assertions protocolaires, elles, lèvent et ne comptent pas).
+- `--bench 9/12/14` inchangé : 455 176 / 1 784 546 / 5 214 141.
+- Poignée de main **13 lignes** relue en session : `MultiPV`, `UCI_LimitStrength`
+  et `UCI_Elo` aux indices 10-12, `uciok` en 13 — les assertions du self-test
+  déplacées, pas supprimées.
+- Session réelle : `MultiPV 3` sur startpos → 3 lignes par profondeur avec
+  `multipv 1..3`, PV distinctes et ordre décroissant ; `currmove` à partir de
+  la plie 8 (76 lignes à profondeur 9 sur une sicilienne) ; `go mate 1` → 50
+  nœuds ; `eval`, `d` (Key: e9688a834c9c7fa4 sur startpos) ; limiteur Élo
+  monotone.
+
+### 100.8 Point restant hors périmètre
+
+`UCI_Chess960` (roques FRC dans movegen, `Make_Move`, FEN, clé et livre) reste
+un projet à part entière, et `Syzygy50MoveRule` / `Contempt` demandent une
+sémantique de nulle soignée : les deux points 13 et 14 de la liste, laissés de
+côté sur demande.

@@ -184,8 +184,9 @@ be placed **after** the mode, e.g. `--bench 9 --params p.txt` and not
 the interactive loop).
 
 In UCI mode, the same functions are exposed by `setoption` (`Hash`, `Threads`,
-`OwnBook`, `BookFile`, `SyzygyPath`) and by `go` (`wtime`, `btime`, `winc`,
-`binc`, `movetime`, `depth`, `nodes`, `infinite`). The UCI search is
+`OwnBook`, `BookFile`, `SyzygyPath`, `MultiPV`, `UCI_LimitStrength`,
+`UCI_Elo`) and by `go` (`wtime`, `btime`, `winc`, `binc`, `movetime`, `depth`,
+`nodes`, `infinite`, `searchmoves`, `mate`). The UCI search is
 **asynchronous** (Phase 5): the `go` runs in a task, so `isready`
 answers `readyok` during the search, `stop` interrupts it (the current move is
 returned immediately) and `quit` stops the search then exits. `go nodes N`

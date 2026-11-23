@@ -619,6 +619,13 @@ package body BBChess.Eval is
          End_Game : Score_Type;
       end record;
 
+   --  Per-colour, per-term tapered sums, collected while evaluating so that
+   --  Breakdown can explain a score. The search passes null (no collection);
+   --  the accumulation adds one test per term per evaluation.
+   type Trace_Array is array (Color_Type, Eval_Term) of Tapered_Score_Type;
+
+   Empty_Trace : constant Trace_Array := (others => (others => (0, 0)));
+
    function Both (Value : in Score_Type) return Tapered_Score_Type is
      ((Value, Value));
    pragma Inline (Both);
@@ -913,7 +920,8 @@ package body BBChess.Eval is
                                Near_Danger : out Score_Type;
                                Far_Danger  : out Score_Type;
                                Attackers   : out Natural;
-                               All_Attacks : out Bitboard)
+                               All_Attacks : out Bitboard;
+                               Trace    : access Trace_Array)
      return Tapered_Score_Type
    is
       Enemy    : constant Color_Type := Opposite (Color);
@@ -1386,18 +1394,42 @@ package body BBChess.Eval is
    begin
       --  Sum the named terms. Mobility also produces the enemy-king danger
       --  (out parameters) consumed by the opponent's King_Safety in Static.
-      Result := Result + Bishop_Pair_Term;
-      Result := Result + Mobility_Term (Near_Danger, Far_Danger, Attackers);
-      Result := Result + Connected_Rooks_Term;
-      Result := Result + Pawn_Structure_Term;
-      Result := Result + Pawn_Threats_Term;
-      Result := Result + Outpost_Term;
-      Result := Result + King_Activity_Term;
+      --  The terms are named locals only so that Breakdown can report them;
+      --  the addition order is the one the evaluation has always used.
+      declare
+         T_Bishop   : constant Tapered_Score_Type := Bishop_Pair_Term;
+         T_Mobility : Tapered_Score_Type;
+         T_Rooks    : constant Tapered_Score_Type := Connected_Rooks_Term;
+         T_Pawns    : constant Tapered_Score_Type := Pawn_Structure_Term;
+         T_Threats  : constant Tapered_Score_Type := Pawn_Threats_Term;
+         T_Outposts : constant Tapered_Score_Type := Outpost_Term;
+         T_King     : constant Tapered_Score_Type := King_Activity_Term;
+      begin
+         Result := Result + T_Bishop;
+         T_Mobility := Mobility_Term (Near_Danger, Far_Danger, Attackers);
+         Result := Result + T_Mobility;
+         Result := Result + T_Rooks;
+         Result := Result + T_Pawns;
+         Result := Result + T_Threats;
+         Result := Result + T_Outposts;
+         Result := Result + T_King;
+
+         if Trace /= null then
+            Trace (Color, Bishop_Pair)     := T_Bishop;
+            Trace (Color, Mobility)        := T_Mobility;
+            Trace (Color, Connected_Rooks) := T_Rooks;
+            Trace (Color, Pawn_Structure)  := T_Pawns;
+            Trace (Color, Pawn_Threats)    := T_Threats;
+            Trace (Color, Outpost)         := T_Outposts;
+            Trace (Color, King_Activity)   := T_King;
+         end if;
+      end;
 
       return Result;
    end Positional_Score;
 
-   function Static (Position : in Position_Type) return Score_Type is
+   function Static_Core (Position : in Position_Type;
+                         Trace    : access Trace_Array) return Score_Type is
       Result : Score_Type := 0;
       Phase  : constant Natural := Game_Phase (Position);
       Occ    : constant Bitboard := Occupancy (Position);
@@ -1513,10 +1545,10 @@ package body BBChess.Eval is
            Pawn_Attack_Set (Position.Pieces (Make (Black, Pawn)), Black);
          White_Positional : Tapered_Score_Type :=
            Positional_Score (Position, White, Occ, W_Pawn_Att, B_Pawn_Att,
-                             W_Near, W_Far, W_Att, W_All);
+                             W_Near, W_Far, W_Att, W_All, Trace);
          Black_Positional : Tapered_Score_Type :=
            Positional_Score (Position, Black, Occ, B_Pawn_Att, W_Pawn_Att,
-                             B_Near, B_Far, B_Att, B_All);
+                             B_Near, B_Far, B_Att, B_All, Trace);
          Diff : Tapered_Score_Type;
       begin
          -- King safety (middlegame only), per color. It must be folded into
@@ -1541,6 +1573,10 @@ package body BBChess.Eval is
             begin
                White_Positional := White_Positional + Both (KS_W);
                Black_Positional := Black_Positional + Both (KS_B);
+               if Trace /= null then
+                  Trace (White, King_Safety) := Both (KS_W);
+                  Trace (Black, King_Safety) := Both (KS_B);
+               end if;
             end;
          elsif KS_Phase_Hi > KS_Phase_Lo
            and then Score_Type (Phase) > KS_Phase_Lo
@@ -1550,13 +1586,25 @@ package body BBChess.Eval is
                - King_Safety (Position, Black, W_Near, W_Far, W_Att))
               * (Score_Type (Phase) - KS_Phase_Lo)
               / (KS_Phase_Hi - KS_Phase_Lo);
+            if Trace /= null then
+               Trace (White, King_Safety) := Both (Ramp_KS);
+            end if;
          end if;
 
          if Hanging_Opening /= 0 or else Hanging_Endgame /= 0 then
-            White_Positional := White_Positional
-              + Hanging (White, W_All, B_All);
-            Black_Positional := Black_Positional
-              + Hanging (Black, B_All, W_All);
+            declare
+               H_W : constant Tapered_Score_Type :=
+                 Hanging (White, W_All, B_All);
+               H_B : constant Tapered_Score_Type :=
+                 Hanging (Black, B_All, W_All);
+            begin
+               White_Positional := White_Positional + H_W;
+               Black_Positional := Black_Positional + H_B;
+               if Trace /= null then
+                  Trace (White, Hanging) := H_W;
+                  Trace (Black, Hanging) := H_B;
+               end if;
+            end;
          end if;
 
          Diff :=
@@ -1570,7 +1618,14 @@ package body BBChess.Eval is
       if Phase <= 40 and then Result /= 0
         and then (Scale_No_Pawn /= 0 or else Scale_OCB /= 64)
       then
-         Result := Result * Scale_Factor (Result) / 64;
+         declare
+            Before : constant Score_Type := Result;
+         begin
+            Result := Result * Scale_Factor (Result) / 64;
+            if Trace /= null then
+               Trace (White, Drawish_Scale) := Both (Result - Before);
+            end if;
+         end;
       end if;
 
       --  Material imbalance, recomputed each call (it depends on both
@@ -1578,11 +1633,48 @@ package body BBChess.Eval is
       --  Scale_Factor so the drawish-endgame scaler cannot absorb it. Skipped
       --  entirely at the default weight 0 (the popcounts would be wasted).
       if Imbalance_KB_Pawn /= 0 then
-         Result := Result + Minor_Imbalance (White) - Minor_Imbalance (Black);
+         declare
+            Imb : constant Score_Type :=
+              Minor_Imbalance (White) - Minor_Imbalance (Black);
+         begin
+            Result := Result + Imb;
+            if Trace /= null then
+               Trace (White, Minor_Imbalance) := Both (Imb);
+            end if;
+         end;
       end if;
 
       return Result;
+   end Static_Core;
+
+   function Static (Position : in Position_Type) return Score_Type is
+   begin
+      return Static_Core (Position, null);
    end Static;
+   pragma Inline (Static);
+
+   function Breakdown (Position : in Position_Type;
+                       Terms    : out Eval_Breakdown) return Score_Type
+   is
+      T     : aliased Trace_Array := Empty_Trace;
+      Phase : constant Natural := Game_Phase (Position);
+      Total : constant Score_Type := Static_Core (Position, T'Access);
+   begin
+      --  Each term is blended on its own (the engine blends the tapered sum
+      --  once), so the rounded contributions need not add up to Total
+      --  exactly. Material is white-positive already and needs no trace.
+      for Term in Eval_Term loop
+         if Term = Material_Term then
+            Terms (Term) := Position.Material;
+         else
+            Terms (Term) := Blend
+              ((Opening  => T (White, Term).Opening - T (Black, Term).Opening,
+                End_Game => T (White, Term).End_Game - T (Black, Term).End_Game),
+               Phase);
+         end if;
+      end loop;
+      return Total;
+   end Breakdown;
 
    function Material_PST_Value (Piece  : in Piece_Type;
                                 Square : in Square_Type) return Integer is

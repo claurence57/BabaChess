@@ -7,12 +7,18 @@
 --  also avoid relying on Constraint_Error, which would be unchecked away.
 --
 
+with Interfaces;
+
 package BBChess.Text is
 
    --  Single source of truth for the engine version. It feeds the UCI
    --  "id name", the XBoard "myname" feature, the "--version" command-line
    --  option and the startup banner, so a release only changes this line.
    BabaChess_Version : constant String := "1.5.0";
+
+   function Hex_Image (Value : in Interfaces.Unsigned_64) return String;
+   --  Sixteen lower-case hexadecimal digits, zero padded, no prefix: the
+   --  usual rendering of a 64-bit Zobrist key.
 
    procedure Copy_Bounded (Source    : in String;
                            Dest      : out String;

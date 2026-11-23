@@ -99,6 +99,9 @@ package body BBChess.Protocol.UCI is
             elsif Name = "perft" then
                Result.Has_Perft := True;
                Result.Perft_Depth := Parse_Natural (Next, 0);
+            elsif Name = "mate" then
+               Result.Has_Mate := True;
+               Result.Mate_Moves := Parse_Natural (Next, 0);
             elsif Name = "searchmoves" then
                --  The move tokens that follow, up to the next keyword. They
                --  are kept as text: turning them into moves needs a position.
@@ -116,7 +119,7 @@ package body BBChess.Protocol.UCI is
                           or else T = "movestogo" or else T = "movetime"
                           or else T = "depth" or else T = "nodes"
                           or else T = "infinite" or else T = "ponder"
-                          or else T = "perft";
+                          or else T = "perft" or else T = "mate";
                         if Length (Move_Text) > 0 then
                            Append (Move_Text, ' ');
                         end if;

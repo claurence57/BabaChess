@@ -6,12 +6,12 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Unreleased — protocole UCI (points 1 à 5)
+## Unreleased — surface UCI (points 1 à 12)
 
-**Cinq ajouts protocolaires, aucun effet sur la force** : `--bench 9` reste à
-**455 176** nœuds, `--selftest` passe de 146 à **149** vérifications (les trois
-assertions FEN ajoutées ; les assertions du paquet `BBChess.Protocol.Self_Tests`
-lèvent au lieu de compter, elles ne gonflent pas le total).
+**Douze ajouts protocolaires, aucun effet sur la force** : `--bench 9` reste à
+**455 176** nœuds, `--selftest` passe de 146 à **159** vérifications (les
+assertions du paquet `BBChess.Protocol.Self_Tests` lèvent au lieu de compter,
+elles ne gonflent pas le total).
 
 - **`Clear Hash` annoncé.** L'option existait et était acceptée, mais absente de
   la poignée de main : aucun GUI ne pouvait la proposer. Elle est maintenant
@@ -34,6 +34,29 @@ lèvent au lieu de compter, elles ne gonflent pas le total).
 - **`BBChess.Fen.To_String`**, inverse de `Load` (six champs, roques et case en
   passant compris), testé en aller-retour et réutilisable pour journaliser une
   position.
+- **`MultiPV`** (`option name MultiPV`, 1 à 8) : chaque coup racine est cherché
+  en fenêtre pleine par le fil rapporteur, donc chaque score est exact, et les
+  K meilleurs sont rapportés en `info … multipv i …` avec leur propre PV. Le
+  filtre `searchmoves` s'applique avant le tri.
+- **`currmove` / `currmovenumber`** dans la ligne `info` à partir de la
+  profondeur 8 (confort de GUI ; rien en dessous pour ne pas noyer le flux).
+- **`go mate N`** : l'approfondissement s'arrête dès qu'un mat en ≤ N coups est
+  prouvé, la profondeur est plafonnée à 2N plies (`go mate 1` sur un mat en 1 :
+  50 nœuds, `score mate 1`).
+- **`UCI_LimitStrength` + `UCI_Elo` (1200-2800)** : plafond de **nœuds** par
+  coup interpolé entre 1 000 et 10 000 000 (indépendant de la cadence), livre
+  court-circuité tant que le limiteur est actif. La courbe est monotone mais
+  **non calibrée** : `UCI_Elo` est un réglage de force, pas une promesse de
+  classement.
+- **Commande `eval`** : score statique **décomposé par terme** (matériau + PST,
+  paire de fous, mobilité, rooks connectés, structure de pions, menaces,
+  avant-postes, activité du roi, sûreté du roi, pièces en prise, échelle de
+  nulle, déséquilibre mineur), phase et score du trait. `BBChess.Eval.Breakdown`
+  renvoie exactement `Static` ; l'instrumentation est nulle dans le chemin chaud.
+- **Clé Zobrist dans `d`** : `Key: <16 chiffres hexadécimaux>`, recalculée par
+  `Hash.Compute` (nouvelle fonction `BBChess.Text.Hex_Image`).
+- **Poignée de main : 13 lignes** (les trois options ajoutées après
+  `SyzygyPath`), parseur `go` étendu à `mate`.
 
 ## 1.5.0 (2026-11-23)
 

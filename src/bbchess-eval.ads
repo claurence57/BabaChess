@@ -29,6 +29,34 @@ package BBChess.Eval is
    -- Material + position, positive when White is better. Fully symmetric:
    -- Static(M) = -Static(P) when M mirrors P (rank flip + color swap).
 
+   --  The named terms Static sums. A "why does this position score X" question
+   --  decomposes into exactly these entries.
+   type Eval_Term is
+     (Material_Term,
+      Bishop_Pair,
+      Mobility,
+      Connected_Rooks,
+      Pawn_Structure,
+      Pawn_Threats,
+      Outpost,
+      King_Activity,
+      King_Safety,
+      Hanging,
+      Drawish_Scale,
+      Minor_Imbalance);
+
+   type Eval_Breakdown is array (Eval_Term) of Integer;
+
+   function Game_Phase (Position : in Position_Type) return Natural;
+   -- Phase from the remaining material: 100 = full opening, 0 = pure endgame.
+
+   function Breakdown (Position : in Position_Type;
+                       Terms    : out Eval_Breakdown) return Score_Type;
+   -- Same value as Static, plus each named term's white-positive contribution
+   -- blended at the current phase (centipawns). Each term is blended on its
+   -- own, so the rounded contributions can differ from the total by a
+   -- centipawn or two (the engine blends the tapered sum once).
+
    function Evaluate (Position : in Position_Type) return Score_Type;
    -- Static evaluation from the point of view of the side to move
    -- (convenient for a negamax framework), plus the Tempo bonus for the

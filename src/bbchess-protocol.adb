@@ -12,6 +12,8 @@ with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings.Unbounded;
 
+with Interfaces;
+
 with BBChess.Board;
 use BBChess.Board;
 with BBChess.Moves;
@@ -36,6 +38,8 @@ use BBChess.Polyglot;
 with BBChess.Syzygy;
 with BBChess.Text;
 use BBChess.Text;
+with BBChess.Eval;
+use BBChess.Eval;
 
 with BBChess.Protocol.UCI;
 with BBChess.Protocol.XBoard;
@@ -84,6 +88,37 @@ package body BBChess.Protocol is
 
    Book_Max_Ply : constant := 16;
    Own_Book     : Boolean := True;
+
+   --  UCI_LimitStrength / UCI_Elo. When the limiter is on, a search is
+   --  capped at a node budget derived from the requested Elo (see
+   --  Nodes_For_Elo): a time-independent strength knob, so the engine can
+   --  play against humans and gives the project its own anchor scale instead
+   --  of borrowing another engine's rating.
+   Limit_Strength : Boolean := False;
+   Elo_Limit      : Natural := 2_800;
+
+   --  Node budget per move for a requested Elo, interpolated between the
+   --  anchor points below (1200 Elo .. 2800 Elo). The curve is deliberately
+   --  approximate: it is a monotone mapping, not a measured Elo calibration,
+   --  so an UCI_Elo value is a playing-strength setting rather than a rating
+   --  claim. 2800 gives 10M nodes, effectively full strength at normal time
+   --  controls.
+   Strength_Nodes : constant array (0 .. 8) of Node_Count_Type :=
+     (1_000, 3_000, 10_000, 30_000, 100_000,
+      300_000, 1_000_000, 3_000_000, 10_000_000);
+
+   function Nodes_For_Elo (Elo : in Natural) return Node_Count_Type is
+      E     : constant Natural := Natural'Max (1_200, Natural'Min (2_800, Elo));
+      Idx   : constant Natural := E / 200 - 6;
+      Rest  : constant Natural := E mod 200;
+   begin
+      if Idx >= 8 then
+         return Strength_Nodes (8);
+      end if;
+      return Strength_Nodes (Idx)
+        + (Strength_Nodes (Idx + 1) - Strength_Nodes (Idx))
+          * Node_Count_Type (Rest) / 200;
+   end Nodes_For_Elo;
 
    -----------------------
    --  Game history     --
@@ -644,7 +679,64 @@ package body BBChess.Protocol is
                        or else Pos.Castle (Black, King_Side)
                        or else Pos.Castle (Black, Queen_Side))
                then "-" else ""));
+      Emit ("Key: " & Hex_Image (Interfaces.Unsigned_64
+                                 (BBChess.Hash.Compute (Pos))));
    end Handle_UCI_Display;
+
+   -----------------
+   --  UCI eval   --
+   -----------------
+
+   --  Per-term static evaluation (unofficial, the same idea as Stockfish's
+   --  "eval"): the engine's score is a sum of named terms, so printing them
+   --  turns "why does this position score X" into one command instead of a
+   --  bisect. Values are White-positive centipawns, each term blended at the
+   --  current phase; because the engine blends the tapered *sum* once, the
+   --  rounded terms may differ from the total by a centipawn or two.
+   procedure Handle_UCI_Eval is
+      Terms : Eval_Breakdown;
+      Total : constant Score_Type := Breakdown (Pos, Terms);
+
+      function Signed (N : in Integer) return String is
+         S : constant String := Integer'Image (N);
+      begin
+         if N < 0 then
+            return S;
+         end if;
+         return "+" & S (S'First + 1 .. S'Last);
+      end Signed;
+
+      function Pad (S : in String) return String is
+        (S & (1 .. Natural'Max (0, 22 - S'Length) => ' '));
+
+      procedure Row (Label : in String; Value : in Integer) is
+      begin
+         Emit (Pad ("  " & Label) & Signed (Value));
+      end Row;
+
+      function Img (N : in Natural) return String is
+         S : constant String := Natural'Image (N);
+      begin
+         return S (S'First + 1 .. S'Last);
+      end Img;
+   begin
+      Emit ("Static: " & Signed (Total) & " (White's point of view, phase "
+            & Img (Game_Phase (Pos)) & "/100)");
+      Row ("material + PST", Terms (Material_Term));
+      Row ("bishop pair", Terms (Bishop_Pair));
+      Row ("mobility & threats", Terms (Mobility));
+      Row ("connected rooks", Terms (Connected_Rooks));
+      Row ("pawn structure", Terms (Pawn_Structure));
+      Row ("pawn threats", Terms (Pawn_Threats));
+      Row ("outposts", Terms (Outpost));
+      Row ("king activity", Terms (King_Activity));
+      Row ("king safety", Terms (King_Safety));
+      Row ("hanging pieces", Terms (Hanging));
+      Row ("drawish scaling", Terms (Drawish_Scale));
+      Row ("minor imbalance", Terms (Minor_Imbalance));
+      Emit ("Evaluate: " & Signed (Evaluate (Pos))
+            & " (side to move, tempo " & Signed (Tempo) & ")");
+   end Handle_UCI_Eval;
 
    ------------------
    --  UCI perft   --
@@ -700,6 +792,17 @@ package body BBChess.Protocol is
       --  full list. Installed by the search task at the start rendezvous.
       Filter_Moves : Move_List;
       Filter_N     : Natural := 0;
+      --  "go mate N": a proven mate in N moves ends the search, and 2N plies
+      --  is the depth cap when the GUI did not give one.
+      Mate_Requested : constant Boolean :=
+        Go.Has_Mate and then Go.Mate_Moves > 0;
+      --  UCI_LimitStrength: a node cap derived from UCI_Elo, applied in
+      --  addition to whatever the GUI sent (and only when the search is not
+      --  open-ended).
+      Strength_Cap : constant Node_Count_Type :=
+        (if Limit_Strength and then not Go.Infinite and then not Go.Ponder
+         then Nodes_For_Elo (Elo_Limit) else 0);
+      Cap          : Node_Count_Type := Go.Nodes;
    begin
       --  "go perft N": leaf count instead of a search (unofficial, but the
       --  spelling other engines accept). No bestmove is emitted.
@@ -752,9 +855,25 @@ package body BBChess.Protocol is
       Moves_To_Go := Go.Movestogo;
       Max_Depth := Go.Depth;
 
+      if Mate_Requested then
+         Set_Mate_Limit (Go.Mate_Moves);
+         if not Go.Has_Depth then
+            Max_Depth := 2 * Go.Mate_Moves;
+         else
+            Max_Depth := Natural'Min (Max_Depth, 2 * Go.Mate_Moves);
+         end if;
+      else
+         Set_Mate_Limit (0);
+      end if;
+
+      if Strength_Cap > 0 and then (Cap = 0 or else Cap > Strength_Cap) then
+         Cap := Strength_Cap;
+      end if;
+
       if not Go.Infinite and then not Go.Ponder
-        and then Go.Nodes = 0 and then not UCI_Busy.Busy
+        and then Cap = 0 and then not UCI_Busy.Busy
         and then Filter_N = 0
+        and then not Mate_Requested
       then
          declare
             BM : Move_Type;
@@ -772,6 +891,10 @@ package body BBChess.Protocol is
          if Go.Infinite or else Go.Nodes > 0
            or else (Go.Has_Depth and then Clock_Left <= 0.0
                     and then not Fixed_Time)
+           or else (Mate_Requested and then Clock_Left <= 0.0
+                    and then not Fixed_Time)
+           or else (Strength_Cap > 0 and then Clock_Left <= 0.0
+                    and then not Fixed_Time)
          then
             Alloc := (Soft => 0.0, Hard => 0.0);
          else
@@ -786,7 +909,7 @@ package body BBChess.Protocol is
 
          Ensure_UCI_Task;
          Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Go.Nodes, Go.Infinite, Go.Ponder,
+                            Cap, Go.Infinite, Go.Ponder,
                             Filter_Moves, Filter_N);
       end;
    end Handle_UCI_Go;
@@ -809,6 +932,10 @@ package body BBChess.Protocol is
       Emit ("option name OwnBook type check default true");
       Emit ("option name BookFile type string default books/book.bin");
       Emit ("option name SyzygyPath type string default <empty>");
+      Emit ("option name MultiPV type spin default 1 min 1 max "
+            & Trim_Both (Natural'Image (Max_MultiPV)));
+      Emit ("option name UCI_LimitStrength type check default false");
+      Emit ("option name UCI_Elo type spin default 2800 min 1200 max 2800");
       Emit ("uciok");
    end UCI_Handshake;
 
@@ -860,6 +987,13 @@ package body BBChess.Protocol is
          Configure_Book (Value);
       elsif Key = "syzygypath" and then Opt.Is_Value then
          Configure_Syzygy (Value);
+      elsif Key = "multipv" and then Opt.Is_Value then
+         Set_MultiPV (UCI.Parse_Natural (Value, 1));
+      elsif Key = "uci_limitstrength" and then Opt.Is_Value then
+         Limit_Strength := To_Lower (Value) = "true";
+      elsif Key = "uci_elo" and then Opt.Is_Value then
+         Elo_Limit := Natural'Max
+           (1_200, Natural'Min (2_800, UCI.Parse_Natural (Value, 2_800)));
       end if;
    end Handle_UCI_Setoption;
 
@@ -968,6 +1102,9 @@ package body BBChess.Protocol is
             --  Unofficial "d": print the position (board diagram + FEN).
             elsif Cmd = "d" and then UCI_Mode then
                Handle_UCI_Display;
+
+            elsif Cmd = "eval" and then UCI_Mode then
+               Handle_UCI_Eval;
 
             elsif Cmd = "setoption" and then UCI_Mode then
                Handle_UCI_Setoption (Par);
@@ -1109,6 +1246,10 @@ package body BBChess.Protocol is
       Moves_Per_Session := 0;
       Max_Depth := 64;
       Own_Book := True;
+      Limit_Strength := False;
+      Elo_Limit := 2_800;
+      Set_MultiPV (1);
+      Set_Mate_Limit (0);
    end Reset;
 
    function Exit_Requested return Boolean is

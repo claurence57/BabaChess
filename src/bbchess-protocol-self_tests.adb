@@ -6,6 +6,9 @@ with Ada.Text_IO;
 with Ada.Strings.Unbounded;
 use Ada.Strings.Unbounded;
 
+with Interfaces;
+
+with BBChess.Hash;
 with BBChess.Protocol.UCI;
 with BBChess.Protocol.XBoard;
 
@@ -119,6 +122,15 @@ package body BBChess.Protocol.Self_Tests is
       -- perft mode.
       G := BBChess.Protocol.UCI.Parse_Go ("perft 4");
       Assert (G.Has_Perft and then G.Perft_Depth = 4, "go: perft 4");
+
+      -- mate mode, and "mate" terminates a searchmoves list.
+      G := BBChess.Protocol.UCI.Parse_Go ("mate 2");
+      Assert (G.Has_Mate and then G.Mate_Moves = 2, "go: mate 2");
+
+      G := BBChess.Protocol.UCI.Parse_Go ("searchmoves e2e4 mate 3");
+      Assert (To_String (G.Searchmoves) = "e2e4"
+              and then G.Has_Mate and then G.Mate_Moves = 3,
+              "go: searchmoves stops at the mate keyword");
    end Test_Parse_Go;
 
    procedure Test_Parse_Setoption is
@@ -191,17 +203,27 @@ package body BBChess.Protocol.Self_Tests is
    ---------------------------------
 
    procedure Test_Dispatch is
+      --  Same layout as the "eval" rows, so an assertion cannot drift with an
+      --  off-by-one in the padding.
+      function Row (Label : in String; Value : in String) return String is
+        (Label & (1 .. Natural'Max (0, 22 - Label'Length) => ' ') & Value);
    begin
       -- UCI handshake: exact line set.
       Reset_Capture;
       BBChess.Protocol.Initialize (Capture'Access);
       BBChess.Protocol.Process ("uci");
-      Assert (N_Lines = 10, "uci handshake emits 10 lines");
+      Assert (N_Lines = 13, "uci handshake emits 13 lines");
       Assert (Captured (1) = "id name BabaChess " & BabaChess_Version,
               "uci: id name");
       Assert (Captured (4) = "option name Clear Hash type button",
               "uci: Clear Hash advertised");
-      Assert (Captured (10) = "uciok", "uci: final uciok");
+      Assert (Captured (10) = "option name MultiPV type spin default 1 min 1 max 8",
+              "uci: MultiPV advertised");
+      Assert (Captured (11) = "option name UCI_LimitStrength type check default false",
+              "uci: UCI_LimitStrength advertised");
+      Assert (Captured (12) = "option name UCI_Elo type spin default 2800 min 1200 max 2800",
+              "uci: UCI_Elo advertised with its clamp");
+      Assert (Captured (13) = "uciok", "uci: final uciok");
       Assert (BBChess.Protocol.Is_UCI, "uci: mode flag set");
 
       -- isready answers readyok.
@@ -245,15 +267,41 @@ package body BBChess.Protocol.Self_Tests is
       BBChess.Protocol.Process ("setoption name Threads value 3");
       Assert (N_Lines = 0, "setoption threads: no output");
 
-      -- "d": 17 diagram lines, the file letters, the FEN, side and castling.
+      -- The new options are accepted silently too (their advertised ranges
+      -- are policed by the handlers, see UCI_Elo below).
+      Reset_Capture;
+      BBChess.Protocol.Process ("setoption name MultiPV value 3");
+      BBChess.Protocol.Process ("setoption name UCI_LimitStrength value true");
+      BBChess.Protocol.Process ("setoption name UCI_Elo value 1500");
+      Assert (N_Lines = 0, "setoption multipv / limit strength / Elo: no output");
+
+      -- "d": 22 lines (diagram, FEN, side, castling, Zobrist key).
       Reset_Capture;
       BBChess.Protocol.Process ("position startpos");
       BBChess.Protocol.Process ("d");
-      Assert (N_Lines = 21, "d: 21 lines (diagram, FEN, side, castling)");
+      Assert (N_Lines = 22, "d: 22 lines (diagram, FEN, side, castling, key)");
       Assert (Captured (19) = "Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
               & " w KQkq - 0 1", "d: startpos FEN");
       Assert (Captured (20) = "White to move", "d: side to move");
       Assert (Captured (21) = "Castling: KQkq", "d: castling rights");
+      Assert (Captured (22) = "Key: " & BBChess.Text.Hex_Image
+                (Interfaces.Unsigned_64 (BBChess.Hash.Compute
+                   (BBChess.Protocol.Position_Of))),
+              "d: Zobrist key in hexadecimal");
+
+      -- "eval": per-term breakdown, total and side-to-move score.
+      Reset_Capture;
+      BBChess.Protocol.Process ("position startpos");
+      BBChess.Protocol.Process ("eval");
+      Assert (N_Lines = 14, "eval: 14 lines (header, 12 terms, Evaluate)");
+      Assert (Captured (1) = "Static: +0 (White's point of view, phase 100/100)",
+              "eval: start position is balanced");
+      Assert (Captured (10) = Row ("  king safety", "+0"),
+              "eval: the king safety row");
+      Assert (Captured (12) = Row ("  drawish scaling", "+0"),
+              "eval: the drawish scaling row");
+      Assert (Captured (14) = "Evaluate: +10 (side to move, tempo +10)",
+              "eval: tempo is reported");
 
       -- "go perft N": per-move counts then the total, and no bestmove.
       Reset_Capture;

@@ -7,6 +7,19 @@ with Ada.Characters.Handling;
 package body BBChess.Text is
 
    use Ada.Characters.Handling;
+   use type Interfaces.Unsigned_64;
+
+   function Hex_Image (Value : in Interfaces.Unsigned_64) return String is
+      Hex_Digits : constant String := "0123456789abcdef";
+      Result     : String (1 .. 16);
+      X          : Interfaces.Unsigned_64 := Value;
+   begin
+      for I in reverse Result'Range loop
+         Result (I) := Hex_Digits (Natural (X and 16#F#) + 1);
+         X := X / 16;
+      end loop;
+      return Result;
+   end Hex_Image;
 
    procedure Copy_Bounded (Source    : in String;
                            Dest      : out String;
