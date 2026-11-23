@@ -3119,3 +3119,78 @@ objectif, un gain théorique reste un gain (commentaire dans le code).
 - `--dump-params` porte `S_CONTEMPT` (donc SPSA peut le tuner).
 - Poignée de main **15 lignes** : `Syzygy50MoveRule` en 10, `Contempt` en 11,
   `MultiPV` 12, `UCI_LimitStrength` 13, `UCI_Elo` 14, `uciok` 15.
+
+## 102. Texel, seconde passe complète : les valeurs du tuner perdent 160 Élo
+
+Campagne « comme d'habitude » demandée après le point 14 : auto-jeu frais,
+extraction, tuning complet de l'évaluation, puis validation. **Verdict : les
+valeurs tunées sont rejetées**, les défauts du code ne bougent pas. C'est un
+négatif net, pas un non-concluant.
+
+### 102.1 Production des données
+
+- Suite d'ouvertures : 2 500 positions tirées au hasard (6-10 demi-coups,
+  matériel à ±1 pion, `|Static| <= 60`), générées en 7 s par
+  `scripts/gen_balanced_openings.py` — la suite de 65 lignes aurait donné
+  4 000 rejouées de ~130 parties.
+- Auto-jeu : 5 000 parties, 12 000 nœuds/coup, 5 en parallèle, livre
+  coupé, nulles/abandons adjudiqués, 240 coups max. 32 min à ~155 parties/min,
+  22 % de nulles, couleurs équilibrées à 0,2 %, **0 incident**.
+- Extraction (`texel_extract.py`) : **50 290 positions** calmes en 53 s.
+
+### 102.2 Tuning
+
+279 paramètres `P_*` (les 13 exclus par `EXCLUDE` restent aux défauts), descente
+par coordonnées, 5 jobs, `K = 1,0256`, 10 rondes (arrêt parce que la validation
+a remonté à la ronde 10 ; le fichier écrit est celui de la ronde 9).
+
+| | train | val |
+|---|---|---|
+| départ | 0,110231 | 0,111150 |
+| ronde 1 | 0,108351 (−1,71 %) | 0,110162 (−0,89 %) |
+| ronde 5 | 0,106846 | 0,109148 |
+| ronde 9 (retenue) | 0,106617 | 0,108954 |
+| **total** | **−3,28 %** | **−2,02 %** |
+
+Arbre avec le fichier tuné : `--bench 9` 455 176 → **566 062** (+24,4 %),
+`--bench 12` 1 784 546 → **2 637 851** (+47,8 %).
+
+### 102.3 Mesures
+
+- **Écran nœuds fixes** (800 parties, 20 000 nœuds/coup, Hash 8, même binaire,
+  NEW porte `--params`) : le tuné marque **38,94 %** → **−78,2 ± 24,4 Élo**
+  (`old` 61,06 %, LOS 100 % pour le défaut), 0 incident.
+- **SPRT 10+0.1** (Hash 64, `-sprt elo0=0 elo1=5`, suite d'ouvertures,
+  couleurs inversées) : arrêté à **113 parties**, tuné **20-24-69 = 28,32 %**
+  → **−161,3 Élo, IC95 [−240,7 ; −95,3]**, 0 perte au temps, 0 crash. Le
+  verdict ne faisait plus de doute (5,6 σ sous zéro) ; poursuivre 3 000
+  parties n'aurait rien appris.
+
+**Piège de lecture, à noter** : fastchess affiche `Results of <1er moteur> vs
+<2e>` — le bloc « Wins/Losses » et l'Élo sont du point de vue du **premier**
+`-engine`. Dans l'écran, `old` était premier : le « +78,2 » lu d'abord était
+l'Élo du **défaut**, pas du tuné. Toujours recouper avec les noms de moteurs du
+PGN (fait ici : le PGN donne 20-24-69 pour `new`).
+
+### 102.4 Diagnostic : sur-apprentissage des PST
+
+216 des 279 paramètres sont des entrées de tables pièce-case. 50 290 positions
+font ~230 positions par entrée en moyenne, et beaucoup moins pour les cases
+rarement visitées : la descente par coordonnées y ajuste du bruit. 67 entrées
+ont bougé de ≥ 30 cp, le maximum absolu passe de 98 à **160**, la dame de 996 à
+**1 140**, la tour de 484 à 508. La MSE baisse sur *ce* jeu de données
+(50 % des positions sont des nulles d'auto-jeu à 12 000 nœuds) et l'évaluation
+qui en sort joue beaucoup moins bien.
+
+Cohérent avec §98.5 (quatre paramètres, 0,05 % de MSE, zéro Élo) et avec
+l'avertissement de la référence de tuning : **un MSE n'est pas de l'Elo**. Une
+passe complète sur une évaluation déjà réglée n'est pas une source de force ici.
+
+### 102.5 Ce qui reste utilisable
+
+Le fichier `tuned.params` (~/.hermes/cache/scratch/texel/tuned.params) est
+conservé comme point de départ documenté, pas comme réglage. Si une campagne de
+tuning revient sur le sujet, la piste raisonnable est un **sous-ensemble**
+(scalaires seuls, ou une seule table PST) sur beaucoup plus de positions, et
+un écran nœuds fixes après *chaque* sous-ensemble pour identifier le groupe qui
+casse la force — pas un balayage de 279 paramètres sur 50 k positions.
