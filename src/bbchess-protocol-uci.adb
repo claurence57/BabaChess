@@ -59,6 +59,16 @@ package body BBChess.Protocol.UCI is
       when Constraint_Error => return Default;
    end Parse_Node_Count;
 
+   function Parse_Integer (S : String; Default : Integer) return Integer is
+   begin
+      if S'Length = 0 then
+         return Default;
+      end if;
+      return Integer'Value (S);
+   exception
+      when Constraint_Error => return Default;
+   end Parse_Integer;
+
    ---------------
    -- Parse_Go --
    ---------------

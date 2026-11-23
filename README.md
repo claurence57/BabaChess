@@ -38,7 +38,7 @@ representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** an
 - **Polyglot** opening book and **Syzygy** endgame tablebases (via a vendored
   Fathom probe).
 - Soft/hard time management with `movestogo` support.
-- Integral self-test suite (159 checks, pass/fail counter with a non-zero exit
+- Integral self-test suite (162 checks, pass/fail counter with a non-zero exit
   on failure): perft 1-5, Zobrist, packed moves, FEN validation, search,
   repetition, SEE, Polyglot keys, book-file hardening and protocol parsing.
 
@@ -72,7 +72,7 @@ optimization history.
 ## Testing
 
 ```bash
-./bin/babachess --selftest    # 159 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 162 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -125,7 +125,7 @@ Sanity check:
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 159 checks passed, 0 failed
+./bin/babachess --selftest            # -> 162 checks passed, 0 failed
 ```
 
 ## Using the engine
@@ -138,7 +138,10 @@ options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
 UCI options: `Hash` (table size in MiB, 1-1024, allocated at run time and
 rounded down to a power of two; default 64), `Clear Hash`, `Threads`,
 `Move Overhead` (milliseconds reserved per move for GUI/OS latency, default
-10), `OwnBook`, `BookFile`, `SyzygyPath`, `MultiPV` (1-8: the K best root
+10), `OwnBook`, `BookFile`, `SyzygyPath`, `Syzygy50MoveRule` (true: the
+fifty-move rule is honoured by the probes; false: ignored, a cursed win counts
+as a win — analysis/correspondence), `Contempt` (draw value, -100..100,
+default 0: 0 = an objective draw), `MultiPV` (1-8: the K best root
 moves, each with its exact score and PV), `UCI_LimitStrength` and `UCI_Elo`
 (1200-2800: a **node** budget per move, independent of the time control —
 monotone but **uncalibrated**, a strength setting rather than a rating

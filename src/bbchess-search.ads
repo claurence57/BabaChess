@@ -233,7 +233,14 @@ package BBChess.Search is
       --  S_Syzygy_Root_Max_Pieces men is played by the DTZ-optimal move.
       S_Syzygy_Root,          -- 1 = probe DTZ at the root
       S_Syzygy_Root_Max_Pieces,
-      S_Syzygy_Root_Min_Hm);
+      S_Syzygy_Root_Min_Hm,
+      --  Contempt (the value of a draw, UCI option "Contempt"): a drawn
+      --  position is scored -S_Contempt for the side to move. Positive values
+      --  make the engine avoid draws, negative ones make it seek them; 0 (the
+      --  default) is the objective value and leaves the search bit-identical.
+      --  Applied to the search's draws only (repetition, stalemate, dead
+      --  positions, the fifty-move draw), never to a Syzygy verdict.
+      S_Contempt);
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
 

@@ -932,6 +932,8 @@ package body BBChess.Protocol is
       Emit ("option name OwnBook type check default true");
       Emit ("option name BookFile type string default books/book.bin");
       Emit ("option name SyzygyPath type string default <empty>");
+      Emit ("option name Syzygy50MoveRule type check default true");
+      Emit ("option name Contempt type spin default 0 min -100 max 100");
       Emit ("option name MultiPV type spin default 1 min 1 max "
             & Trim_Both (Natural'Image (Max_MultiPV)));
       Emit ("option name UCI_LimitStrength type check default false");
@@ -987,6 +989,11 @@ package body BBChess.Protocol is
          Configure_Book (Value);
       elsif Key = "syzygypath" and then Opt.Is_Value then
          Configure_Syzygy (Value);
+      elsif Key = "syzygy50moverule" and then Opt.Is_Value then
+         BBChess.Syzygy.Set_Fifty_Move_Rule (To_Lower (Value) = "true");
+      elsif Key = "contempt" and then Opt.Is_Value then
+         --  Set_Search_Param clamps to the advertised range (-100 .. 100).
+         Set_Search_Param ("S_CONTEMPT", UCI.Parse_Integer (Value, 0));
       elsif Key = "multipv" and then Opt.Is_Value then
          Set_MultiPV (UCI.Parse_Natural (Value, 1));
       elsif Key = "uci_limitstrength" and then Opt.Is_Value then
@@ -1250,6 +1257,7 @@ package body BBChess.Protocol is
       Elo_Limit := 2_800;
       Set_MultiPV (1);
       Set_Mate_Limit (0);
+      BBChess.Syzygy.Set_Fifty_Move_Rule (True);
    end Reset;
 
    function Exit_Requested return Boolean is

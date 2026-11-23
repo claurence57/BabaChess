@@ -137,7 +137,10 @@ package body BBChess.Search is
       --  Syzygy DTZ root: off by default (strict SPRT baseline).
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 7,
-      S_Syzygy_Root_Min_Hm   => 80);
+      S_Syzygy_Root_Min_Hm   => 80,
+      --  Draw value (UCI "Contempt"): 0 = an objective draw, which keeps the
+      --  search tree identical; positive values make the engine avoid draws.
+      S_Contempt             => 0);
 
    Search_Real_Params : Search_Real_Param_Array :=
      (S_Lmr_Base     => 0.75,
@@ -185,7 +188,8 @@ package body BBChess.Search is
       S_QChecks              => 0,
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 0,
-      S_Syzygy_Root_Min_Hm   => 0);
+      S_Syzygy_Root_Min_Hm   => 0,
+      S_Contempt             => -100);
 
    Search_Param_Max : constant Search_Param_Array :=
      (S_Futility_Margin      => 32_000,
@@ -238,7 +242,8 @@ package body BBChess.Search is
       S_QChecks              => 1,
       S_Syzygy_Root          => 1,
       S_Syzygy_Root_Max_Pieces => 64,
-      S_Syzygy_Root_Min_Hm   => 100);
+      S_Syzygy_Root_Min_Hm   => 100,
+      S_Contempt             => 100);
 
    -- Named constants used by the rest of the search (the former hard-coded
    -- constants, now renames of the parameter table entries).
@@ -262,6 +267,26 @@ package body BBChess.Search is
    -- The LMR log-formula constants are read when the table is (re)built.
    LMR_Base    : Float renames Search_Real_Params (S_Lmr_Base);
    LMR_Divisor : Float renames Search_Real_Params (S_Lmr_Divisor);
+
+   --  Score of a drawn position, from the point of view of the side to move
+   --  at that node. Contempt c follows the classical opponent model: our own
+   --  side values a draw at -c (so it avoids forcing one), the opponent at
+   --  +c (it is assumed to accept it); the negamax sign flips then make every
+   --  draw worth -c to us, whatever the distance. The side to move at a node
+   --  is our side when Ply is even (the root starts at Ply 0), hence the
+   --  parity test. With c = 0 this returns 0 and every draw site keeps its
+   --  historical behaviour.
+   function Draw_Value (Ply : in Natural) return Score_Type is
+      C : constant Integer := Search_Params (S_Contempt);
+   begin
+      if C = 0 then
+         return 0;
+      elsif Ply mod 2 = 0 then
+         return -Score_Type (C);
+      else
+         return Score_Type (C);
+      end if;
+   end Draw_Value;
 
 
    ---------------
@@ -2051,7 +2076,7 @@ package body BBChess.Search is
                end if;
             end;
          end if;
-         return 0;
+         return Draw_Value (Ply);
       end if;
 
       if Depth = 0 then
@@ -2070,16 +2095,19 @@ package body BBChess.Search is
          Ctx.Search_Path (Ply) := Position.Key;
       end if;
       if Is_Repetition (Ctx, Position, Ply) then
-         return 0;
+         return Draw_Value (Ply);
       end if;
 
       -- Syzygy tablebase: an exact WDL result, when the loaded tables cover
       -- this material. Positions with castling rights are not probed (the
-      -- probe returns -1 for them); the halfmove clock is not consulted here
-      -- because Probe_WDL sends rule50 = 0 (the WDL tables assume no 50-move
-      -- context; DTZ would be needed to honour it exactly).
+      -- probe returns -1 for them). With Syzygy50MoveRule on, only a
+      -- zero-clock position is probed: rule50 cannot matter there, so the
+      -- verdict is exact and the clock-free TT key stays sound. With the rule
+      -- off, the clock is ignored by construction (rule50 = 0 in the probe),
+      -- which is precisely what lets any clock be probed.
       if BBChess.Syzygy.Enabled
-        and then Position.Halfmove = 0
+        and then (Position.Halfmove = 0
+                  or else not BBChess.Syzygy.Fifty_Move_Rule)
         and then Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest
       then
          declare
@@ -2094,6 +2122,8 @@ package body BBChess.Search is
                when 0 =>                     -- TB_LOSS
                   return -(BBChess.Syzygy.TB_Win - Ply);
                when 1 | 2 | 3 =>             -- draw / blessed / cursed
+                  --  A tablebase verdict is objective: Contempt is deliberately
+                  --  not applied here (a theoretical draw stays a draw).
                   return 0;
                when others =>
                   null;
@@ -2165,7 +2195,7 @@ package body BBChess.Search is
          if In_Check then
             return -(Mate_Score - Ply);
          else
-            return 0;
+            return Draw_Value (Ply);
          end if;
       end if;
 

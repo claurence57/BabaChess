@@ -77,7 +77,7 @@ l'historique d'optimisation CPU.
 ## Tests
 
 ```bash
-./bin/babachess --selftest    # 159 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 162 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -131,7 +131,7 @@ Vérification de bon fonctionnement :
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 159 checks passed, 0 failed
+./bin/babachess --selftest            # -> 162 checks passed, 0 failed
 ```
 
 ## Utilisation du moteur
@@ -146,10 +146,14 @@ Options UCI : `Hash` (taille de la table en MiB, 1 à 1024, allouée à
 l'exécution et arrondie à la puissance de deux inférieure ; 64 par défaut),
 `Clear Hash`, `Threads`, `Move Overhead` (millisecondes réservées à chaque coup
 pour la latence GUI/OS, 10 par défaut), `OwnBook`, `BookFile`, `SyzygyPath`,
-`MultiPV` (1 à 8 : les K meilleurs coups à la racine, chacun avec son score
-exact et sa PV), `UCI_LimitStrength` et `UCI_Elo` (1200 à 2800 : plafond de
-**nœuds** par coup, indépendant de la cadence — courbe monotone mais **non
-calibrée**, c'est un réglage de force, pas une promesse de classement).
+`Syzygy50MoveRule` (true : la règle des 50 coups est honorée par les sondes ;
+false : ignorée, un cursed win redevient un gain — analyse/correspondance),
+`Contempt` (valeur de la nulle, -100 à 100, 0 par défaut : 0 = nulle
+objective), `MultiPV` (1 à 8 : les K meilleurs coups à la racine, chacun avec
+son score exact et sa PV), `UCI_LimitStrength` et `UCI_Elo` (1200 à 2800 :
+plafond de **nœuds** par coup, indépendant de la cadence — courbe monotone
+mais **non calibrée**, c'est un réglage de force, pas une promesse de
+classement).
 `go ponder` est pris en charge : le moteur cherche la position prédite et
 retient son `bestmove` jusqu'à `ponderhit` ou `stop`.
 

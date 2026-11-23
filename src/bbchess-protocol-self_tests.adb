@@ -9,6 +9,7 @@ use Ada.Strings.Unbounded;
 with Interfaces;
 
 with BBChess.Hash;
+with BBChess.Syzygy;
 with BBChess.Protocol.UCI;
 with BBChess.Protocol.XBoard;
 
@@ -212,18 +213,22 @@ package body BBChess.Protocol.Self_Tests is
       Reset_Capture;
       BBChess.Protocol.Initialize (Capture'Access);
       BBChess.Protocol.Process ("uci");
-      Assert (N_Lines = 13, "uci handshake emits 13 lines");
+      Assert (N_Lines = 15, "uci handshake emits 15 lines");
       Assert (Captured (1) = "id name BabaChess " & BabaChess_Version,
               "uci: id name");
       Assert (Captured (4) = "option name Clear Hash type button",
               "uci: Clear Hash advertised");
-      Assert (Captured (10) = "option name MultiPV type spin default 1 min 1 max 8",
+      Assert (Captured (10) = "option name Syzygy50MoveRule type check default true",
+              "uci: Syzygy50MoveRule advertised");
+      Assert (Captured (11) = "option name Contempt type spin default 0 min -100 max 100",
+              "uci: Contempt advertised");
+      Assert (Captured (12) = "option name MultiPV type spin default 1 min 1 max 8",
               "uci: MultiPV advertised");
-      Assert (Captured (11) = "option name UCI_LimitStrength type check default false",
+      Assert (Captured (13) = "option name UCI_LimitStrength type check default false",
               "uci: UCI_LimitStrength advertised");
-      Assert (Captured (12) = "option name UCI_Elo type spin default 2800 min 1200 max 2800",
+      Assert (Captured (14) = "option name UCI_Elo type spin default 2800 min 1200 max 2800",
               "uci: UCI_Elo advertised with its clamp");
-      Assert (Captured (13) = "uciok", "uci: final uciok");
+      Assert (Captured (15) = "uciok", "uci: final uciok");
       Assert (BBChess.Protocol.Is_UCI, "uci: mode flag set");
 
       -- isready answers readyok.
@@ -274,6 +279,13 @@ package body BBChess.Protocol.Self_Tests is
       BBChess.Protocol.Process ("setoption name UCI_LimitStrength value true");
       BBChess.Protocol.Process ("setoption name UCI_Elo value 1500");
       Assert (N_Lines = 0, "setoption multipv / limit strength / Elo: no output");
+
+      Reset_Capture;
+      BBChess.Protocol.Process ("setoption name Syzygy50MoveRule value false");
+      BBChess.Protocol.Process ("setoption name Contempt value -25");
+      Assert (N_Lines = 0, "setoption syzygy50moverule / contempt: no output");
+      Assert (not BBChess.Syzygy.Fifty_Move_Rule,
+              "setoption: Syzygy50MoveRule false is applied");
 
       -- "d": 22 lines (diagram, FEN, side, castling, Zobrist key).
       Reset_Capture;
@@ -360,6 +372,7 @@ package body BBChess.Protocol.Self_Tests is
       Set_UCI_Mode (False);
       Set_Post (False);
       Set_Threads (1);
+      Set_Search_Param ("S_CONTEMPT", 0);
       Reset_Search;
 
       -- Leave the console writer installed and the session clean so the rest

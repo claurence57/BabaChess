@@ -9,7 +9,7 @@
 ## Unreleased — surface UCI (points 1 à 12)
 
 **Douze ajouts protocolaires, aucun effet sur la force** : `--bench 9` reste à
-**455 176** nœuds, `--selftest` passe de 146 à **159** vérifications (les
+**455 176** nœuds, `--selftest` passe de 146 à **162** vérifications (les
 assertions du paquet `BBChess.Protocol.Self_Tests` lèvent au lieu de compter,
 elles ne gonflent pas le total).
 
@@ -55,8 +55,18 @@ elles ne gonflent pas le total).
   renvoie exactement `Static` ; l'instrumentation est nulle dans le chemin chaud.
 - **Clé Zobrist dans `d`** : `Key: <16 chiffres hexadécimaux>`, recalculée par
   `Hash.Compute` (nouvelle fonction `BBChess.Text.Hex_Image`).
-- **Poignée de main : 13 lignes** (les trois options ajoutées après
-  `SyzygyPath`), parseur `go` étendu à `mate`.
+- **`Syzygy50MoveRule`** (check, défaut true) : la règle des 50 coups est
+  honorée par les deux sondes (la recherche ne sonde qu'une horloge nulle, où
+  `rule50` ne peut rien changer) ; `false` ignore la règle (`rule50 = 0` passé
+  aux deux sondes, une horloge non nulle devient sondable, un cursed win
+  redevient un gain) — usage analyse / correspondance.
+- **`Contempt`** (spin, défaut 0, -100..100) : valeur de la nulle selon le
+  modèle d'adversaire (nous −c, lui +c, donc −c pour nous à toute distance via
+  la parité de `Ply`). Appliqué aux nulles de recherche seulement, jamais aux
+  verdicts Syzygy. Défaut 0 : arbre inchangé. Paramètre `S_CONTEMPT` exposé à
+  `--dump-params` / SPSA.
+- **Poignée de main : 15 lignes**, `Parse_Integer` ajouté pour les valeurs
+  négatives.
 
 ## 1.5.0 (2026-11-23)
 

@@ -71,6 +71,17 @@ package body BBChess.Syzygy is
 
    function Enabled return Boolean is (Loaded);
 
+   --  Whether the fifty-move rule is honoured by the probes (UCI option
+   --  Syzygy50MoveRule, default True).
+   Rule50_On : Boolean := True;
+
+   procedure Set_Fifty_Move_Rule (On : in Boolean) is
+   begin
+      Rule50_On := On;
+   end Set_Fifty_Move_Rule;
+
+   function Fifty_Move_Rule return Boolean is (Rule50_On);
+
    function Probe_WDL (Position : in Position_Type) return Integer is
       W : Interfaces.C.unsigned;
    begin
@@ -78,8 +89,10 @@ package body BBChess.Syzygy is
          return -1;
       end if;
       -- Castling rights make the WDL probe invalid. The halfmove clock is
-      -- ignored (the WDL tables assume rule50 = 0; DTZ would be needed to
-      -- respect the 50-move rule exactly).
+      -- passed as rule50 only when the fifty-move rule is honoured (see
+      -- Syzygy50MoveRule): with it on, the caller probes only zero-clock
+      -- positions, where rule50 cannot matter; with it off, rule50 = 0 says
+      -- "ignore the rule" explicitly.
       for C in Color_Type loop
          for S in Castle_Side_Type loop
             if Position.Castle (C, S) then
@@ -109,7 +122,8 @@ package body BBChess.Syzygy is
          Pawns   => Interfaces.Unsigned_64
                       (Position.Pieces (White_Pawn)
                        or Position.Pieces (Black_Pawn)),
-         Rule50   => 0,
+         Rule50   => (if Rule50_On then Interfaces.C.unsigned (Position.Halfmove)
+                      else 0),
          Castling => 0,
          Ep       => (if Position.En_Passant = Ep_None then 0
                       else Interfaces.C.unsigned (Position.En_Passant)),
@@ -178,7 +192,7 @@ package body BBChess.Syzygy is
          Pawns    => Interfaces.Unsigned_64
                        (Position.Pieces (White_Pawn)
                         or Position.Pieces (Black_Pawn)),
-         Rule50   => unsigned (Position.Halfmove),
+         Rule50   => (if Rule50_On then unsigned (Position.Halfmove) else 0),
          Castling => 0,
          Ep       => (if Position.En_Passant = Ep_None then 0
                       else unsigned (Position.En_Passant)),

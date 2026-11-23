@@ -622,6 +622,30 @@ package body BBChess.Self_Tests is
          Set_MultiPV (1);
          Reset_Search;
       end;
+
+      -- Contempt: a dead position (king vs king) is a draw, and the root line
+      -- must score -Contempt once the option is on (the engine dislikes the
+      -- draw by its own contempt), whatever the depth. The MultiPV scores are
+      -- the only exposed per-line root scores, so the check rides on them.
+      declare
+         Dead  : Position_Type := Start_Position;
+         Dummy : Move_Type;
+      begin
+         --  A K vs K position, loaded by FEN.
+         Load (Dead, "8/8/4k3/8/8/4K3/8/8 w - - 0 1");
+         Reset_Search;
+         Set_Search_Param ("S_CONTEMPT", 50);
+         Set_MultiPV (2);
+         Dummy := Best_Move (Dead, 3);
+         Assert (MultiPV_Line_Count = 2,
+                 "contempt: the dead position has root lines");
+         Assert (MultiPV_Line_Score (1) = -50,
+                 "contempt 50 must score a drawn root line at -50");
+         Assert (Dummy /= Empty_Move, "contempt: a move is still returned");
+         Set_Search_Param ("S_CONTEMPT", 0);
+         Set_MultiPV (1);
+         Reset_Search;
+      end;
       Ada.Text_IO.Put_Line ("MultiPV OK");
    end Test_MultiPV;
 

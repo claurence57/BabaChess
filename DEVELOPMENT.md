@@ -3058,3 +3058,64 @@ interne de la table.
 un projet à part entière, et `Syzygy50MoveRule` / `Contempt` demandent une
 sémantique de nulle soignée : les deux points 13 et 14 de la liste, laissés de
 côté sur demande.
+
+## 101. Point 14 : `Syzygy50MoveRule` et `Contempt` — la valeur d'une nulle
+
+Deux options qui ne changent pas la force aux réglages par défaut mais rendent
+**explicite** ce que le moteur faisait implicitement mal, ou pas du tout.
+`--bench 9/12/14` reste à **455 176 / 1 784 546 / 5 214 141** : `Contempt 0`
+est le défaut et les positions du banc ne contiennent pas de nulle exploitable.
+
+### 101.1 `Syzygy50MoveRule` (check, défaut true)
+
+La sonde WDL de Fathom prend un `rule50`. Deux lectures :
+
+- `rule50 = 0` : l'horloge est ignorée, un cursed win est un **gain** ;
+- `rule50 = halfmove` : le verdict tient compte de la règle, le cursed win est
+  une **nulle**.
+
+Le défaut `true` **garde exactement le comportement d'avant** : la recherche ne
+sonde que les positions à horloge nulle (`Halfmove = 0`), où `rule50` ne peut
+rien changer — le verdict reste exact et la clé TT (qui ne contient pas
+l'horloge) reste saine. Le pointeur DTZ racine reçoit déjà `Halfmove` et
+continue de le recevoir. C'est l'option `false` qui ouvre la seconde lecture :
+`rule50 = 0` est alors passé aux **deux** sondes et la recherche accepte de
+sonder une position à horloge non nulle (le cursed win redevient un gain) —
+l'usage analyse / correspondance où la règle des 50 coups ne s'applique pas.
+
+Ce que l'option corrige : avant elle, la recherche ignorait implicitement la
+règle (`rule50 = 0` codé en dur) alors que la sonde racine la respectait. Le
+défaut est désormais **choisi**, documenté, et les deux sondes partagent le même
+drapeau.
+
+### 101.2 `Contempt` (spin, défaut 0, -100..100)
+
+Une nulle rendait 0 partout : matériel insuffisant, répétition, pat, règle des
+50 coups. `Contempt = c` suit le modèle d'adversaire classique :
+
+- notre camp valorise une nulle à **−c** (il évite de la forcer) ;
+- l'adversaire la valorise à **+c** (on suppose qu'il l'accepte) ;
+- les changements de signe du negamax font alors qu'une nulle vaut **−c pour
+  nous quelle que soit la distance**.
+
+C'est le point subtil que le premier jet avait raté : appliquer `−c` à *tous*
+les nœuds donne `+c` au parent (le camp qui entre dans la nulle), donc un moteur
+qui *cherche* les nulles aux profondeurs paires et les fuit aux impaires. La
+parité de `Ply` est nécessaire : `Ply` pair = notre camp au trait (racine en 0),
+`Ply` impair = l'adversaire. Vérifié en session : K contre K, `Contempt 50`
+donne `score cp -50`, `Contempt -50` donne `+50`, `Contempt 0` donne `0` — et
+le coup rendu ne change pas.
+
+Les nulles de **tablebase** ne reçoivent pas le contempt : un verdict Syzygy est
+objectif, un gain théorique reste un gain (commentaire dans le code).
+
+### 101.3 Vérifications
+
+- `--selftest` **162/162** en debug (`-gnatwe`), release, portable et checked
+  (3 assertions de plus : nulle K/K avec `Contempt 50` → ligne racine à −50).
+- `--bench 9/12/14` inchangé ; `--bench 9 --params "S_CONTEMPT 50"` également
+  inchangé, ce qui est cohérent : les 8 positions du banc ne traversent pas de
+  nulle, le chemin est prouvé par la session K/K et par le self-test.
+- `--dump-params` porte `S_CONTEMPT` (donc SPSA peut le tuner).
+- Poignée de main **15 lignes** : `Syzygy50MoveRule` en 10, `Contempt` en 11,
+  `MultiPV` 12, `UCI_LimitStrength` 13, `UCI_Elo` 14, `uciok` 15.

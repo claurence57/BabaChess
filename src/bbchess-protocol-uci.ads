@@ -70,4 +70,8 @@ package BBChess.Protocol.UCI is
    function Parse_Natural (S : String; Default : Natural) return Natural;
    --  Natural'Value with the command loop's malformed-value fallback.
 
+   function Parse_Integer (S : String; Default : Integer) return Integer;
+   --  Integer'Value with the same fallback; needed by options whose value may
+   --  be negative (Contempt).
+
 end BBChess.Protocol.UCI;
