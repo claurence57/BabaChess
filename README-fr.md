@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml/badge.svg)](https://github.com/claurence57/BabaChess/actions/workflows/ci.yml)
 
-**English: [README-fr.md](README-fr.md).** Guide bilingue *Construire un moteur d'échecs* : [docs/README-fr.md](docs/README-fr.md).
+**English: [README.md](README.md).** Guide bilingue *Construire un moteur d'échecs* : [docs/README-fr.md](docs/README-fr.md).
 
 > **BabaChess est un fork d'[AdaChess](https://github.com/adachess/AdaChess).**
 > Il est né du fork du projet AdaChess, puis de la conversion de la
@@ -39,7 +39,7 @@ parle **UCI**.
 - Livre d'ouvertures **Polyglot** et tables de finales **Syzygy** (via une sonde
   Fathom intégrée).
 - Gestion du temps souple/stricte avec prise en charge de `movestogo`.
-- Suite d'autotests intégrale (146 vérifications, compteur réussite/échec avec
+- Suite d'autotests intégrale (176 vérifications, compteur réussite/échec avec
   code de sortie non nul en cas d'échec) : perft 1-5, Zobrist, coups empaquetés,
   validation FEN, recherche, répétition, SEE, clés Polyglot, durcissement du
   fichier de livre et analyse du protocole.
@@ -77,7 +77,7 @@ l'historique d'optimisation CPU.
 ## Tests
 
 ```bash
-./bin/babachess --selftest    # 174 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 176 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -131,7 +131,7 @@ Vérification de bon fonctionnement :
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 174 checks passed, 0 failed
+./bin/babachess --selftest            # -> 176 checks passed, 0 failed
 ```
 
 ## Utilisation du moteur

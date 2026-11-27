@@ -40,3 +40,8 @@ The details of **this engine** (data structures, evaluation terms, search
 thresholds, implementation choices) live in `src/doc/` (in English): `README-en.md`,
 `bitboards-en.md`, `evaluation-en.md`, `recherche-en.md`, `finales-en.md`, `ouvertures-en.md`,
 `outils-et-tests-en.md`, `build-and-cpu-en.md`.
+
+## Architecture booklets
+
+- [English](babachess-architecture-en.pdf) — packages, global state, data structures and execution order.
+- [Français](babachess-architecture-fr.pdf) — packages, état global, structures et ordre d'exécution.

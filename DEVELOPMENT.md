@@ -3589,3 +3589,35 @@ Le signal de vitesse du lot est favorable mais la machine est trop bruitée pour
 l'attribuer à une optimisation ou annoncer un gain NPS probant. Aucun gain Elo
 n'est revendiqué : les arbres et les évaluations sont inchangés par construction
 et par mesure.
+
+## 108. Release 1.6.0 — UCI, robustesse et architecture documentée
+
+Version `1.6.0` dans `BBChess.Text.BabaChess_Version`, notes
+`RELEASE_NOTES_1.6.0.md`. La version regroupe le retrait de XBoard, les
+compléments UCI des §99-§105, les correctifs de règles §100 et le nettoyage §107.
+
+Aucun gain de force contre 1.5.0 n'est annoncé : aucun match direct n'a été
+joué. Les changements finaux d'architecture préservent l'arbre et les scores ;
+seules les corrections en passant et de nulle à la racine modifient
+intentionnellement des comportements incorrects.
+
+**Ruptures à documenter** : le moteur exige UCI (XBoard reste utilisable via son
+adaptateur UCI) et les compteurs de bench deviennent
+**467 051 / 1 809 934 / 4 767 382** aux profondeurs 9/12/14, contre
+455 176 / 1 784 546 / 5 214 141 en 1.5.0.
+
+Les deux booklets `docs/babachess-architecture-fr.pdf` et
+`docs/babachess-architecture-en.pdf` présentent packages, état global, données,
+fonctions et ordre d'exécution. Ils sont inclus dans les archives par
+`scripts/package_release.sh`, comme le reste de `docs/`.
+
+**Vérification locale** : `--selftest` **176/176** en debug `-gnatwe`, release,
+portable et checked ; benches 9/12/14 aux compteurs ci-dessus ; évaluations
+identiques au binaire antérieur dans les trois configurations de king safety ;
+deux politiques TT et SMP à quatre threads validés ; `scripts/check_docs.py`
+vert. Les README et les index de documentation affichent le même total.
+
+Le tag `v1.6.0` déclenche `release.yml` : livre régénéré et validé, builds Linux
+et Windows en BMI2/portable, self-tests, contrôle des dépendances GNAT, quatre
+archives et `SHA256SUMS`. La release n'est publiée qu'après réussite du workflow
+et vérification des assets.

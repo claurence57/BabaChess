@@ -14,7 +14,7 @@ package BBChess.Text is
    --  Single source of truth for the engine version. It feeds the UCI
    --  "id name" line, the "--version" command-line option and the startup
    --  banner, so a release only changes this line.
-   BabaChess_Version : constant String := "1.5.0";
+   BabaChess_Version : constant String := "1.6.0";
 
    function Hex_Image (Value : in Interfaces.Unsigned_64) return String;
    --  Sixteen lower-case hexadecimal digits, zero padded, no prefix: the

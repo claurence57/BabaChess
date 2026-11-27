@@ -6,7 +6,11 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Unreleased — UCI seulement, nettoyage et architecture
+## 1.6.0 (2026-11-27)
+
+Notes de release et détail des vérifications : `RELEASE_NOTES_1.6.0.md`.
+Aucun gain Elo contre 1.5.0 n'est revendiqué : cette version porte sur le
+protocole, les corrections, l'architecture et la documentation.
 
 **Le protocole XBoard est supprimé : le moteur ne parle plus qu'UCI.**
 `--bench 9/12/14` a changé de repère avec les deux correctifs ci-dessous

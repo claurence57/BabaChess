@@ -40,3 +40,8 @@ Les détails de **ce moteur** (structures, termes, seuils, choix d'implémentati
 sont dans `src/doc/` (en français) : `README-fr.md`, `bitboards-fr.md`, `evaluation-fr.md`,
 `recherche-fr.md`, `finales-fr.md`, `ouvertures-fr.md`, `outils-et-tests-fr.md`,
 `build-and-cpu-fr.md`.
+
+## Booklets d'architecture
+
+- [Français](babachess-architecture-fr.pdf) — packages, état global, structures et ordre d'exécution.
+- [English](babachess-architecture-en.pdf) — packages, global state, data structures and execution order.
