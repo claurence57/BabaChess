@@ -2940,7 +2940,8 @@ nombre d'assertions protocolaires.
 Les points 6 à 12 de la liste `~/notes/uci-propositions.md`. **Aucun effet sur
 la force** : les nouveaux chemins ne s'activent que sur demande explicite, et
 `--bench 9/12/14` reste à **455 176 / 1 784 546 / 5 214 141** (MultiPV 1,
-limiteur éteint, défauts inchangés).
+limiteur éteint, défauts inchangés). *(Le repère a changé depuis : voir §103.3,
+467 051 / 1 809 934 / 4 767 382 après la correction de la case en passant.)*
 
 ### 100.1 MultiPV (`option name MultiPV`, 1..8)
 
@@ -3042,7 +3043,8 @@ interne de la table.
 - `--selftest` **159/159** en debug (`-gnatwe`), release, portable et checked
   (10 assertions de plus : 2 sur `Hex_Image`, 6 sur MultiPV, 2 sur le parseur
   `mate` ; les assertions protocolaires, elles, lèvent et ne comptent pas).
-- `--bench 9/12/14` inchangé : 455 176 / 1 784 546 / 5 214 141.
+- `--bench 9/12/14` inchangé : 455 176 / 1 784 546 / 5 214 141 *(repère
+  périmé depuis §103.3 : 467 051 / 1 809 934 / 4 767 382)*.
 - Poignée de main **13 lignes** relue en session : `MultiPV`, `UCI_LimitStrength`
   et `UCI_Elo` aux indices 10-12, `uciok` en 13 — les assertions du self-test
   déplacées, pas supprimées.
@@ -3194,3 +3196,86 @@ tuning revient sur le sujet, la piste raisonnable est un **sous-ensemble**
 (scalaires seuls, ou une seule table PST) sur beaucoup plus de positions, et
 un écran nœuds fixes après *chaque* sous-ensemble pour identifier le groupe qui
 casse la force — pas un balayage de 279 paramètres sur 50 k positions.
+
+## 103. Audit de bugs : case en passant morte et nulle à la racine
+
+Recherche de bugs demandée sur tout le moteur. Méthode : lecture ciblée des
+chemins à risque (clé de Zobrist, Make/Unmake, répétition, TT, protocole),
+puis **fuzzing** du protocole et **tests différentiels** contre python-chess,
+les deux sur la compilation `checked` (toutes les vérifications Ada actives).
+
+Ce qui n'a rien donné : 45+ commandes hostiles (lignes de 7 000 caractères,
+`setoption` hors bornes, `go depth 999999999999999999999`, `go perft 99`,
+promotions avec et sans suffixe, `go infinite`/`stop`/relance, 16 threads avec
+`Hash 1`, MultiPV 8, fichier de paramètres poubelle) → 0 anomalie ; 100 demi-
+coups d'auto-jeu vérifiés coup par coup contre python-chess (légalité + FEN
+tous les 7 plis) → 0 divergence ; perft de Kiwipete (4 085 603) et de la
+position 3 (674 624) → exacts ; FEN en passant comparées à python-chess sur
+cinq positions → identiques.
+
+### 103.1 Bug 1 : la case en passant inutilisable empoisonnait la clé
+
+`Make_Move` posait `En_Passant` après **tout** double pas, même quand aucun
+pion adverse ne pouvait capturer. Conséquences mesurées :
+
+- la même position atteinte par un autre chemin avait une **clé de Zobrist
+  différente** (`position startpos moves e2e4` → `7a346f9b804d5988`,
+  `position fen <la même position>` → `86f0a9aa7421f17e`) ;
+- le FEN écrit par `d` était non standard (`... KQkq e3 0 1` là où python-chess,
+  Stockfish et la norme FEN écrivent `-`) ;
+- la répétition était manquée quand une occurrence suivait un double pas et
+  l'autre non (danse des cavaliers après 1.d4 d5 : la position du pli 2 porte
+  `d6` dans l'ancien code et n'est donc pas comptée avec les deux autres) ;
+- la table de transposition stockait deux entrées pour une seule position ;
+- la clé Polyglot, elle, appliquait déjà la bonne règle (ep hachée seulement
+  si un pion peut capturer) : le moteur était incohérent avec lui-même.
+
+Correctif : `En_Passant` n'est conservé que si un pion adverse peut capturer
+(attaque pseudo-légale, la même règle que Polyglot), dans `Make_Move` **et**
+dans `Fen.Load` (qui normalise donc un FEN entrant). Perft inchangé (une case
+ep sans preneur ne générait aucun coup), clé et FEN canoniques.
+
+### 103.2 Bug 2 : une position déjà nulle était évaluée comme une position normale
+
+La recherche ne testait les nulles (règle des 50 coups, matériel insuffisant,
+triple répétition) qu'**un pli sous la racine**. Sur la danse des cavaliers
+ci-dessus, la position racine est la troisième occurrence du départ et le
+moteur affichait `score cp 35` puis jouait `d2d4` — il « jouait pour gagner »
+une position déjà nulle. Même chose à `Halfmove = 100`.
+
+Correctif : `Root_Is_Draw` (50 coups, matériel insuffisant, ou clé racine
+présente trois fois dans l'historique de partie — que le protocole enregistre,
+position courante comprise) court-circuite l'approfondissement : score
+`Draw_Value (0)`, un coup légal quelconque, une ligne `info depth 0` pour que
+le GUI voie le score, et le bestmove. Contempt reste appliqué (−c), comme
+partout.
+
+### 103.3 Vérifications
+
+- `--selftest` **174/174** en debug (`-gnatwe`), release, portable et checked
+  (12 assertions de plus : case ep inutilisable après 1.e4 et sur un FEN
+  entrant, ep réel conservé, nulle racine par triple répétition et par les
+  50 coups).
+- Clé identique par les deux chemins (`e2e4` vs FEN) : `86f0a9aa7421f17e`.
+- Triple répétition : `info depth 0 seldepth 0 score cp 0 … pv a2a3`,
+  `bestmove a2a3`. 50 coups : `bestmove b1a1`, score 0.
+- **Rupture de repère** : la clé de Zobrist ayant changé, `--bench 9/12/14`
+  passe à **467 051 / 1 809 934 / 4 767 382** (anciens : 455 176 / 1 784 546 /
+  5 214 141). La baisse à la profondeur 14 (−8,6 %) vient des répétitions
+  désormais correctement détectées ; ce n'est pas un gain prouvé, seulement un
+  arbre différent. Perft inchangé.
+
+### 103.4 Constats mineurs, non corrigés
+
+- `go searchmoves a7a6` (aucun coup légal) : le filtre vide n'installe rien et
+  la recherche porte sur tous les coups, au lieu de ne rien chercher. Signalé,
+  sans effet pratique.
+- Un FEN à quatre champs (les deux compteurs sont facultatifs dans la norme)
+  est rejeté comme « bad FEN ».
+- Une promotion sans suffixe (`e7e8`) est rejetée : `From_String` compare la
+  chaîne complète. Le protocole UCI exige le suffixe, certains GUI XBoard non.
+- Le contempt dans la TT reste une approximation : la valeur d'une nulle
+  dépend de la parité de `Ply`, et une entrée TT réutilisée à une autre parité
+  peut porter le mauvais signe. Inerte à `Contempt 0` (défaut).
+- `TT_Slot_Read` « réessaie » en relisant la **même** case : le commentaire
+  promet un retry utile, le code ne fait rien de plus qu'une seconde lecture.

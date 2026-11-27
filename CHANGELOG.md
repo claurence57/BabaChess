@@ -8,11 +8,25 @@
 
 ## Unreleased — surface UCI (points 1 à 12)
 
-**Douze ajouts protocolaires, aucun effet sur la force** : `--bench 9` reste à
-**455 176** nœuds, `--selftest` passe de 146 à **162** vérifications (les
-assertions du paquet `BBChess.Protocol.Self_Tests` lèvent au lieu de compter,
-elles ne gonflent pas le total).
+**Deux bugs corrigés (case en passant morte, nulle à la racine) et douze ajouts
+protocolaires.** `--bench 9/12/14` passe de 455 176 / 1 784 546 / 5 214 141 à
+**467 051 / 1 809 934 / 4 767 382** : la clé de Zobrist ne contient plus les
+cases en passant qu'aucun pion ne peut utiliser (§103.1), donc l'arbre change ;
+`--selftest` passe de 146 à **174** vérifications (les assertions du paquet
+`BBChess.Protocol.Self_Tests` lèvent au lieu de compter, elles ne gonflent pas
+le total).
 
+- **Correction — case en passant inutilisable.** `Make_Move` posait
+  `En_Passant` après tout double pas, même sans preneur : deux clés de Zobrist
+  pour une même position (`moves e2e4` ≠ `fen`), FEN non standard (`e3` au
+  lieu de `-`), répétitions manquées et cohérence rompue avec la clé Polyglot
+  (qui appliquait déjà la bonne règle). `Make_Move` et `Fen.Load` ne gardent
+  plus la case que si un pion adverse peut capturer. Perft inchangé.
+- **Correction — nulle à la racine ignorée.** Les nulles n'étaient testées
+  qu'un pli sous la racine : une position déjà nulle (triple répétition,
+  50 coups, matériel insuffisant) était évaluée normalement (`cp 35` sur une
+  triple répétition). `Root_Is_Draw` court-circuite maintenant l'approfondissement :
+  score `Draw_Value (0)`, un coup légal, `info depth 0`.
 - **`Clear Hash` annoncé.** L'option existait et était acceptée, mais absente de
   la poignée de main : aucun GUI ne pouvait la proposer. Elle est maintenant
   émise en `type button`, juste après `Hash` (les GUI qui lisent la première

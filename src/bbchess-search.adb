@@ -2796,6 +2796,59 @@ package body BBChess.Search is
    end Root_Search;
 
    ---------------------
+   -- Quick_Move --
+   ---------------------
+
+   -- Safety net used when the time budget is so small that not even the
+   -- first iteration completes: return a legal move without searching, and
+   -- the answer for a root that is already a drawn position.
+   function Quick_Move (Position : in Position_Type) return Move_Type is
+      Moves    : Move_List;
+      Count    : Natural;
+      Fallback : Move_Type := Empty_Move;
+   begin
+      Generate_Legal_Moves (Position, Moves, Count);
+      for I in 1 .. Count loop
+         if Is_Tactical (Position, Moves (I)) then
+            return Moves (I);
+         end if;
+         if Fallback = Empty_Move then
+            Fallback := Moves (I);
+         end if;
+      end loop;
+      return Fallback;
+   end Quick_Move;
+
+   --  True when the root position is already a draw the side to move can
+   --  claim: the fifty-move rule, a dead position, or a threefold repetition
+   --  recorded in the game history. The protocol records the current position
+   --  in that history, so a third occurrence shows up as three identical keys.
+   --  Without this check the search only sees the draw one ply down and
+   --  reports a normal score in a position it has already drawn.
+   function Root_Is_Draw (Ctx : Context_Access; Position : Position_Type)
+     return Boolean
+   is
+      Seen : Natural := 0;
+   begin
+      if Position.Halfmove >= 100
+        or else Insufficient_Material (Position)
+      then
+         return True;
+      end if;
+      --  A repetition needs a non-zero halfmove clock: with a fresh clock
+      --  the root cannot have occurred before.
+      if Position.Halfmove > 0 then
+         for I in 0 .. Ctx.Game_Key_Count - 1 loop
+            if Ctx.Game_Keys (I) = Position.Key then
+               Seen := Seen + 1;
+               exit when Seen >= 3;
+            end if;
+         end loop;
+      end if;
+      return Seen >= 3;
+   end Root_Is_Draw;
+
+   ---------------------
    -- Iterative search --
    ---------------------
 
@@ -2850,6 +2903,27 @@ package body BBChess.Search is
       --  returning to it is detected as a repetition (the game-history scan
       --  alone counts the root's single occurrence as G = 1, never >= 2).
       Ctx.Search_Path (0) := Work.Key;
+
+      --  A root that is already a draw (fifty-move rule, dead position, or a
+      --  threefold recorded in the game history) is not searched: the draw
+      --  value is the score and any legal move will do.
+      if Root_Is_Draw (Ctx, Work) then
+         Result.Best  := Quick_Move (Work);
+         Result.Score := Draw_Value (0);
+         Result.Depth := 0;
+         Result.Nodes := 0;
+         if Collect then
+            Root_Line_N := 1;
+            Root_Lines (1).Move  := Result.Best;
+            Root_Lines (1).Score := Result.Score;
+         end if;
+         if Report then
+            --  One "depth 0" line so a GUI sees the score instead of a bare
+            --  bestmove (the usual way engines report an immediate draw).
+            Report_Iteration (Work, 0, 0, Result.Score, 0.0, 0, Result.Best);
+         end if;
+         return Result;
+      end if;
 
       --  Syzygy DTZ root (S_Syzygy_Root, default off): in the 50-move zone,
       --  with few enough men and a DTZ win, play the move that minimises the
@@ -3041,29 +3115,6 @@ package body BBChess.Search is
       Result.Nodes := Ctx.Nodes_Count;
       return Result;
    end Iterative_Search;
-
-   ---------------------
-   -- Quick_Move --
-   ---------------------
-
-   -- Safety net used when the time budget is so small that not even the
-   -- first iteration completes: return a legal move without searching.
-   function Quick_Move (Position : in Position_Type) return Move_Type is
-      Moves    : Move_List;
-      Count    : Natural;
-      Fallback : Move_Type := Empty_Move;
-   begin
-      Generate_Legal_Moves (Position, Moves, Count);
-      for I in 1 .. Count loop
-         if Is_Tactical (Position, Moves (I)) then
-            return Moves (I);
-         end if;
-         if Fallback = Empty_Move then
-            Fallback := Moves (I);
-         end if;
-      end loop;
-      return Fallback;
-   end Quick_Move;
 
    --------------------------------
    -- Node accounting (benchmark) --

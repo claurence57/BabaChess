@@ -8,6 +8,9 @@ use BBChess.Hash;
 with BBChess.Pieces;
 use BBChess.Pieces;
 
+with BBChess.Attacks;
+use BBChess.Attacks;
+
 with BBChess.Eval;
 use BBChess.Eval;
 
@@ -232,6 +235,13 @@ package body BBChess.Fen is
                      if Behind in 0 .. 63
                        and then Piece_At (Pos, Square_Type (Behind), Pawn_P)
                        and then Pawn_P = Make (Opposite (Pos.Side), Pawn)
+                       --  A pawn of the side to move must be able to capture:
+                       --  an en-passant square no pawn can use does not belong
+                       --  in the position (it is not part of its identity and
+                       --  it changes the Zobrist key), so it is dropped here
+                       --  exactly as Make_Move drops it.
+                       and then (Pawn_Attacks (Opposite (Pos.Side), Sq)
+                                 and Pos.Pieces (Make (Pos.Side, Pawn))) /= 0
                      then
                         Pos.En_Passant := Sq;
                      end if;

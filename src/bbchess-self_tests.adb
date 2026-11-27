@@ -173,7 +173,10 @@ package body BBChess.Self_Tests is
                Promotion => White_Pawn, Flag => Double_Push);
          Make_Move (P, M, U);
          Assert (P.Side = Black, "after 1.e4 side is black");
-         Assert (P.En_Passant = 20, "after 1.e4 ep square is e3");
+         --  No black pawn can capture on e3, so the square is not part of the
+         --  position (an unusable ep square must not reach the Zobrist key).
+         Assert (P.En_Passant = Ep_None,
+                 "after 1.e4 there is no usable ep square");
 
          declare
             Black_Moves : Move_List;
@@ -430,6 +433,13 @@ package body BBChess.Self_Tests is
          Load (P, "4k3/8/8/4P3/8/8/8/4K3 w - d6 0 1");
          Assert (P.En_Passant = -1, "ep without a pawn to capture must be rejected");
 
+         --  A pawn stands behind the target but no pawn of the side to move can
+         --  capture on it: the square is unusable and must be dropped, or it
+         --  would split the key from the same position reached by a move.
+         Load (P, "4k3/8/8/3p4/8/8/8/4K3 w - d6 0 1");
+         Assert (P.En_Passant = -1,
+                 "ep no pawn can use must be dropped on load");
+
          -- Black to move: a valid target is on rank 3, captured pawn on rank 4.
          Load (P, "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1");
          Assert (P.En_Passant = 19, "valid ep d3 (Black) must be kept (square 19)");
@@ -637,8 +647,8 @@ package body BBChess.Self_Tests is
          Set_Search_Param ("S_CONTEMPT", 50);
          Set_MultiPV (2);
          Dummy := Best_Move (Dead, 3);
-         Assert (MultiPV_Line_Count = 2,
-                 "contempt: the dead position has root lines");
+         Assert (MultiPV_Line_Count = 1,
+                 "contempt: a drawn root has one reported line");
          Assert (MultiPV_Line_Score (1) = -50,
                  "contempt 50 must score a drawn root line at -50");
          Assert (Dummy /= Empty_Move, "contempt: a move is still returned");
@@ -648,6 +658,72 @@ package body BBChess.Self_Tests is
       end;
       Ada.Text_IO.Put_Line ("MultiPV OK");
    end Test_MultiPV;
+
+   ----------------------
+   --  Drawn root      --
+   ----------------------
+
+   procedure Test_Root_Draw is
+   begin
+      --  Threefold: the start position occurs at plies 0, 4 and 8 of the
+      --  knight dance. The protocol records every position of the game, so
+      --  the root is already a draw and must score 0, not the usual tempo.
+      declare
+         P    : Position_Type := Start_Position;
+         U    : Undo_Info;
+         Keys : Game_Key_Array := (others => 0);
+         N    : Natural := 0;
+         Mv   : Move_Type;
+         Seq  : constant array (1 .. 8) of String (1 .. 4) :=
+           ("g1f3", "g8f6", "f3g1", "f6g8",
+            "g1f3", "g8f6", "f3g1", "f6g8");
+      begin
+         Keys (0) := BBChess.Hash.Compute (P);
+         N := 1;
+         for I in Seq'Range loop
+            Mv := BBChess.Notation.From_String (P, Seq (I));
+            Assert (Mv /= Empty_Move, "root draw: the knight sequence is legal");
+            Make_Move (P, Mv, U);
+            Keys (N) := BBChess.Hash.Compute (P);
+            N := N + 1;
+         end loop;
+
+         Reset_Search;
+         Set_Game_History (Keys, N);
+         Set_MultiPV (2);
+         declare
+            Ignored : constant Move_Type := Best_Move (P, 5);
+         begin
+            Assert (MultiPV_Line_Score (1) = 0,
+                    "a threefold root must score 0");
+            Assert (MultiPV_Line_Move (1) /= Empty_Move,
+                    "a threefold root still returns a move");
+            pragma Unreferenced (Ignored);
+         end;
+         Set_MultiPV (1);
+         Set_Game_History (Keys, 0);
+      end;
+
+      --  Fifty-move rule at the root: same treatment.
+      declare
+         P : Position_Type;
+      begin
+         Load (P, "7k/8/6K1/8/8/8/8/1Q6 w - - 100 120");
+         Reset_Search;
+         Set_MultiPV (2);
+         declare
+            Ignored : constant Move_Type := Best_Move (P, 5);
+         begin
+            Assert (MultiPV_Line_Score (1) = 0,
+                    "a fifty-move root must score 0");
+            pragma Unreferenced (Ignored);
+         end;
+         Set_MultiPV (1);
+      end;
+
+      Reset_Search;
+      Ada.Text_IO.Put_Line ("root draw OK");
+   end Test_Root_Draw;
 
    -------------------------
    --  Time management    --
@@ -1290,6 +1366,7 @@ package body BBChess.Self_Tests is
       Test_Eval;
       Test_Search;
       Test_MultiPV;
+      Test_Root_Draw;
       Test_Time_Management;
       Test_Soft_Hard_Search;
       Test_Repetition;

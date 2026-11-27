@@ -38,7 +38,7 @@ representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** an
 - **Polyglot** opening book and **Syzygy** endgame tablebases (via a vendored
   Fathom probe).
 - Soft/hard time management with `movestogo` support.
-- Integral self-test suite (162 checks, pass/fail counter with a non-zero exit
+- Integral self-test suite (174 checks, pass/fail counter with a non-zero exit
   on failure): perft 1-5, Zobrist, packed moves, FEN validation, search,
   repetition, SEE, Polyglot keys, book-file hardening and protocol parsing.
 
@@ -72,7 +72,7 @@ optimization history.
 ## Testing
 
 ```bash
-./bin/babachess --selftest    # 162 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 174 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -125,7 +125,7 @@ Sanity check:
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 162 checks passed, 0 failed
+./bin/babachess --selftest            # -> 174 checks passed, 0 failed
 ```
 
 ## Using the engine

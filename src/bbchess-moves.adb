@@ -5,6 +5,9 @@
 with BBChess.Hash;
 use BBChess.Hash;
 
+with BBChess.Attacks;
+use BBChess.Attacks;
+
 with BBChess.Eval;
 use BBChess.Eval;
 
@@ -218,6 +221,15 @@ package body BBChess.Moves is
       -- capture above, the computation is done in Integer and range-checked by
       -- hand rather than relying on the (disabled) run-time checks; a
       -- malformed move simply leaves no en-passant target.
+      --
+      --  The target is kept only when a pawn of the other side could actually
+      --  capture on it. An unusable en-passant square is not part of the
+      --  position's identity: keeping it would split the Zobrist key (and
+      --  therefore the transposition table and the repetition detection) from
+      --  the same position reached another way, and would print a FEN that no
+      --  other engine agrees with ("... d6" where the standard says "-").
+      --  Polyglot already applied this rule; the key and the FEN writer now
+      --  follow it too.
       if Move.Flag = Double_Push then
          declare
             Ep_Value : constant Integer :=
@@ -227,7 +239,10 @@ package body BBChess.Moves is
               ((if Moving = White then Rank_Of (Move.From) = 1
                                      else Rank_Of (Move.From) = 6),
                "double push: origin must be on rank 2 (White) / rank 7 (Black)");
-            if Ep_Value in 0 .. 63 then
+            if Ep_Value in 0 .. 63
+              and then (Pawn_Attacks (Moving, Square_Type (Ep_Value))
+                        and Position.Pieces (Make (Opposite (Moving), Pawn))) /= 0
+            then
                Position.En_Passant := Ep_Value;
             else
                Position.En_Passant := Ep_None;

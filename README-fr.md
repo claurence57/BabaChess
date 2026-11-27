@@ -77,7 +77,7 @@ l'historique d'optimisation CPU.
 ## Tests
 
 ```bash
-./bin/babachess --selftest    # 162 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 174 checks: perft 1-5, Zobrist, FEN, search,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -131,7 +131,7 @@ Vérification de bon fonctionnement :
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 162 checks passed, 0 failed
+./bin/babachess --selftest            # -> 174 checks passed, 0 failed
 ```
 
 ## Utilisation du moteur
