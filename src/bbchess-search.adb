@@ -1175,16 +1175,6 @@ package body BBChess.Search is
    end Order;
    pragma Inline (Order);
 
-   -- XBoard thinking output ("post"/"nopost"). When enabled, the primary
-   -- thread prints one line per completed iteration:
-   --    depth score time nodes bestmove
-   Post_Output : Boolean := False;
-
-   procedure Set_Post (On : in Boolean) is
-   begin
-      Post_Output := On;
-   end Set_Post;
-
    -- UCI "info" output. Enabled by the "uci" handshake; when on, the primary
    -- thread prints one "info" line per completed iteration with the PV. Off
    -- by default so --selftest and --bench print nothing.
@@ -1299,8 +1289,8 @@ package body BBChess.Search is
    end Extract_Line_PV;
 
    -- Single console lock shared by the command loop and the search threads
-   -- (Ada.Text_IO is not task-safe). Both the XBoard "post" iteration reports
-   -- and the UCI "readyok"/"bestmove" lines go through it.
+   -- (Ada.Text_IO is not task-safe). The UCI "info"/"readyok"/"bestmove"
+   -- lines all go through it.
    --  A lock, not a protected output action: Ada.Text_IO may block, and a
    --  potentially blocking operation inside a protected action is a bounded
    --  error (RM 9.5.1). Seize/Release the lock around the I/O instead.
@@ -1444,7 +1434,7 @@ package body BBChess.Search is
          Locked_Put_Line (Line (1 .. Last));
       end Emit_UCI_Line;
    begin
-      if not UCI_Output and then not Post_Output then
+      if not UCI_Output then
          return;
       end if;
 
@@ -1461,46 +1451,21 @@ package body BBChess.Search is
          Pv_Len := 1;
       end if;
 
-      if UCI_Output then
-         if MultiPV_Value > 1 and then Root_Line_N > 0 then
-            --  One line per reported root move, best first (MultiPV). Each
-            --  line's PV starts with its own root move; Extract_Line_PV reads
-            --  the continuation the TT holds after it.
-            for I in 1 .. Root_Line_N loop
-               declare
-                  Line_Pv : Move_List;
-                  Line_N  : Natural;
-               begin
-                  Extract_Line_PV (Root, Root_Lines (I).Move, Line_Pv, Line_N);
-                  Emit_UCI_Line (Root_Lines (I).Score, Line_Pv, Line_N, I);
-               end;
-            end loop;
-         else
-            Emit_UCI_Line (Score, Pv, Pv_Len, 0);
-         end if;
+      if MultiPV_Value > 1 and then Root_Line_N > 0 then
+         --  One line per reported root move, best first (MultiPV). Each
+         --  line's PV starts with its own root move; Extract_Line_PV reads
+         --  the continuation the TT holds after it.
+         for I in 1 .. Root_Line_N loop
+            declare
+               Line_Pv : Move_List;
+               Line_N  : Natural;
+            begin
+               Extract_Line_PV (Root, Root_Lines (I).Move, Line_Pv, Line_N);
+               Emit_UCI_Line (Root_Lines (I).Score, Line_Pv, Line_N, I);
+            end;
+         end loop;
       else
-         -- XBoard "post": depth score centiseconds nodes, then the full PV
-         -- (or the best move when the PV is empty). Mate scores use the
-         -- 100000 - plies convention cutechess/XBoard understands.
-         Append (Natural'Image (Depth));
-         if Score >= Mate_Threshold then
-            Append (" " & Score_Type'Image (100_000 - (Mate_Score - Score)));
-         elsif Score <= -Mate_Threshold then
-            Append (" " & Score_Type'Image
-                      (-(100_000 - (Mate_Score + Score))));
-         else
-            Append (" " & Score_Type'Image (Score));
-         end if;
-         Append (" " & Long_Integer'Image (Long_Integer (Elapsed * 100.0)));
-         Append (" " & Node_Count_Type'Image (Nodes));
-         if Pv_Len > 0 then
-            for I in 1 .. Pv_Len loop
-               Append (" " & To_String (Pv (I)));
-            end loop;
-         elsif Best /= Empty_Move then
-            Append (" " & To_String (Best));
-         end if;
-         Locked_Put_Line (Line (1 .. Last));
+         Emit_UCI_Line (Score, Pv, Pv_Len, 0);
       end if;
    end Report_Iteration;
 
@@ -3587,7 +3552,9 @@ package body BBChess.Search is
       return Best_Move_Impl (Position, Max_Depth, Hard_Alloc, Soft_Alloc, 0);
    end Best_Move;
 
-   -- Timed entry point for XBoard play: no node cap.
+   -- Timed entry point with a single deadline (no node cap, no soft/hard
+   -- split): the fixed-time API used by the tests and by callers that want a
+   -- plain "search for T seconds" call.
    function Best_Move (Position   : in Position_Type;
                        Max_Depth  : in Natural;
                        Time_Alloc : in Duration) return Move_Type is

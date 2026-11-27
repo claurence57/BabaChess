@@ -15,8 +15,7 @@ scores sont en centipions, du point de vue du trait (`Score_Type`, `Infinity`,
 les bancs), `Best_Move (Position, Max_Depth, Time_Alloc)` (temporisée, point
 d'entrée du multi-thread) et `Reset_Search` (vide table et heuristiques entre
 deux parties, sur `new` ou `ucinewgame`). `Set_Game_History` transmet les clés de
-la partie pour la répétition, `Set_Post` active la sortie XBoard, `Set_Threads`
-fixe le nombre de threads, et `Nodes_Searched` / `Reset_Nodes` alimentent le banc.
+la partie pour la répétition, `Set_Threads` fixe le nombre de threads, et `Nodes_Searched` / `Reset_Nodes` alimentent le banc.
 
 ## Approfondissement itératif et fenêtres d'aspiration
 
@@ -296,8 +295,8 @@ recherche ne remonte que depuis le dernier coup irréversible (`Position.Halfmov
   `Poll_Time` et n'est effacée que par `Clear_Stop`, au démarrage d'une
   recherche. Le `go nodes N` arme le champ `Node_Limit` du contexte de recherche,
   aussi testé par `Poll_Time`, ce qui borne le dépassement à un intervalle de
-  sondage (`Check_Interval = 1024` nœuds). La sortie XBoard "post" et les lignes
-  UCI (`readyok`, `bestmove`) passent par le verrou protégé `Console`
+  sondage (`Check_Interval = 1024` nœuds). Les lignes UCI (`info`, `readyok`,
+  `bestmove`) passent par le verrou protégé `Console`
   (`Locked_Put_Line`), `Ada.Text_IO` n'étant pas sûr en concurrence de tâches.
 - Le résultat retenu est celui du thread ayant atteint la **plus grande
   profondeur**, départagé par le score ; à défaut, `Quick_Move`.

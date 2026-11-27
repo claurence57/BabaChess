@@ -36,11 +36,6 @@ package BBChess.Search is
    -- Record the keys of every position of the game so far (including the
    -- current one). Called before each timed search.
 
-   procedure Set_Post (On : in Boolean);
-   -- Enable/disable the XBoard "thinking output" (the "post"/"nopost"
-   -- commands): when on, each completed iterative-deepening iteration
-   -- prints a line "depth score time nodes bestmove".
-
    procedure Set_UCI_Mode (On : in Boolean);
    -- Enable/disable the UCI "info" output. When on, each completed
    -- iteration prints "info depth D score cp|mate X time T nodes N nps S
@@ -63,7 +58,8 @@ package BBChess.Search is
    -- Iterative deepening up to Max_Depth that stops at Time_Alloc. The
    -- search is interruptible (the deadline is polled inside the recursion),
    -- so a move is always returned close to the budget even when a single
-   -- iteration would need much longer. Used for XBoard play.
+   -- iteration would need much longer. A fixed-time API: the UCI path uses
+   -- the soft/hard overload instead.
 
    function Best_Move (Position   : in Position_Type;
                         Max_Depth  : in Natural;
@@ -127,13 +123,13 @@ package BBChess.Search is
    procedure Locked_Put_Line (S : in String);
    -- Print one line to standard output under the package-wide console lock.
    -- Ada.Text_IO is not task-safe and the Phase 5 UCI search runs in a task,
-   -- so the command loop ("readyok", "bestmove") and the XBoard "post"
-   -- iteration reports go through this single lock.
+   -- so the command loop ("readyok", "bestmove") and the search's "info"
+   -- lines go through this single lock.
 
    procedure Log_Worker_Exception
      (Context : in String; Occurrence : in Ada.Exceptions.Exception_Occurrence);
    -- Report an otherwise-swallowed task exception on standard *error* (never
-   -- stdout: the UCI/XBoard protocol must stay clean), under the console lock
+   -- stdout: the UCI protocol must stay clean), under the console lock
    -- so concurrent tasks do not interleave. A worker that dies silently turns
    -- into an unexplained slowdown; this makes it visible without bringing the
    -- engine down.

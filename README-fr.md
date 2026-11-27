@@ -15,7 +15,7 @@
 
 BabaChess est un moteur d'échecs écrit en **Ada 2012**, utilisant une
 représentation d'échiquier par **bitboards**. Il se compile avec `gprbuild` et
-parle à la fois **XBoard/Winboard** et **UCI**.
+parle **UCI**.
 
 > **Note sur le nom.** BabaChess n'a aucun lien avec les autres projets d'échecs
 > au nom similaire : **BabChess** (un moteur UCI en C++) et **BabasChess** (le
@@ -108,8 +108,8 @@ contient le binaire, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README-fr.md
 
 ## Démarrage rapide avec une interface graphique
 
-BabaChess est un moteur en ligne de commande UCI/XBoard ; configurez-le comme
-moteur externe dans une interface graphique.
+BabaChess est un moteur en ligne de commande UCI ; configurez-le comme moteur
+externe dans une interface graphique compatible UCI.
 
 - **Arena (Windows) :** `Engines → Install New Engine…`, choisir `babachess.exe`,
   puis **UCI**.
@@ -118,9 +118,9 @@ moteur externe dans une interface graphique.
   `cutechess-cli -engine cmd=./babachess -engine cmd=<opponent> -each proto=uci tc=60+0.6 -games 2`
 - **Lucas Chess (Windows) :** `Competition → Engines… → New engine`, protocole
   **UCI**.
-- **WinBoard / XBoard :** ajoutez un moteur et sélectionnez le protocole **UCI**
-  (ou laissez-le négocier XBoard), par exemple
-  `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1`.
+- **WinBoard / XBoard :** XBoard sait piloter un moteur UCI (protocole **UCI**),
+  par exemple `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1 -fUCI`,
+  mais le moteur ne parle plus le protocole XBoard natif.
 
 Le moteur **trouve `books/book.bin` tout seul** (à côté de l'exécutable, un
 répertoire au-dessus, `./books/`, `~/ .babachess/book.bin`) ; remplacez-le par
@@ -137,7 +137,7 @@ printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ## Utilisation du moteur
 
 Configurez-le dans n'importe quelle interface graphique prenant en charge le
-protocole XBoard ou UCI. Les options en ligne de commande incluent
+protocole UCI. Les options en ligne de commande incluent
 `--threads N` (aussi `-TN` / `--thread=N`), `--book <file>`,
 `--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
 `--bench [depth]`, `--perft <FEN> <depth>`, `--selftest` et `--version`.

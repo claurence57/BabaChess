@@ -11,7 +11,6 @@ with Interfaces;
 with BBChess.Hash;
 with BBChess.Syzygy;
 with BBChess.Protocol.UCI;
-with BBChess.Protocol.XBoard;
 
 with BBChess.Text;
 use BBChess.Text;
@@ -173,32 +172,6 @@ package body BBChess.Protocol.Self_Tests is
               "setoption: no value");
    end Test_Parse_Setoption;
 
-   procedure Test_Parse_Level is
-      L : BBChess.Protocol.XBoard.Level_Params;
-   begin
-      L := BBChess.Protocol.XBoard.Parse_Level ("40 5 1");
-      Assert (L.Moves_Per_Session = 40, "level: mps 40");
-      Assert (L.Base_Seconds = 300.0, "level: 5 minutes = 300 s");
-      Assert (L.Increment_Seconds = 1.0, "level: inc 1 s");
-      Assert (not L.Base_Has_Colon, "level: whole-minute base");
-
-      -- "MM:SS" base: the clock is deferred to a later "time" command.
-      L := BBChess.Protocol.XBoard.Parse_Level ("0 1:30 0");
-      Assert (L.Base_Has_Colon, "level: MM:SS base detected");
-      Assert (L.Base_Seconds = 0.0, "level: MM:SS leaves the clock to 'time'");
-
-      -- Malformed numeric fields collapse to 0.
-      L := BBChess.Protocol.XBoard.Parse_Level ("x y z");
-      Assert (L.Moves_Per_Session = 0 and then L.Base_Seconds = 0.0
-              and then L.Increment_Seconds = 0.0,
-              "level: malformed fields -> 0");
-
-      Assert (BBChess.Protocol.XBoard.Parse_Centiseconds ("250") = 2.5,
-              "time: 250 centiseconds = 2.5 s");
-      Assert (BBChess.Protocol.XBoard.Parse_Centiseconds ("junk") = 0.0,
-              "time: malformed -> 0");
-   end Test_Parse_Level;
-
    ---------------------------------
    --  Dispatch (captured) tests  --
    ---------------------------------
@@ -324,23 +297,24 @@ package body BBChess.Protocol.Self_Tests is
       Assert (Captured (N_Lines) = "info string perft 2 400",
               "perft 2 from the start position = 400");
 
-      -- XBoard protover: exact feature set.
+      --  XBoard commands are gone: they must be ignored, without output and
+      --  without touching the position.
       Reset_Capture;
-      BBChess.Protocol.Process ("xboard");
-      BBChess.Protocol.Process ("protover 2");
-      Assert (N_Lines = 6, "protover emits 6 lines");
-      Assert (Captured (1) = "feature myname=""BabaChess " & BabaChess_Version
-              & """", "protover: myname");
-      Assert (Captured (6) = "feature done=1", "protover: done");
-
-      -- ping echoes its argument.
-      Reset_Capture;
-      BBChess.Protocol.Process ("ping 42");
-      Assert (N_Lines = 1 and then Captured (1) = "pong 42", "ping -> pong 42");
-
-      Reset_Capture;
-      BBChess.Protocol.Process ("ping");
-      Assert (N_Lines = 1 and then Captured (1) = "pong", "ping -> pong");
+      declare
+         P_Before : constant Position_Type := BBChess.Protocol.Position_Of;
+      begin
+         BBChess.Protocol.Process ("xboard");
+         BBChess.Protocol.Process ("protover 2");
+         BBChess.Protocol.Process ("new");
+         BBChess.Protocol.Process ("force");
+         BBChess.Protocol.Process ("ping 42");
+         BBChess.Protocol.Process ("level 40 5 1");
+         BBChess.Protocol.Process ("usermove e2e4");
+         BBChess.Protocol.Process ("e2e4");
+         Assert (N_Lines = 0, "XBoard commands are ignored (no output)");
+         Assert (BBChess.Protocol.Position_Of = P_Before,
+                 "XBoard commands leave the position untouched");
+      end;
 
       -- Blank and unknown lines produce no output and do not raise.
       Reset_Capture;
@@ -354,23 +328,11 @@ package body BBChess.Protocol.Self_Tests is
       Assert (BBChess.Protocol.Exit_Requested, "quit: exit requested");
       Assert (N_Lines = 0, "quit: no output");
 
-      -- A bare coordinate move is applied (console / cutechess fallback).
-      Reset_Capture;
-      BBChess.Protocol.Reset;
-      BBChess.Protocol.Process ("e2e4");
-      declare
-         P : constant Position_Type := BBChess.Protocol.Position_Of;
-      begin
-         Assert ((P.Pieces (White_Pawn) and Bit (28)) /= 0,
-                 "bare move: e2e4 applied");
-      end;
-
       -- Restore the engine-wide search globals this dispatch test touched:
       -- "uci" turned the UCI output on, and "setoption Threads 3" changed the
       -- thread count. Left set, they would make the later search tests print
       -- "info" lines and run multi-threaded (non-deterministic node counts).
       Set_UCI_Mode (False);
-      Set_Post (False);
       Set_Threads (1);
       Set_Search_Param ("S_CONTEMPT", 0);
       Reset_Search;
@@ -390,7 +352,6 @@ package body BBChess.Protocol.Self_Tests is
    begin
       Test_Parse_Go;
       Test_Parse_Setoption;
-      Test_Parse_Level;
       Test_Dispatch;
       Ada.Text_IO.Put_Line ("protocol tests OK");
    end Run;

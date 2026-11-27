@@ -2,8 +2,7 @@
 --  AdaChess-BB : FEN loading
 --
 --  Minimal FEN parser used to set a Position from its Forsyth-Edwards
---  notation. Enough for the perft suite and later for the XBoard "setboard"
---  command.
+--  notation: the perft suite, the "position fen" command and the tests.
 --
 
 with BBChess.Board;

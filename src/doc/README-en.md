@@ -20,9 +20,10 @@ part §1-§47 is archived in `DEVELOPMENT_HISTORY.md`);
 > **Kimi K3**. Basic working tools: **opencode** (plugin
 > **oh-my-openagent**) and **web interfaces**.
 
-BB speaks **XBoard/Winboard and UCI** (the protocol is chosen by the command
-`uci`). It handles a `level`/`time`/`otim` clock, a **Polyglot** opening book,
-**Syzygy** tablebases (via vendored Fathom) and the **Lazy SMP** multi-threading.
+BB speaks **UCI** (the protocol is entered with the `uci` command; the engine
+speaks nothing else). It handles a `wtime`/`btime`/`winc`/`binc` clock, a
+**Polyglot** opening book, **Syzygy** tablebases (via vendored Fathom) and the
+**Lazy SMP** multi-threading.
 
 ## Architecture principles
 
@@ -79,10 +80,9 @@ flowchart TD
         Fathom["Fathom (C)<br/>fathom/tbprobe.c"]
         Bits["bbchess-bits.c<br/>POPCNT / CTZ / PEXT"]
     end
-    subgraph Protocole["Protocol (UCI / XBoard)"]
+    subgraph Protocole["Protocol (UCI)"]
         Proto["BBChess.Protocol<br/>bbchess-protocol.ads"]
         ProtoUCI["Protocol.UCI<br/>go/setoption parsers"]
-        ProtoXB["Protocol.XBoard<br/>level/time parsers"]
     end
     Tests["BBChess.Self_Tests<br/>bbchess-self_tests.ads"]
     ProtoTests["Protocol.Self_Tests<br/>protocol tests"]
@@ -130,8 +130,8 @@ history, clock, book) and the command dispatch; it **never** touches
 `Ada.Text_IO`: each output line goes through a callback
 (`Line_Writer`) provided by `babachess.adb`, which wires it to the console
 lock of `BBChess.Search` (the same as the asynchronous UCI search task). Its
-sub-packages `.UCI` and `.XBoard` contain only **pure parsers**, tested
-without standard input.
+sub-package `.UCI` contains only **pure parsers**, tested without standard
+input. The XBoard protocol layer was removed in 1.5.0: the engine is UCI only.
 
 ### Data flow
 
@@ -191,7 +191,7 @@ In UCI mode, the same functions are exposed by `setoption` (`Hash`, `Threads`,
 answers `readyok` during the search, `stop` interrupts it (the current move is
 returned immediately) and `quit` stops the search then exits. `go nodes N`
 stops at the node ceiling and `go infinite` stops only on `stop` (or
-`quit`). The XBoard search, meanwhile, remains synchronous.
+`quit`). There is no second protocol: every search goes through that task.
 
 ## Building
 
@@ -236,7 +236,6 @@ removes these switches and uses the software fallback of `bbchess-bits.c`
 
 - Chess Programming Wiki: <https://www.chessprogramming.org/Main_Page>
 - Universal Chess Interface: <https://www.chessprogramming.org/Universal_Chess_Interface>
-- XBoard / Winboard protocol: <https://www.chessprogramming.org/XBoard>
 - Lazy SMP: <https://www.chessprogramming.org/Lazy_SMP>
 - TalkChess forum: <https://talkchess.com>
 

@@ -49,7 +49,7 @@ echo "cutechess: tc=${TC} games=${GAMES} srand=${SEED}"
 # -games 2 + -repeat plays each opening once per colour; rounds = games/2 so the
 # match totals ~GAMES games (rounded up to a whole colour pair).
 cutechess-cli \
-  -engine name=BB cmd="$ENGINE" proto=xboard dir="$(dirname "$ENGINE")" \
+  -engine name=BB cmd="$ENGINE" proto=uci dir="$(dirname "$ENGINE")" \
   -engine name=GNU cmd="$GNU_WRAP" proto=uci dir=/tmp \
   -each tc="$TC" -maxmoves 100 \
   -games 2 -rounds "$(( (GAMES + 1) / 2 ))" -repeat -srand "$SEED" \

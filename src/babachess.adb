@@ -2,7 +2,7 @@
 --  BabaChess - main entry point.
 --
 --  * With "--selftest": run the internal test-suite.
---  * Otherwise: a UCI / XBoard chess engine. The command loop itself lives in
+--  * Otherwise: a UCI chess engine. The command loop itself lives in
 --    BBChess.Protocol (which owns the session state and dispatch); this file
 --    keeps the command-line modes, the special benchmark / eval-dump modes and
 --    the standard input loop, and supplies the output writer (the shared
@@ -180,7 +180,7 @@ begin
    end loop;
 
    -- Version banner: the single version constant (BBChess.Text) also feeds
-   -- the UCI "id name" and the XBoard "myname" feature.
+   -- the UCI "id name" line.
    if Ada.Command_Line.Argument_Count >= 1
      and then Ada.Command_Line.Argument (1) = "--version"
    then

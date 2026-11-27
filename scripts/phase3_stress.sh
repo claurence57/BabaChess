@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Phase 3.2 stress campaign: >= 500 games per protocol (UCI/XBoard) x thread
+# Phase 3.2 stress campaign: games per thread count x cadence (UCI only)
 # count (1/4) x time control (10+0.1 / 60+0.6), all self-play, book off.
 # Records the exact commands and the failure counters in one summary file.
 #
@@ -42,11 +42,9 @@ run() {
   } | tee -a "$SUMMARY"
 }
 
-# 250 games per (protocol, thread) = 500 games per protocol; the thread
-# count and the cadence both vary between the two cells.
+# 250 games per (thread count, cadence) cell. The XBoard cells are gone: the
+# engine speaks UCI only (XBoard support was removed in 1.5.0).
 run uci    1 "10+0.1"
 run uci    4 "30+0.3"
-run xboard 1 "10+0.1"
-run xboard 4 "30+0.3"
 
 echo "DONE" >> "$SUMMARY"

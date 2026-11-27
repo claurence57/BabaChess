@@ -6,15 +6,24 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Unreleased — surface UCI (points 1 à 12)
+## Unreleased — UCI seulement, deux bugs corrigés
 
-**Deux bugs corrigés (case en passant morte, nulle à la racine) et douze ajouts
-protocolaires.** `--bench 9/12/14` passe de 455 176 / 1 784 546 / 5 214 141 à
-**467 051 / 1 809 934 / 4 767 382** : la clé de Zobrist ne contient plus les
-cases en passant qu'aucun pion ne peut utiliser (§103.1), donc l'arbre change ;
+**Le protocole XBoard est supprimé : le moteur ne parle plus qu'UCI.**
+`--bench 9/12/14` a changé de repère avec les deux correctifs ci-dessous
+(455 176 / 1 784 546 / 5 214 141 → **467 051 / 1 809 934 / 4 767 382**) ;
 `--selftest` passe de 146 à **174** vérifications (les assertions du paquet
 `BBChess.Protocol.Self_Tests` lèvent au lieu de compter, elles ne gonflent pas
 le total).
+
+- **XBoard retiré.** Disparaissent : le paquet `BBChess.Protocol.XBoard`
+  (`level`/`time`), les commandes `xboard`, `protover`, `new`, `setboard`,
+  `force`, `white`, `black`, `level`, `time`, `otim`, `st`, `sd`, `ping`,
+  `usermove`/`move`, `?`, `post`/`nopost`, `accepted`/`rejected`,
+  `easy`/`hard`/`hint`, l'état de session associé (`Engine_Side`, `Force`,
+  `Protocol`, `Moves_Per_Session`, `Consume_Move_Count`, `Play_If_My_Turn`,
+  l'horloge XBoard) et la sortie « thinking » (`Set_Post`). Toute ligne
+  inconnue — y compris ces commandes — est désormais ignorée sans réponse ni
+  effet sur la position. `scripts/sprt.sh` et `ab.sh` passent en `proto=uci`.
 
 - **Correction — case en passant inutilisable.** `Make_Move` posait
   `En_Passant` après tout double pas, même sans preneur : deux clés de Zobrist

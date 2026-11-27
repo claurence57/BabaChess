@@ -3279,3 +3279,61 @@ partout.
   peut porter le mauvais signe. Inerte à `Contempt 0` (défaut).
 - `TT_Slot_Read` « réessaie » en relisant la **même** case : le commentaire
   promet un retry utile, le code ne fait rien de plus qu'une seconde lecture.
+
+## 104. XBoard supprimé : le moteur ne parle plus qu'UCI
+
+Décision : ne conserver que l'UCI. La couche XBoard était morte à l'usage (les
+GUI modernes pilotent tout moteur en UCI, et les scripts de mesure tournaient
+déjà en `proto=uci` pour honorer `go nodes`), mais elle imposait un second
+modèle de session — horloge `level`/`time`/`otim`, camp du moteur, mode
+`force`, sortie « thinking » — entretenu par les tests et la documentation.
+
+### 104.1 Ce qui part
+
+- **Paquet `BBChess.Protocol.XBoard`** (`.ads`/`.adb` entiers) :
+  `Parse_Level`, `Parse_Centiseconds`, `Level_Params`.
+- **Commandes** : `xboard`, `protover`, `new`, `setboard`, `force`, `white`,
+  `black`, `level`, `time`, `otim`, `st`, `sd`, `ping` (et `pong`),
+  `usermove`/`move`, `?`, `post`/`nopost`, `accepted`/`rejected`,
+  `easy`/`hard`/`hint`.
+- **État de session** : `Engine_Side`, `Force`, `Protocol`,
+  `Moves_Per_Session`, `Consume_Move_Count`, `Play_If_My_Turn`, `XBoard_New`,
+  `XBoard_Level`, `XBoard_Protover`.
+- **Sortie** : `Set_Post` / `Post_Output` dans `BBChess.Search` et la branche
+  XBoard de `Report_Iteration` (« depth score centiseconds nodes pv »).
+- **Repli « coup nu »** : une ligne qui n'était aucune commande était
+  interprétée comme un coup (`e2e4` appliqué directement). Hors protocole, elle
+  masquait les erreurs d'un GUI ; elle est supprimée, une ligne inconnue est
+  ignorée silencieusement.
+
+`Process` se réduit aux commandes UCI (`uci`, `isready`, `ucinewgame`,
+`position`, `go`, `stop`, `ponderhit`, `setoption`, `d`, `eval`, les no-ops
+`debug`/`register`) plus `quit`/`exit`, qui restent acceptés hors mode UCI pour
+que le moteur se termine toujours proprement.
+
+### 104.2 Ce qui reste et pourquoi
+
+- **`Best_Move (Position, Max_Depth, Time_Alloc)`** (échéance unique, sans
+  plafond de nœuds) : son unique appelant de production était le jeu XBoard,
+  mais c'est l'API « cherche T secondes » utilisée par les tests de gestion du
+  temps. Conservée, re-documentée comme telle.
+- **`uci` reste obligatoire** avant `isready`/`position`/`go` : c'est le
+  contrat UCI ; `--bench`, `--selftest` et `--eval-fens` continuent de tourner
+  avec la sortie `info` éteinte, donc muets.
+- **L'horloge UCI** (`wtime`/`btime`/`winc`/`binc`/`movetime`/`movestogo`)
+  reste inchangée : c'était déjà le seul chemin de temps du jeu.
+
+### 104.3 Vérifications
+
+- `--selftest` **174/174** en debug (`-gnatwe`), release, portable, checked.
+  Le test des commandes XBoard vérifie maintenant l'inverse de l'ancien : les
+  sept commandes (`xboard`, `protover 2`, `new`, `force`, `ping 42`,
+  `level 40 5 1`, `usermove e2e4`, et un coup nu `e2e4`) n'émettent **aucune**
+  ligne et laissent la position intacte.
+- `--bench 9/12/14` inchangé par rapport à §103.3 : **467 051 / 1 809 934 /
+  4 767 382**. La suppression est purement protocolaire ; l'arbre de recherche
+  est identique.
+- Poignée de main UCI toujours à 15 lignes ; `check_docs` vert.
+- Scripts : `sprt.sh` (défaut `PROTO=uci`, branches mortes retirées), `ab.sh`,
+  `vs_gnuchess.sh` en `proto=uci` ; `phase3_stress.sh` ne garde que les deux
+  cellules UCI (`xboard` aurait échoué : plus de négociation).

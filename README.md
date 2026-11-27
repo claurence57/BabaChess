@@ -14,8 +14,7 @@
 > See `NOTICE.md` for the full provenance and licence details.
 
 BabaChess is a chess engine written in **Ada 2012**, using a **bitboard** board
-representation. It builds with `gprbuild` and speaks both **XBoard/Winboard** and
-**UCI**.
+representation. It builds with `gprbuild` and speaks **UCI**.
 
 > **Name disambiguation.** BabaChess is unrelated to the other chess projects
 > with a similar name: **BabChess** (a C++ UCI engine) and **BabasChess** (the
@@ -103,8 +102,8 @@ binary, `LICENSE`, `NOTICE.md`, `src/fathom/LICENSE`, `README-en.md`,
 
 ## Quick start with a GUI
 
-BabaChess is a command-line UCI/XBoard engine; configure it as an external
-engine in a GUI.
+BabaChess is a command-line UCI engine; configure it as an external engine in a
+UCI-capable GUI.
 
 - **Arena (Windows):** `Engines → Install New Engine…`, pick `babachess.exe`,
   choose **UCI**.
@@ -112,9 +111,9 @@ engine in a GUI.
   `cutechess-cli -engine cmd=./babachess -engine cmd=<opponent> -each proto=uci tc=60+0.6 -games 2`
 - **Lucas Chess (Windows):** `Competition → Engines… → New engine`, protocol
   **UCI**.
-- **WinBoard / XBoard:** add an engine and select protocol **UCI** (or let it
-  negotiate XBoard), e.g.
-  `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1`.
+- **WinBoard / XBoard:** XBoard can drive a UCI engine (protocol **UCI**), e.g.
+  `xboard -fcp ./babachess -fd . -scp ./babachess -sd . -tc 5 -inc 0.1 -fUCI`
+  — but the engine no longer speaks the native XBoard protocol.
 
 The engine **locates `books/book.bin` by itself** (next to the executable, one
 directory up, `./books/`, `~/.babachess/book.bin`); override with `--book
@@ -130,7 +129,7 @@ printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 
 ## Using the engine
 
-Set it up in any GUI that supports the XBoard or UCI protocol. Command-line
+Set it up in any GUI that supports the UCI protocol. Command-line
 options include `--threads N` (also `-TN` / `--thread=N`), `--book <file>`,
 `--syzygy <dir>`, `--params <file>`, `--dump-params`, `--eval-fens <file>`,
 `--bench [depth]`, `--perft <FEN> <depth>`, `--selftest` and `--version`.

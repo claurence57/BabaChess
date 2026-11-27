@@ -15,8 +15,7 @@ scores are in centipawns, from the point of view of the side to move (`Score_Typ
 the benches), `Best_Move (Position, Max_Depth, Time_Alloc)` (timed, entry
 point of the multi-thread) and `Reset_Search` (empties table and heuristics between
 two games, on `new` or `ucinewgame`). `Set_Game_History` transmits the keys of
-the game for repetition, `Set_Post` enables the XBoard output, `Set_Threads`
-sets the number of threads, and `Nodes_Searched` / `Reset_Nodes` feed the bench.
+the game for repetition, `Set_Threads` sets the number of threads, and `Nodes_Searched` / `Reset_Nodes` feed the bench.
 
 ## Iterative deepening and aspiration windows
 
@@ -295,8 +294,8 @@ The timed `Best_Move` supports up to `Max_Threads = 16` threads
   `Poll_Time` and is cleared only by `Clear_Stop`, at the start of a
   search. The `go nodes N` arms the `Node_Limit` field of the search context,
   also tested by `Poll_Time`, which bounds the overshoot to one polling
-  interval (`Check_Interval = 1024` nodes). The XBoard "post" output and the UCI
-  lines (`readyok`, `bestmove`) go through the protected lock `Console`
+  interval (`Check_Interval = 1024` nodes). The UCI lines (`info`, `readyok`,
+  `bestmove`) go through the protected lock `Console`
   (`Locked_Put_Line`), `Ada.Text_IO` not being safe under task concurrency.
 - The result kept is that of the thread having reached the **greatest
   depth**, broken by the score; failing that, `Quick_Move`.

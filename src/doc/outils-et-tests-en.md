@@ -207,8 +207,9 @@ scripts/vs_gnuchess.sh 30+1 12 7   # vs GNU Chess (UCI), tc, games, seed
 
 `ab.sh` pits `~/bin/adachess_bb` (frozen reference) against `bin/babachess`,
 with the book neutralised as well. `vs_gnuchess.sh` takes on GNU Chess
-(~2400-2500 Elo) through the wrapper `~/bin/gnuchess_uci.sh`, since GNU Chess
-6.2.7 never emits `feature done=1` in XBoard mode. These two scripts are
+(~2400-2500 Elo) through the wrapper `~/bin/gnuchess_uci.sh` (XBoard-mode
+GNU Chess is wrapped into UCI, the only protocol the engine speaks). These two
+scripts are
 **machine-local** and their score over 20 to 60 games is worth ±65-80 Elo of
 noise: an intuition, never a decision.
 

@@ -8,13 +8,13 @@
 # whether cutechess-cli itself exited cleanly.
 #
 # Usage:
-#   scripts/stress_match.sh --games N --tc TC --threads K [--proto uci|xboard]
+#   scripts/stress_match.sh --games N --tc TC --threads K [--proto uci]
 #                           [--book on|off] [--pgn FILE] [--concurrency C]
 #                           [--opponent CMD] [--opp-proto P]
 #
 # Examples:
 #   scripts/stress_match.sh --games 500 --tc 10+0.1 --threads 1 --proto uci
-#   scripts/stress_match.sh --games 500 --tc 60+0.6 --threads 4 --proto xboard
+#   scripts/stress_match.sh --games 500 --tc 60+0.6 --threads 4 --proto uci
 #
 # The exact cutechess-cli command line is printed (and kept in the log) so a
 # run can be reproduced verbatim.

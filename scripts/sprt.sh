@@ -21,17 +21,16 @@
 #   old_engine  baseline binary  (default ~/bin/adachess_bb, tag bb-1.0)
 #   new_engine  candidate binary (default bin/babachess)
 #
-# Env overrides: ALPHA (0.05), BETA (0.05), OPENINGS, PROTO (xboard), MAXMOVES (200),
+# Env overrides: ALPHA (0.05), BETA (0.05), OPENINGS, PROTO (uci), MAXMOVES (200),
 #                NODES (unset)
+#
+# The engine speaks UCI only (XBoard support was removed in 1.5.0).
 #
 # Fixed-node mode (measure search quality independently of CPU speed):
 #   NODES=20000 scripts/sprt.sh 1+0.1 0 5 200 7 old new
 #   Pass a placeholder tc (ignored) so the positional arguments stay aligned.
 #   When NODES is set, cutechess-cli drives both engines with "nodes=N" per move
-#   instead of a time control. The node limit is only honoured by the engine's
-#   *UCI* path ("go nodes"), so PROTO defaults to uci in this mode; forcing
-#   PROTO=xboard keeps the match but the limit is NOT honoured (the engine would
-#   search on its XBoard clock).
+#   instead of a time control.
 #
 # Note: to validate a *patch*, pass the previous build as OLD, e.g.
 #   scripts/sprt.sh 1+0.1 0 5 2000 7 /tmp/opencode/adachess_bb_p1 bin/babachess
@@ -53,13 +52,9 @@ OPENINGS="${OPENINGS:-${ROOT}/openings/openings.epd}"
 MAXMOVES="${MAXMOVES:-200}"
 NODES="${NODES:-}"
 
-# Fixed-node mode: the engine only honours a node cap on its UCI path
-# ("go nodes N"); XBoard has no equivalent command, so default to uci there.
-if [ -n "$NODES" ]; then
-  PROTO="${PROTO:-uci}"
-else
-  PROTO="${PROTO:-xboard}"
-fi
+# Fixed-node mode: the engine honours a node cap on its UCI path
+# ("go nodes N"). The engine speaks UCI only.
+PROTO="${PROTO:-uci}"
 
 if [ -n "$NODES" ]; then
   MODE="fixed-nodes nodes=${NODES}/move (proto=${PROTO})"

@@ -42,7 +42,6 @@ with BBChess.Eval;
 use BBChess.Eval;
 
 with BBChess.Protocol.UCI;
-with BBChess.Protocol.XBoard;
 
 package body BBChess.Protocol is
 
@@ -64,12 +63,9 @@ package body BBChess.Protocol is
    --  State  --
    -------------
 
-   Pos         : Position_Type := Start_Position;
-   Engine_Side : Color_Type := Black;
-   Force       : Boolean := True;
-   Protocol    : Boolean := False;
-   UCI_Mode    : Boolean := False;
-   Quit        : Boolean := False;
+   Pos      : Position_Type := Start_Position;
+   UCI_Mode : Boolean := False;
+   Quit     : Boolean := False;
 
    Game_Keys : BBChess.Search.Game_Key_Array := (others => 0);
    Game_N    : Natural := 0;
@@ -79,7 +75,6 @@ package body BBChess.Protocol is
    Clock_Left     : Duration := 0.0;
    Time_Increment : Duration := 0.0;
    Moves_To_Go    : Natural := 0;
-   Moves_Per_Session : Natural := 0;
    --  Time the engine hands back to the GUI/OS on every move (I/O, process
    --  scheduling, GUI lag). Subtracted from the clock before the budget is
    --  computed; the UCI "Move Overhead" option sets it in milliseconds.
@@ -177,16 +172,6 @@ package body BBChess.Protocol is
             Hard_Mult     => Duration (BBChess.Search.Tm_Hard_Hundredths) / 100.0,
             Inc_Frac      => Duration (BBChess.Search.Tm_Inc_Hundredths) / 100.0));
    end Time_For_Next_Move;
-
-   procedure Consume_Move_Count is
-   begin
-      if Moves_To_Go > 0 then
-         Moves_To_Go := Moves_To_Go - 1;
-         if Moves_To_Go = 0 then
-            Moves_To_Go := Moves_Per_Session;
-         end if;
-      end if;
-   end Consume_Move_Count;
 
    ---------------
    --  Opening book --
@@ -516,45 +501,6 @@ package body BBChess.Protocol is
    begin
       Shutdown_UCI_Search;
    end Shutdown;
-
-   ----------------
-   --  XBoard play --
-   ----------------
-
-   procedure Play_If_My_Turn is
-   begin
-      if Protocol and then not Force and then Pos.Side = Engine_Side then
-         Record_Current_Key;
-
-         declare
-            BM   : Move_Type;
-            Undo : Undo_Info;
-         begin
-            if Try_Book (BM) then
-               Emit ("move " & To_String (BM));
-               Make_Move (Pos, BM, Undo);
-               Record_Current_Key;
-               Consume_Move_Count;
-               return;
-            end if;
-         end;
-
-         Sync_Game_History;
-         declare
-            Alloc : constant BBChess.Clocks.Allocation := Time_For_Next_Move;
-            M     : constant Move_Type :=
-              Best_Move (Pos, Max_Depth, Alloc.Soft, Alloc.Hard);
-            Undo  : Undo_Info;
-         begin
-            if M /= Empty_Move then
-               Emit ("move " & To_String (M));
-               Make_Move (Pos, M, Undo);
-               Record_Current_Key;
-               Consume_Move_Count;
-            end if;
-         end;
-      end if;
-   end Play_If_My_Turn;
 
    -----------------
    --  UCI position --
@@ -1004,46 +950,6 @@ package body BBChess.Protocol is
       end if;
    end Handle_UCI_Setoption;
 
-   -----------------
-   -- XBoard cmds --
-   -----------------
-
-   procedure XBoard_Protover is
-   begin
-      Emit ("feature myname=""BabaChess " & BabaChess_Version & """");
-      Emit ("feature setboard=1");
-      Emit ("feature ping=1");
-      Emit ("feature sigint=0 sigterm=0");
-      Emit ("feature colors=0 analyze=0");
-      Emit ("feature done=1");
-   end XBoard_Protover;
-
-   procedure XBoard_New is
-   begin
-      Pos := Start_Position;
-      Engine_Side := Black;
-      Force := False;
-      Fixed_Time := False;
-      Move_Time := 1.0;
-      Clock_Left := 0.0;
-      Time_Increment := 0.0;
-      Moves_To_Go := 0;
-      Max_Depth := 64;
-      Reset_Search;
-      Reset_Game_History;
-   end XBoard_New;
-
-   procedure XBoard_Level (Par : in String) is
-      Lvl : constant XBoard.Level_Params := XBoard.Parse_Level (Par);
-   begin
-      Time_Increment := Lvl.Increment_Seconds;
-      Moves_Per_Session := Lvl.Moves_Per_Session;
-      Moves_To_Go := Moves_Per_Session;
-      if not Lvl.Base_Has_Colon then
-         Clock_Left := Lvl.Base_Seconds;
-      end if;
-   end XBoard_Level;
-
    -------------
    -- Process --
    -------------
@@ -1067,10 +973,7 @@ package body BBChess.Protocol is
             Cmd : constant String := Cmd_Buf (1 .. Cmd_L);
             Par : constant String := Par_Buf (1 .. Par_L);
          begin
-            if Cmd = "xboard" then
-               Protocol := True;
-
-            elsif Cmd = "uci" then
+            if Cmd = "uci" then
                UCI_Mode := True;
                Set_UCI_Mode (True);
                UCI_Handshake;
@@ -1116,111 +1019,11 @@ package body BBChess.Protocol is
             elsif Cmd = "setoption" and then UCI_Mode then
                Handle_UCI_Setoption (Par);
 
-            elsif Cmd = "protover" then
-               XBoard_Protover;
-
-            elsif Cmd = "new" then
-               XBoard_New;
-
-            elsif Cmd = "setboard" then
-               begin
-                  Load (Pos, Par);
-                  Force := True;
-                  Reset_Game_History;
-               exception
-                  when Constraint_Error =>
-                     Emit ("Error (bad FEN): " & Par);
-               end;
-
-            elsif Cmd = "force" then
-               Force := True;
-
-            elsif Cmd = "white" then
-               Engine_Side := Black;
-
-            elsif Cmd = "black" then
-               Engine_Side := White;
-
-            elsif Cmd = "go" then
-               Force := False;
-               Engine_Side := Pos.Side;
-               Play_If_My_Turn;
-
-            elsif Cmd = "level" then
-               XBoard_Level (Par);
-
-            elsif Cmd = "time" then
-               Clock_Left := XBoard.Parse_Centiseconds (Par);
-
-            elsif Cmd = "otim" then
-               null;
-
-            elsif Cmd = "st" then
-               begin
-                  Move_Time := Duration'Value (Par);
-                  Fixed_Time := True;
-               exception
-                  when Constraint_Error => null;
-               end;
-
-            elsif Cmd = "sd" then
-               begin
-                  Max_Depth := Natural'Value (Par);
-               exception
-                  when Constraint_Error => null;
-               end;
-
-            elsif Cmd = "ping" then
-               if Par'Length > 0 then
-                  Emit ("pong " & Par);
-               else
-                  Emit ("pong");
-               end if;
-
-            elsif Cmd = "usermove" or else Cmd = "move" then
-               declare
-                  M    : constant Move_Type := From_String (Pos, Par);
-                  Undo : Undo_Info;
-               begin
-                  if M /= Empty_Move then
-                     Make_Move (Pos, M, Undo);
-                     Record_Current_Key;
-                     Play_If_My_Turn;
-                  end if;
-               end;
-
-            elsif Cmd = "?" then
-               Play_If_My_Turn;
-
-            elsif Cmd = "post" then
-               Set_Post (True);
-
-            elsif Cmd = "nopost" then
-               Set_Post (False);
-
-            elsif Cmd = "accepted" or else Cmd = "rejected" then
-               null;
-
-            elsif Cmd = "easy" or else Cmd = "hard"
-              or else Cmd = "hint"
-            then
-               null;
-
             elsif Cmd = "quit" or else Cmd = "exit" then
                Quit := True;
 
-            else
-               declare
-                  M    : constant Move_Type :=
-                    From_String (Pos, Trimmed);
-                  Undo : Undo_Info;
-               begin
-                  if M /= Empty_Move then
-                     Make_Move (Pos, M, Undo);
-                     Record_Current_Key;
-                     Play_If_My_Turn;
-                  end if;
-               end;
+            --  Anything else (including the former XBoard commands) is
+            --  ignored: the engine speaks UCI only.
             end if;
          end;
       end;
@@ -1239,9 +1042,6 @@ package body BBChess.Protocol is
    procedure Reset is
    begin
       Pos := Start_Position;
-      Engine_Side := Black;
-      Force := True;
-      Protocol := False;
       UCI_Mode := False;
       Quit := False;
       Game_N := 0;
@@ -1250,7 +1050,6 @@ package body BBChess.Protocol is
       Clock_Left := 0.0;
       Time_Increment := 0.0;
       Moves_To_Go := 0;
-      Moves_Per_Session := 0;
       Max_Depth := 64;
       Own_Book := True;
       Limit_Strength := False;

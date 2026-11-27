@@ -26,8 +26,8 @@ echo "NEW = $HEAD"
 echo "cutechess: tc=${TC} games=${GAMES} srand=${SEED}"
 
 cutechess-cli \
-  -engine name=REF cmd="$REF" proto=xboard dir="$(dirname "$REF")" \
-  -engine name=NEW cmd="$HEAD" proto=xboard dir="$(dirname "$HEAD")" \
+  -engine name=REF cmd="$REF" proto=uci dir="$(dirname "$REF")" \
+  -engine name=NEW cmd="$HEAD" proto=uci dir="$(dirname "$HEAD")" \
   -each tc="$TC" -games "$GAMES" -maxmoves 100 -pgnout "$OUT" \
   -repeat -rounds 1 -srand "$SEED" 2>&1 | grep -E "Score of|Elo|LOS|Finished match"
 echo "PGN: $OUT"

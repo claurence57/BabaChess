@@ -1,5 +1,5 @@
 --
---  AdaChess-BB : move notation (coordinate / XBoard style)
+--  AdaChess-BB : move notation (UCI coordinate style)
 --
 --  Converts moves to/from coordinate notation such as "e2e4", "e7e8q".
 --

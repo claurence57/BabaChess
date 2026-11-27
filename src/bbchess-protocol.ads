@@ -1,5 +1,5 @@
 --
---  BabaChess : protocol driver (UCI + XBoard)
+--  BabaChess : protocol driver (UCI)
 --
 --  The engine's command loop used to live in babachess.adb, mixed with the
 --  CLI and standard input. This package owns the session state and the
@@ -21,8 +21,8 @@
 --  value cannot carry output produced later by another task, and a bounded
 --  return buffer cannot carry an unbounded multi-line handshake. The honest
 --  equivalent is "feed a line, collect the emitted lines (and inspect the
---  resulting session state)"; the pure parsers in BBChess.Protocol.UCI and
---  BBChess.Protocol.XBoard are the part that is genuinely "String -> value".
+--  resulting session state)"; the pure parser in BBChess.Protocol.UCI is the
+--  part that is genuinely "String -> value".
 --
 
 with BBChess.Board;
