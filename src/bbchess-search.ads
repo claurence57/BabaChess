@@ -240,6 +240,11 @@ package BBChess.Search is
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
 
+   function Search_Param (Id : in Search_Param_Id) return Integer;
+   pragma Inline (Search_Param);
+   -- Read one integer search parameter (the table itself stays private to the
+   -- body; BBChess.Search.TT uses this to honour the replacement policy).
+
    -- Real constants of the late-move-reduction log formula
    -- R = Lmr_Base + Log(depth) * Log(move) / Lmr_Divisor.
    type Search_Real_Param_Id is

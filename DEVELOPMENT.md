@@ -3337,3 +3337,40 @@ que le moteur se termine toujours proprement.
 - Scripts : `sprt.sh` (défaut `PROTO=uci`, branches mortes retirées), `ab.sh`,
   `vs_gnuchess.sh` en `proto=uci` ; `phase3_stress.sh` ne garde que les deux
   cellules UCI (`xboard` aurait échoué : plus de négociation).
+
+## 105. Hiérarchisation des gros paquets : première étape, la table de transposition
+
+`BBChess.Search` fait 3 500 lignes. La hiérarchisation commence par ce qui est
+vraiment indépendant à l'intérieur : la table de transposition devient
+`BBChess.Search.TT` (`.ads` 130 lignes, `.adb` 560).
+
+### 105.1 Ce qui part
+
+Tout le bloc TT du corps de `BBChess.Search` : entrée auto-vérifiante
+(`Data`/`Key_Xor` atomiques), encodage 64 bits, allocation à la taille demandée,
+génération d'âge, `Clear`, `Hashfull`, `Prefetch`, politique de remplacement
+(scorée ou historique) et `Store`. Le paquet expose en plus deux primitives
+nouvelles :
+
+- `Probe (Position, Ply, Alpha, Beta, Min_Depth) return Probe_Result` : les deux
+  sites de sondage (recherche principale et quiescence) faisaient chacun une
+  copie du bucket puis la même cascade `Exact`/`Lower`/`Upper`. Le résultat est
+  un petit enregistrement (`Hit`, `Cut`, `Score`, `Stored_Depth`, `Move`), ce qui
+  laisse la décision au paquet qui possède le format.
+- `Stored_Move (Position)` : le coup de l'entrée qui vérifie contre la clé,
+  utilisé par la remontée de PV (`Walk_TT_PV`), avec le retry sur lecture
+  déchirée.
+
+`Search_Param (Id)` est ajouté à la spécification de `BBChess.Search` : la
+politique de remplacement lit `S_Tt_Replace` / `S_Tt_Pv_Bonus` /
+`S_Tt_Age_Penalty` sans que la table des paramètres quitte le corps.
+
+### 105.2 Vérifications
+
+- `--bench 9/12/14` **inchangé** : 467 051 / 1 809 934 / 4 767 382 nœuds (la
+  sémantique de `Probe`/`Store` est identique décision pour décision).
+- `--selftest` **174/174** en debug (`-gnatwe`), release, portable, checked.
+- Vitesse : cinq passes alternées de `--bench 12` avant/après donnent les mêmes
+  meilleurs temps (2,97 s contre 2,68 s, écart dans le bruit de ±15 % de la
+  machine). `Probe` et `Store` sont à `pragma Inline` et le build release
+  compile avec `-gnatN` et `-flto`, donc l'appel inter-unité est absorbé.
