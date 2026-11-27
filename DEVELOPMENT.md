@@ -3429,5 +3429,5 @@ référence donne les mêmes valeurs.
   (`Search_Context`), qui est privé au corps. Les sortir imposerait de remonter
   ce type dans la partie privée de la spécification et d'ajouter une frontière
   d'appel par nœud sur le chemin le plus chaud du moteur.
-- **`Pollyglot`** : il n'y a pas de paquet `BBChess.Book` ; le livre est
+- **`Polyglot`** : il n'y a pas de paquet `BBChess.Book` ; le livre est
   `BBChess.Polyglot` (473 lignes, format + sondage) et il est déjà isolé.
