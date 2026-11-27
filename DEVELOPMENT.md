@@ -3469,3 +3469,22 @@ inchangé (467 051 / 1 809 934 / 4 767 382), et quatre passes alternées de
 `--bench 12` avant/après (médiane 3,00 s contre 2,91 s) : le build release
 compile en `-flto`, donc les appels inter-unités sont absorbés et le découpage
 est neutre en vitesse.
+
+### 106.1 Ce qui n'a pas été découpé, et pourquoi
+
+- **`Order`** (65 lignes) reste dans le corps : il est appelé à chaque nœud et
+  ce sont les micro-aides voisines (`History_Bonus`, `Cont_Index`,
+  `Is_Tactical`, `pragma Inline`) qui doivent rester inlinables ; les sortir
+  aurait coûté exactement là où le gain de lisibilité est nul (65 lignes).
+- **SMP** (`Set_Threads`, `Request_Stop`, `Clear_Stop`, tâche `Searcher`,
+  fusion des résultats) reste aussi : il appelle `Root_Search` avec le
+  contexte et se termine dans `Best_Move_Impl`, deux dépendances qui
+  obligeraient à publier une entrée « travailleur » dans la spécification.
+  L'ordre des dépendances serait inversé (SMP → cœur) pour 140 lignes.
+- **Statistics** (compteur atomique, `tbhits`, `seldepth`) n'est pas un
+  sous-système : c'est l'état de session de la recherche, lu par le rapport.
+  Le découper créerait un paquet dont toute l'interface serait deux
+  accesseurs.
+
+Ces trois découpages restent possibles plus tard ; ils ne sont pas gratuits et
+ne débloquent rien aujourd'hui.
