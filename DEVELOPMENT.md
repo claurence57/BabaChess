@@ -3431,3 +3431,41 @@ référence donne les mêmes valeurs.
   d'appel par nœud sur le chemin le plus chaud du moteur.
 - **`Polyglot`** : il n'y a pas de paquet `BBChess.Book` ; le livre est
   `BBChess.Polyglot` (473 lignes, format + sondage) et il est déjà isolé.
+
+## 106. Le cœur de la recherche découpé en subunits
+
+`BBChess.Search` passe de 2 829 à 1 816 lignes : l'algorithme lui-même est
+sorti en subunits (`separate (BBChess.Search)`), pas en paquets enfants.
+
+    bbchess-search-root_search.adb        219 l.  Root_Search + « currmove »
+    bbchess-search-negamax.adb            529 l.  Negamax
+    bbchess-search-quiescence.adb         268 l.  Quiescence
+    bbchess-search-poll_time_slow.adb      24 l.  Poll_Time_Slow
+
+Pourquoi des subunits et pas des paquets : `Negamax`, `Quiescence` et
+`Root_Search` lisent et écrivent `Search_Context`, `Search_Params`,
+`Search_Path`, `Move_Path`, `Stop_Search`, `Search_Interrupted` — tous privés
+au corps. Un paquet enfant aurait obligé soit à remonter le contexte dans la
+partie privée de la spécification, soit à exporter des accesseurs sur le
+chemin le plus chaud. Le subunit hérite du contexte lexical : aucune ligne de
+logique n'a changé, aucun paramètre n'a été ajouté.
+
+Deux détails de mécanique Ada, appris à la compilation :
+
+- un sous-programme dont le corps est un subunit se déclare, dans le corps du
+  parent, par `procedure X (...) is separate;` — la simple déclaration `;` fait
+  chercher un corps ordinaire et échoue avec « missing body » ;
+- le nom de fichier du subunit est celui de l'unité, tiret bas compris :
+  `Bbchess.Search.Root_Search` → `bbchess-search-root_search.adb`, pas
+  `-root.adb`.
+
+`Poll_Time` (trois lignes, appelé à chaque nœud) reste dans le corps : `-gnatN`
+n'inline pas à travers un subunit et le mode `portable` n'a pas `-flto`. Seul
+`Poll_Time_Slow` (tous les 1 024 nœuds) descend, avec le compteur de nœuds
+partagé.
+
+Vérifié : `--selftest` 174/174 en debug (`-gnatwe`), `--bench 9/12/14`
+inchangé (467 051 / 1 809 934 / 4 767 382), et quatre passes alternées de
+`--bench 12` avant/après (médiane 3,00 s contre 2,91 s) : le build release
+compile en `-flto`, donc les appels inter-unités sont absorbés et le découpage
+est neutre en vitesse.
