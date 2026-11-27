@@ -3394,3 +3394,40 @@ lignes, mais chaque unité a une responsabilité unique.
 Vérifié : `--bench 9/12/14` inchangé (467 051 / 1 809 934 / 4 767 382),
 `--selftest` 174/174 en debug (`-gnatwe`), release, portable et checked, et
 les trois passes alternées de `--bench 12` restent dans le bruit.
+
+### 105.4 Troisième étape : les données d'évaluation
+
+`BBChess.Eval.Tables` (260 + 189 lignes) reçoit tout ce que l'évaluation lit
+comme un nombre : les tables PST (une par pièce, plus la table de roi de
+finale), les deux tables de bonus de pion passé, la table `Params` (une entrée
+par nom `P_*`), `Piece_Value`, `PST`, la table plate matériel+PST et son
+`Rebuild_Material_PST`. L'interface de réglage (`Set_Param`, `Load_Params`,
+`Dump_Params`) suit les données qu'elle modifie ; `BBChess.Eval` les
+ré-exporte à l'identique, donc `scripts/texel.py` et `--dump-params` ne voient
+aucune différence.
+
+`BBChess.Eval` passe de 1 731 à 1 352 lignes. Les renames `P_*` du corps de
+l'évaluation restent en place : ce sont des renames d'éléments du tableau de
+l'autre paquet, donc des références directes, sans appel. Le corps de
+`Tables` précalcule la table matérielle à son élaboration (avant
+`BBChess.Eval`, dont il est une dépendance).
+
+Vérifié : `--bench 9/12/14` **inchangé au nœud près** (467 051 / 1 809 934 /
+4 767 382 : l'évaluation est bit à bit la même), `--selftest` 174/174 en debug
+(`-gnatwe`), release, portable et checked, et `--eval-fens` sur le jeu de
+référence donne les mêmes valeurs.
+
+### 105.5 Ce qui reste volontairement monolithique
+
+- **`Positional_Score`** (≈ 500 lignes) : découper par terme demanderait de le
+  réécrire en huit fonctions, chacune recalculant les bitboards partagés
+  (occupation, pions par couleur, zones) ou recevant un paquet de paramètres.
+  C'est un travail d'évaluation, à valider par des scores identiques puis par
+  un SPRT, pas une simple extraction.
+- **Le cœur récursif** (`Negamax` / `Quiescence`) et l'**ordonnancement**
+  (history, killers, continuation, tri) : ils partagent le contexte par thread
+  (`Search_Context`), qui est privé au corps. Les sortir imposerait de remonter
+  ce type dans la partie privée de la spécification et d'ajouter une frontière
+  d'appel par nœud sur le chemin le plus chaud du moteur.
+- **`Pollyglot`** : il n'y a pas de paquet `BBChess.Book` ; le livre est
+  `BBChess.Polyglot` (473 lignes, format + sondage) et il est déjà isolé.
