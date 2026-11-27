@@ -117,18 +117,9 @@ package BBChess.Eval.Tables is
       P_Atk_N, P_Atk_B, P_Atk_R, P_Atk_Q, P_Exposed,
       P_Threat_Pawn, P_Threat_Minor,
       P_Passed_Rear, P_Passed_Blocked, P_PKing_Them, P_PKing_Us,
-      P_Scale_OCB, P_Scale_NoPawn,
+      P_Scale_NoPawn,
       P_Mob_Area,
-      P_Hanging_Op, P_Hanging_Eg, P_Threat_RQ,
-      P_Connected, P_Backward_Op, P_Backward_Eg,
-      P_KS_Lo, P_KS_Hi,
-      P_Imb_KBNB,
-      --  Outposts: a knight or bishop on a square defended by an own pawn
-      --  that no enemy pawn can ever attack.
-      P_Outpost_Op, P_Outpost_Eg,
-      --  Rook behind one of our passed pawns (same file, between the pawn and
-      --  our back rank).
-      P_RookBehind_Op, P_RookBehind_Eg);
+      P_KS_Lo, P_KS_Hi);
 
    type Param_Array is array (Param_Id) of Integer;
    Params : Param_Array :=
@@ -143,9 +134,7 @@ package BBChess.Eval.Tables is
       P_Mobility_B      => 6,
       P_Mobility_R      => 6,
       P_Mobility_Q      => 3,
-      --  Endgame mobility weights. Defaulted to the opening ones so that an
-      --  unmodified run is bit-identical (the phase taper is a no-op until a
-      --  parameter file changes an endgame weight).
+      --  Endgame mobility weights, tuned independently of the opening ones.
       P_Mobility_N_Eg   => 2,
       P_Mobility_B_Eg   => 2,
       P_Mobility_R_Eg   => 6,
@@ -188,49 +177,20 @@ package BBChess.Eval.Tables is
      P_PKing_Them      => 29,
      P_PKing_Us        => 16,
      --
-     --  The terms below were measured (SPRT, 1000 games each, see
-     --  DEVELOPMENT.md §70 and §73). The mobility area gains once the
-     --  evaluation is Texel-tuned (§73) and is on. The others did not gain,
-     --  even re-tuned: they are kept as switchable infrastructure with
-     --  neutral defaults (node-identical to the build without them).
-     --  Values tried: OCB 32, NoPawn 1, Hanging 30/18 then 26/26,
-     --  Threat_RQ 20 then 44, Connected 100 then 76, Backward 6/10,
-     --  KS ramp 10..30 then 22..54.
+     --  Mobility area was measured beneficial after the Texel tuning
+     --  (DEVELOPMENT.md §73) and stays enabled.
      --
-     --  Endgame scaling, out of 64 (64 = no scaling; P_Scale_NoPawn 0 = off).
-     --  NoPawn is ON: a lone minor with no pawn of its own can only win by a
-     --  smothered mate, and the position is otherwise a draw (e.g. the
-     --  Kieseritzky-Jaenisch "bishop vs two pawns"); Scale_Factor damps such
-     --  scores, keeping a small residue when enemy pawns can still mate.
-     P_Scale_OCB       => 64,
+     --  Endgame scaling, out of 64 (P_Scale_NoPawn 0 = off). A lone minor
+     --  with no pawn of its own can only win by a smothered mate, and the
+     --  position is otherwise a draw (e.g. Kieseritzky-Jaenisch); Scale_Factor
+     --  keeps a small residue when enemy pawns can still mate.
      P_Scale_NoPawn    => 1,
      --  1 = mobility ignores the squares attacked by enemy pawns.
      P_Mob_Area        => 1,
-     --  Undefended enemy pieces we attack; rook attacking a queen.
-     P_Hanging_Op      => 0,
-     P_Hanging_Eg      => 0,
-     P_Threat_RQ       => 0,
-     --  Connected (supported / phalanx) pawns, % of the base table
-     --  (0 = off); backward pawns.
-     P_Connected       => 0,
-     P_Backward_Op     => 0,
-     P_Backward_Eg     => 0,
      --  King safety phase gate: full above Hi, none at or below Lo, linear
      --  in between. Hi <= Lo is the historical hard gate at Lo.
-      P_KS_Lo           => 20,
-      P_KS_Hi           => 20,
-      --  Kaufman minor-piece imbalance: cp per missing pawn, per surplus
-      --  (bishop - knight) of a side (0 = off). Measured -8,3 +/- 13,5 Elo
-      --  (SPRT inconclusive, 1000 games, section 85) -> left OFF, like the
-      --  other rejected eval terms. It vanishes at a full eight pawns (no
-      --  phase taper needed) and is exactly antisymmetric.
-      P_Imb_KBNB        => 0,
-      --  Outposts: off by default (0 = the term contributes nothing, so the
-      --  evaluation - and the search tree - is unchanged until it is set).
-      P_Outpost_Op      => 0,
-      P_Outpost_Eg      => 0,
-      P_RookBehind_Op   => 0,
-      P_RookBehind_Eg   => 0);
+     P_KS_Lo           => 20,
+     P_KS_Hi           => 20);
 
    function Piece_Value (Kind : in Kind_Type) return Score_Type;
    pragma Inline (Piece_Value);

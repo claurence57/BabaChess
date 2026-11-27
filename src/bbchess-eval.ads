@@ -25,7 +25,7 @@ package BBChess.Eval is
    -- Tempo bonus granted to the side to move (added by Evaluate).
    Tempo : constant Score_Type := 10;
 
-   function Static (Position : in Position_Type) return Score_Type;
+   function Static (Position : in Position_Type) return Score_Type with Inline;
    -- Material + position, positive when White is better. Fully symmetric:
    -- Static(M) = -Static(P) when M mirrors P (rank flip + color swap).
 
@@ -38,12 +38,9 @@ package BBChess.Eval is
       Connected_Rooks,
       Pawn_Structure,
       Pawn_Threats,
-      Outpost,
       King_Activity,
       King_Safety,
-      Hanging,
-      Drawish_Scale,
-      Minor_Imbalance);
+      Drawish_Scale);
 
    type Eval_Breakdown is array (Eval_Term) of Integer;
 

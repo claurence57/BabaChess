@@ -155,9 +155,10 @@ package body BBChess.Moves is
          if (Position.Color_Occ (Opp) and Bit (Move.To)) /= 0 then
             declare
                Victim : Piece_Type;
-               Ignored : Boolean;
             begin
-               Ignored := Piece_At (Position, Move.To, Victim);
+               pragma Assert ((Position.All_Occ and Bit (Move.To)) /= 0,
+                              "Make_Move: capture destination is empty");
+               Victim := Piece_On (Position, Move.To);
                Undo.Captured        := Victim;
                Undo.Has_Captured    := True;
                Undo.Captured_Square := Move.To;

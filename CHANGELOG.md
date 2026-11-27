@@ -6,12 +6,12 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
-## Unreleased — UCI seulement, deux bugs corrigés
+## Unreleased — UCI seulement, nettoyage et architecture
 
 **Le protocole XBoard est supprimé : le moteur ne parle plus qu'UCI.**
 `--bench 9/12/14` a changé de repère avec les deux correctifs ci-dessous
 (455 176 / 1 784 546 / 5 214 141 → **467 051 / 1 809 934 / 4 767 382**) ;
-`--selftest` passe de 146 à **174** vérifications (les assertions du paquet
+`--selftest` passe de 146 à **176** vérifications (les assertions du paquet
 `BBChess.Protocol.Self_Tests` lèvent au lieu de compter, elles ne gonflent pas
 le total).
 
@@ -72,10 +72,10 @@ le total).
   **non calibrée** : `UCI_Elo` est un réglage de force, pas une promesse de
   classement.
 - **Commande `eval`** : score statique **décomposé par terme** (matériau + PST,
-  paire de fous, mobilité, rooks connectés, structure de pions, menaces,
-  avant-postes, activité du roi, sûreté du roi, pièces en prise, échelle de
-  nulle, déséquilibre mineur), phase et score du trait. `BBChess.Eval.Breakdown`
-  renvoie exactement `Static` ; l'instrumentation est nulle dans le chemin chaud.
+  paire de fous, mobilité, rooks connectés, structure et menaces de pions,
+  activité et sûreté du roi, échelle de nulle), phase et score du trait.
+  `BBChess.Eval.Breakdown` renvoie exactement `Static` ; l'instrumentation est
+  nulle dans le chemin chaud.
 - **Clé Zobrist dans `d`** : `Key: <16 chiffres hexadécimaux>`, recalculée par
   `Hash.Compute` (nouvelle fonction `BBChess.Text.Hex_Image`).
 - **`Syzygy50MoveRule`** (check, défaut true) : la règle des 50 coups est
@@ -90,6 +90,29 @@ le total).
   `--dump-params` / SPSA.
 - **Poignée de main : 15 lignes**, `Parse_Integer` ajouté pour les valeurs
   négatives.
+
+- **Nettoyage du code mort et des expériences rejetées.** Suppression de
+  `Transposition_Hashfull` sans appelant, d'un doublon de test Syzygy et des
+  branches `S_QChecks`, `S_Nmp_Eval`, `S_Iir_Depth`, `S_Tm_Stable`. Les termes
+  d'évaluation Hanging, Threat_RQ, Connected/Backward, Imbalance, Outpost,
+  RookBehind et Scale_OCB, tous désactivés et non retenus, sont également retirés
+  avec leurs paramètres. Les scores par défaut et les nœuds du bench restent
+  identiques.
+- **Requête de recherche unifiée.** `Search_Request` porte profondeur, limites
+  soft/hard et plafond de nœuds ; ces derniers ne s'excluent plus mutuellement
+  dans la tâche UCI. Deux tests couvrent notamment soft + node cap. Les champs
+  temporels obsolètes du protocole deviennent locaux ; `position`, `go` et la
+  découverte livre/Syzygy passent en subunits, avec des chemins factorisés.
+- **TT mieux découplée et moins de lectures.** `Replacement_Policy` est injecté
+  dans `Search.TT` au lieu de rappeler `Search_Param`. `Store` réutilise un seul
+  snapshot de chaque entrée pour la clé, la sélection et le remplacement.
+  L'arbre reste identique dans les deux politiques ; aucun gain NPS n'est
+  revendiqué sans mesure probante.
+- **Micro-optimisations.** `Piece_On` évite un second test d'occupation quand la
+  case est connue occupée (les promotions sans capture gardent leur cas
+  particulier) ; deux instances statiques de la mobilité évitent de collecter le
+  danger du roi lorsque la phase ne le consomme pas. Scores identiques aussi avec
+  rampe KS et KS désactivée.
 
 ## 1.5.0 (2026-11-23)
 

@@ -9,6 +9,10 @@ package body BBChess.Text is
    use Ada.Characters.Handling;
    use type Interfaces.Unsigned_64;
 
+   --  Implementation helpers, deliberately not part of the public interface.
+   function First_Word (S : in String) return String;
+   function Rest_Of (S : in String) return String;
+
    function Hex_Image (Value : in Interfaces.Unsigned_64) return String is
       Hex_Digits : constant String := "0123456789abcdef";
       Result     : String (1 .. 16);

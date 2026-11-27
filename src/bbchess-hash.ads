@@ -1,9 +1,9 @@
 --
 --  AdaChess-BB : Zobrist hashing
 --
---  Provides a 64-bit key for a position. The key is recomputed from the
---  position snapshot (simple and safe); make/unmake refresh it this way.
---  The key is stored in Position.Key and used by the transposition table.
+--  Provides a 64-bit key for a position. The key is stored in Position.Key;
+--  Make_Move updates it incrementally when hashing is enabled, while Load and
+--  Start_Position initialise it with Compute.
 --
 
 with BBChess.Pieces;

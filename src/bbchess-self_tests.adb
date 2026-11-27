@@ -863,6 +863,34 @@ package body BBChess.Self_Tests is
                  "zero soft/hard search must match the fixed-depth move");
          Reset_Search;
       end;
+      -- A full Search_Request honours the soft clock even with a node cap.
+      -- With the former overload split, Cap > 0 silently replaced Soft by Hard.
+      declare
+         Start_T : constant Time := Clock;
+         Pos     : constant Position_Type := Start_Position;
+         Best    : Move_Type;
+         List    : Move_List;
+         Count   : Natural;
+         Found   : Boolean := False;
+      begin
+         Best := Best_Move
+           (Pos,
+            (Max_Depth  => 64,
+             Soft_Alloc => 0.02,
+             Hard_Alloc => 1.0,
+             Node_Cap   => 50_000_000));
+         Generate_Legal_Moves (Pos, List, Count);
+         for I in 1 .. Count loop
+            if List (I) = Best then
+               Found := True;
+               exit;
+            end if;
+         end loop;
+         Assert (Found, "request with clock and node cap returned an illegal move");
+         Assert (To_Duration (Clock - Start_T) < 0.5,
+                 "a node cap must not discard the soft time limit");
+         Reset_Search;
+      end;
       Ada.Text_IO.Put_Line ("soft/hard search OK");
    end Test_Soft_Hard_Search;
 

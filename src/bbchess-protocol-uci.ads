@@ -2,17 +2,18 @@
 --  BabaChess : UCI command parsing (pure, no I/O)
 --
 --  Stateless parsers for the UCI commands whose parameters are non-trivial
---  ("go", "setoption"). They depend on nothing but the text helpers and the
---  search node-count type, so they are directly exercised by the self test
---  without a session, a search or standard input.
+--  ("go", "setoption"). They depend on nothing but the text helpers, so they
+--  are directly exercised by the self test without a session or a search.
 --
-
-with BBChess.Search;
 
 with Ada.Strings.Unbounded;
 use Ada.Strings.Unbounded;
 
 package BBChess.Protocol.UCI is
+
+   --  Protocol-level node count; converted to Search.Node_Count_Type by the
+   --  caller, which keeps this pure parser independent of the search package.
+   type Node_Count_Type is range 0 .. 2 ** 62;
 
    --  Parameters of a "go" command. Both clocks are returned: the caller picks
    --  the one matching the side to move (wtime/winc for White, btime/binc for
@@ -28,7 +29,7 @@ package BBChess.Protocol.UCI is
          Has_Movetime : Boolean  := False;
          Depth        : Natural  := 64;
          Has_Depth    : Boolean  := False;
-         Nodes        : BBChess.Search.Node_Count_Type := 0;
+         Nodes        : Node_Count_Type := 0;
          Infinite     : Boolean  := False;
          Ponder       : Boolean  := False;
          --  "searchmoves <m1> <m2> ...": the move tokens, as sent, up to the

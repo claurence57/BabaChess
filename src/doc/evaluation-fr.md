@@ -162,11 +162,10 @@ Cette partie est entièrement bitboard :
   reçoit `(D_ennemi × P_PKing_Them − D_ami × P_PKing_Us) × W / 8`
   (29 et 16 par défaut depuis le réglage Texel, §72).
 
-Les autres termes ajoutés au §70 de `DEVELOPMENT.md` (réduction des finales
-nulles, pièces en prise, pions connectés/arriérés, rampe de sécurité du roi)
-existent sous forme de paramètres mais sont **désactivés** par défaut : mesurés
-sans gain, y compris après réglage de leurs poids (§73). La zone de mobilité,
-elle, est activée (§73).
+Les termes **pièces en prise**, **pions connectés/arriérés**, **imbalance
+matérielle**, **avant-postes** et **tour derrière un pion passé** ont été mesurés
+sans gain puis retirés du code au §107. La réduction `P_Scale_NoPawn` et la zone
+de mobilité restent actives ; la rampe de sécurité du roi reste réglable.
 
 ### 4.4 Activité du roi en finale
 
@@ -308,11 +307,11 @@ Plusieurs décisions sont **délibérées** :
 - **Phase non incrémentale.** Une phase maintenue par `Make`/`Unmake` a été
   implémentée puis revertée (§ 12) : les 8 `Popcount` de `Game_Phase` pèsent
   ~0,2 % du temps et le champ ajouté alourdissait les copies de `Position`.
-- **Imbalance matérielle (Kaufman) éteinte.** Un terme
+- **Imbalance matérielle (Kaufman) retirée.** Un terme
   `(fous − cavaliers) × pions manquants` par camp (`P_Imb_KBNB`, défaut 0) a été
   ajouté puis mesuré **−8,3 ± 13,5 Elo** (SPRT inconclusive, `DEVELOPMENT.md`
-  § 85) : non retenu, laissé en interrupteur neutre comme `P_Hanging_*` /
-  `P_Connected`.
+  § 85) : non retenu. Son interrupteur et celui des autres termes rejetés ont
+  été supprimés au §107.
 
 En résumé, l'évaluation de BB est volontairement **simple, sûre et symétrique** :
 matériel + PST interpolés par phase, plus des termes positionnels classiques

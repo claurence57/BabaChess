@@ -17,13 +17,6 @@ separate (BBChess.Search)
       -- holding a full-width (depth >= 1) result is never overwritten.
       Use_TT   : constant Boolean := Search_Params (S_Qs_TT) /= 0;
       May_Store : Boolean := Use_TT;
-      --  Constrained quiet checks (S_QChecks): first quiescence ply only,
-      --  out of check. They are tried after every capture and after the
-      --  stand-pat test. A quiet check recurses to an in-check child which
-      --  searches evasions; QDepth is then 1, so no further checks are
-      --  generated -- the feature adds exactly one ply, never an explosion.
-      Add_QChecks : constant Boolean :=
-        Search_Params (S_QChecks) /= 0 and then QDepth = 0 and then not In_Check;
 
       function Finish (Score : in Score_Type) return Score_Type is
       begin
@@ -110,10 +103,9 @@ separate (BBChess.Search)
          end if;
       end if;
 
-      if In_Check or else Add_QChecks then
-         --  Every evasion must be tried; with quiet checks enabled the full
-         --  legal list is generated so the quiet moves that give check are
-         --  reachable (the tactical generator yields only captures).
+      if In_Check then
+         --  Every evasion must be tried; otherwise only captures and
+         --  promotions are generated.
          Generate_Legal_Moves (Position, Moves, Count);
       else
          -- Only captures / promotions are searched in a quiet position, so
@@ -139,7 +131,7 @@ separate (BBChess.Search)
          T : Natural := 0;
          Vic : Order_Array;
       begin
-         if In_Check or else Add_QChecks then
+         if In_Check then
             for I in 1 .. Count loop
                if Is_Tactical (Position, Moves (I)) then
                   T := T + 1;
@@ -225,43 +217,6 @@ separate (BBChess.Search)
             end if;
          end loop;
 
-         --  Constrained quiet checks: after every capture and after the
-         --  stand-pat test. A quiet move has no victim, so
-         --  Static_Exchange_Value returns 0 for it; the safety test is
-         --  instead that the checking piece is not attacked. King moves can
-         --  never give check. The loop runs on the non-tactical suffix only.
-         if Add_QChecks then
-            for I in T + 1 .. Count loop
-               declare
-                  M    : constant Move_Type := Moves (I);
-                  Undo : Undo_Info;
-               begin
-                  if Kind (M.Piece) /= King then
-                     Make_Move (Position, M, Undo);
-                     --  After Make_Move, Position.Side is the opponent.
-                     if King_In_Check (Position, Position.Side)
-                       and then not Is_Attacked (Position, M.To, Position.Side)
-                     then
-                        declare
-                           Score : constant Score_Type :=
-                             -Quiescence (Ctx, Position, -B, -A, Ply + 1,
-                                          QDepth + 1);
-                        begin
-                           Unmake_Move (Position, M, Undo);
-                           if Score >= B then
-                              return Finish (Score);
-                           end if;
-                           if Score > A then
-                              A := Score;
-                           end if;
-                        end;
-                     else
-                        Unmake_Move (Position, M, Undo);
-                     end if;
-                  end if;
-               end;
-            end loop;
-         end if;
       end;
 
       return Finish (A);

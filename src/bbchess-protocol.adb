@@ -70,16 +70,10 @@ package body BBChess.Protocol is
    Game_Keys : BBChess.Search.Game_Key_Array := (others => 0);
    Game_N    : Natural := 0;
 
-   Fixed_Time     : Boolean := False;
-   Move_Time      : Duration := 1.0;
-   Clock_Left     : Duration := 0.0;
-   Time_Increment : Duration := 0.0;
-   Moves_To_Go    : Natural := 0;
    --  Time the engine hands back to the GUI/OS on every move (I/O, process
    --  scheduling, GUI lag). Subtracted from the clock before the budget is
    --  computed; the UCI "Move Overhead" option sets it in milliseconds.
-   Move_Overhead  : Duration := 0.010;
-   Max_Depth      : Natural := 64;
+   Move_Overhead : Duration := 0.010;
 
    Book_Max_Ply : constant := 16;
    Own_Book     : Boolean := True;
@@ -154,19 +148,26 @@ package body BBChess.Protocol is
    --  Time allocation  --
    -----------------------
 
-   function Time_For_Next_Move return BBChess.Clocks.Allocation is
+   function Time_For_Next_Move
+     (Go : in UCI.Go_Params; Side : in Color_Type)
+     return BBChess.Clocks.Allocation
+   is
+      Clock_Left : constant Duration :=
+        (if Side = White then Go.Wtime else Go.Btime);
+      Increment  : constant Duration :=
+        (if Side = White then Go.Winc else Go.Binc);
       --  The overhead is taken off the clock, not off the budget: it stays an
       --  absolute amount of time even when the remaining clock is small.
       Usable : constant Duration := Clock_Left - Move_Overhead;
    begin
-      if Fixed_Time then
-         return Exact (Move_Time);
+      if Go.Has_Movetime then
+         return Exact (Go.Movetime);
       end if;
       if Clock_Left <= 0.0 or else Usable <= 0.0 then
-         return Exact (Move_Time);
+         return Exact (1.0);
       end if;
       return Clock_Based
-        (Usable, Time_Increment, Moves_To_Go,
+        (Usable, Increment, Go.Movestogo,
          Policy =>
            (Moves_Default => BBChess.Search.Tm_Moves_Default,
             Hard_Mult     => Duration (BBChess.Search.Tm_Hard_Hundredths) / 100.0,
@@ -212,127 +213,31 @@ package body BBChess.Protocol is
       BBChess.Syzygy.Init (Path, Ok);
    end Configure_Syzygy;
 
+   --  Shared locations for the opening book and the tablebases.
+   function Executable_Dir return String is
+      Exe   : constant String := Ada.Command_Line.Command_Name;
+      Slash : Natural := 0;
+   begin
+      for I in Exe'Range loop
+         if Exe (I) = '/' then
+            Slash := I;
+         end if;
+      end loop;
+      if Slash = 0 then
+         return ".";
+      end if;
+      return Exe (Exe'First .. Slash - 1);
+   end Executable_Dir;
+
+   function Home_Dir return String is
+     (if Ada.Environment_Variables.Exists ("HOME")
+      then Ada.Environment_Variables.Value ("HOME") else "");
+
    --  Tablebase autoconfiguration, the Syzygy counterpart of
-   --  Load_Default_Book: probe the conventional locations so a user who
-   --  dropped the .rttb files in ~/.babachess/syzygy (or ./syzygy) gets DTZ
-   --  play without any setoption.  Best-effort and silent, like the book
-   --  search: a missing candidate is the normal case.  Only directories that
-   --  actually contain tablebase files are considered, so an empty leftover
-   --  directory never shadows a real one.
-   procedure Load_Default_Syzygy is
-      Exe : constant String := Ada.Command_Line.Command_Name;
+   --  Load_Default_Book: probe conventional locations best-effort and silently.
+   procedure Load_Default_Syzygy is separate;
 
-      function Exe_Dir return String is
-         Slash : Natural := 0;
-      begin
-         for I in Exe'Range loop
-            if Exe (I) = '/' then
-               Slash := I;
-            end if;
-         end loop;
-         if Slash = 0 then
-            return ".";
-         end if;
-         return Exe (Exe'First .. Slash - 1);
-      end Exe_Dir;
-
-      D    : constant String := Exe_Dir;
-      Home : constant String :=
-        (if Ada.Environment_Variables.Exists ("HOME")
-         then Ada.Environment_Variables.Value ("HOME") else "");
-
-      function Has_Tablebase (Dir : in String) return Boolean is
-         use Ada.Directories;
-         Search : Search_Type;
-         E      : Directory_Entry_Type;
-         Found  : Boolean := False;
-      begin
-         if Dir'Length = 0 or else not Exists (Dir)
-           or else Kind (Dir) /= Directory
-         then
-            return False;
-         end if;
-         Start_Search (Search, Dir, "*.rtbw");
-         while More_Entries (Search) loop
-            Get_Next_Entry (Search, E);
-            if Kind (E) = Ordinary_File then
-               Found := True;
-               exit;
-            end if;
-         end loop;
-         End_Search (Search);
-         return Found;
-      end Has_Tablebase;
-
-      Candidates : constant array (1 .. 4) of Unbounded_String :=
-        (1 => To_Unbounded_String ("syzygy"),
-         2 => To_Unbounded_String (D & "/syzygy"),
-         3 => To_Unbounded_String (Home & "/.babachess/syzygy"),
-         4 => To_Unbounded_String (D & "/../syzygy"));
-   begin
-      --  An explicit setoption SyzygyPath (or --syzygy) wins: Fathom keeps
-      --  the paths given at its last Init, so probing here would clobber it.
-      if BBChess.Syzygy.Enabled then
-         return;
-      end if;
-      for C in Candidates'Range loop
-         declare
-            Path : constant String := To_String (Candidates (C));
-            Ok   : Boolean;
-         begin
-            if Has_Tablebase (Path) then
-               BBChess.Syzygy.Init (Path, Ok);
-               if Ok then
-                  return;
-               end if;
-            end if;
-         end;
-      end loop;
-   end Load_Default_Syzygy;
-
-   procedure Load_Default_Book is
-      Exe : constant String := Ada.Command_Line.Command_Name;
-
-      function Exe_Dir return String is
-         Slash : Natural := 0;
-      begin
-         for I in Exe'Range loop
-            if Exe (I) = '/' then
-               Slash := I;
-            end if;
-         end loop;
-         if Slash = 0 then
-            return ".";
-         end if;
-         return Exe (Exe'First .. Slash - 1);
-      end Exe_Dir;
-
-      D    : constant String := Exe_Dir;
-      Home : constant String :=
-        (if Ada.Environment_Variables.Exists ("HOME")
-         then Ada.Environment_Variables.Value ("HOME") else "");
-      Candidates : constant array (1 .. 6) of Unbounded_String :=
-        (1 => To_Unbounded_String ("books/book.bin"),
-         2 => To_Unbounded_String (D & "/books/book.bin"),
-         3 => To_Unbounded_String (D & "/../books/book.bin"),
-         4 => To_Unbounded_String (Home & "/.babachess/book.bin"),
-         5 => To_Unbounded_String ("book.bin"),
-         6 => To_Unbounded_String (D & "/book.bin"));
-   begin
-      if BBChess.Polyglot.Book_Loaded then
-         return;
-      end if;
-      --  Probing the conventional locations is best-effort: a missing
-      --  candidate is the normal case, so nothing is reported here (unlike an
-      --  explicit --book / setoption BookFile request, which does report).
-      for C in Candidates'Range loop
-         if BBChess.Polyglot.Open_Book (To_String (Candidates (C)))
-              = BBChess.Polyglot.Loaded
-         then
-            return;
-         end if;
-      end loop;
-   end Load_Default_Book;
+   procedure Load_Default_Book is separate;
 
    -----------------------------
    --  Asynchronous UCI       --
@@ -390,9 +295,8 @@ package body BBChess.Protocol is
    Ponder_Hit : Ponder_State;
 
    task type UCI_Search_Task is
-      entry Start (P : in Position_Type; D : in Natural;
-                   Soft : in Duration; Hard : in Duration;
-                   Node_Cap : in BBChess.Search.Node_Count_Type;
+      entry Start (P : in Position_Type;
+                   Req : in BBChess.Search.Search_Request;
                    Infinite : in Boolean; Ponder : in Boolean;
                    Moves : in Move_List; Num_Moves : in Natural);
       entry Stop_Now;
@@ -401,28 +305,21 @@ package body BBChess.Protocol is
    task body UCI_Search_Task is
       Position : Position_Type;
       M        : Move_Type;
-      Depth    : Natural;
-      Soft_Alloc : Duration;
-      Hard_Alloc : Duration;
-      Cap      : BBChess.Search.Node_Count_Type;
+      Request  : BBChess.Search.Search_Request;
       Inf      : Boolean;
       Pond     : Boolean;
    begin
       loop
          select
-            accept Start (P : in Position_Type; D : in Natural;
-                          Soft : in Duration; Hard : in Duration;
-                          Node_Cap : in BBChess.Search.Node_Count_Type;
+            accept Start (P : in Position_Type;
+                          Req : in BBChess.Search.Search_Request;
                           Infinite : in Boolean; Ponder : in Boolean;
                           Moves : in Move_List; Num_Moves : in Natural)
             do
                Inf := Infinite;
                Pond := Ponder;
                Position := P;
-               Depth  := D;
-               Soft_Alloc := Soft;
-               Hard_Alloc := Hard;
-               Cap    := Node_Cap;
+               Request := Req;
                --  Installed here, inside the rendezvous: the previous search
                --  has ended and no worker is running, so the filter is never
                --  written while another search reads it.
@@ -433,11 +330,7 @@ package body BBChess.Protocol is
             end Start;
 
             begin
-               if Cap > 0 then
-                  M := Best_Move (Position, Depth, Hard_Alloc, Cap);
-               else
-                  M := Best_Move (Position, Depth, Soft_Alloc, Hard_Alloc);
-               end if;
+               M := Best_Move (Position, Request);
             exception
                when E : others =>
                   --  A search must still answer (bestmove 0000), but the
@@ -500,75 +393,14 @@ package body BBChess.Protocol is
    procedure Shutdown is
    begin
       Shutdown_UCI_Search;
+      BBChess.Syzygy.Free;
    end Shutdown;
 
    -----------------
    --  UCI position --
    -----------------
 
-   procedure Apply_UCI_Position (Par : in String) is
-      T1 : constant String := Token (Par, 1);
-      I  : Natural := 1;
-      N  : constant Natural := UCI.Token_Count (Par);
-      M  : Move_Type;
-      U  : Undo_Info;
-   begin
-      if T1 = "startpos" then
-         Pos := Start_Position;
-         I := 2;
-      elsif T1 = "fen" then
-         declare
-            Fen  : String (1 .. 256);
-            L    : Natural := 0;
-            Over : Boolean := False;
-         begin
-            for K in 2 .. 7 loop
-               declare
-                  Tok : constant String := Token (Par, K);
-               begin
-                  exit when Tok'Length = 0 or else Tok = "moves";
-                  if L > 0 then
-                     Append_Bounded (Fen, L, " ", Over);
-                  end if;
-                  Append_Bounded (Fen, L, Tok, Over);
-               end;
-            end loop;
-            if Over then
-               Emit ("info string bad FEN");
-               return;
-            else
-               begin
-                  Load (Pos, Fen (1 .. L));
-               exception
-                  when Constraint_Error =>
-                     Emit ("info string bad FEN");
-                     return;
-               end;
-            end if;
-         end;
-         I := 2;
-      else
-         return;
-      end if;
-
-      Reset_Game_History;
-      while I <= N loop
-         exit when Token (Par, I) = "moves";
-         I := I + 1;
-      end loop;
-      I := I + 1;
-      while I <= N loop
-         M := From_String (Pos, Token (Par, I));
-         if M = Empty_Move then
-            Emit ("info string unknown move " & Token (Par, I));
-            exit;
-         else
-            Make_Move (Pos, M, U);
-            Record_Current_Key;
-         end if;
-         I := I + 1;
-      end loop;
-   end Apply_UCI_Position;
+   procedure Apply_UCI_Position (Par : in String) is separate;
 
    ------------------
    --  UCI "d"     --
@@ -674,12 +506,9 @@ package body BBChess.Protocol is
       Row ("connected rooks", Terms (Connected_Rooks));
       Row ("pawn structure", Terms (Pawn_Structure));
       Row ("pawn threats", Terms (Pawn_Threats));
-      Row ("outposts", Terms (Outpost));
       Row ("king activity", Terms (King_Activity));
       Row ("king safety", Terms (King_Safety));
-      Row ("hanging pieces", Terms (Hanging));
       Row ("drawish scaling", Terms (Drawish_Scale));
-      Row ("minor imbalance", Terms (Minor_Imbalance));
       Emit ("Evaluate: " & Signed (Evaluate (Pos))
             & " (side to move, tempo " & Signed (Tempo) & ")");
    end Handle_UCI_Eval;
@@ -732,133 +561,7 @@ package body BBChess.Protocol is
    --  UCI go      --
    -----------------
 
-   procedure Handle_UCI_Go (Par : in String) is
-      Go : constant UCI.Go_Params := UCI.Parse_Go (Par);
-      --  Root move filter for this search ("go searchmoves"); empty means the
-      --  full list. Installed by the search task at the start rendezvous.
-      Filter_Moves : Move_List;
-      Filter_N     : Natural := 0;
-      --  "go mate N": a proven mate in N moves ends the search, and 2N plies
-      --  is the depth cap when the GUI did not give one.
-      Mate_Requested : constant Boolean :=
-        Go.Has_Mate and then Go.Mate_Moves > 0;
-      --  UCI_LimitStrength: a node cap derived from UCI_Elo, applied in
-      --  addition to whatever the GUI sent (and only when the search is not
-      --  open-ended).
-      Strength_Cap : constant Node_Count_Type :=
-        (if Limit_Strength and then not Go.Infinite and then not Go.Ponder
-         then Nodes_For_Elo (Elo_Limit) else 0);
-      Cap          : Node_Count_Type := Go.Nodes;
-   begin
-      --  "go perft N": leaf count instead of a search (unofficial, but the
-      --  spelling other engines accept). No bestmove is emitted.
-      if Go.Has_Perft then
-         Handle_UCI_Perft (Go.Perft_Depth);
-         return;
-      end if;
-
-      --  "go searchmoves ...": restrict the root list for this search only.
-      --  The tokens are resolved against the current position; an unknown or
-      --  illegal move is reported and dropped.
-      if Go.Has_Searchmoves then
-         declare
-            Text : constant String := To_String (Go.Searchmoves);
-            N    : constant Natural := UCI.Token_Count (Text);
-         begin
-            for I in 1 .. N loop
-               declare
-                  M : constant Move_Type := From_String (Pos, Token (Text, I));
-               begin
-                  if M = Empty_Move then
-                     Emit ("info string searchmoves: unknown move "
-                           & Token (Text, I));
-                  elsif Filter_N < Filter_Moves'Length then
-                     Filter_N := Filter_N + 1;
-                     Filter_Moves (Filter_N) := M;
-                  end if;
-               end;
-            end loop;
-         end;
-      end if;
-
-      Fixed_Time := False;
-      Clock_Left := 0.0;
-      Time_Increment := 0.0;
-      Moves_To_Go := 0;
-      Max_Depth := 64;
-
-      if Go.Has_Movetime then
-         Fixed_Time := True;
-         Move_Time := Go.Movetime;
-      end if;
-      if Pos.Side = White then
-         Clock_Left := Go.Wtime;
-         Time_Increment := Go.Winc;
-      else
-         Clock_Left := Go.Btime;
-         Time_Increment := Go.Binc;
-      end if;
-      Moves_To_Go := Go.Movestogo;
-      Max_Depth := Go.Depth;
-
-      if Mate_Requested then
-         Set_Mate_Limit (Go.Mate_Moves);
-         if not Go.Has_Depth then
-            Max_Depth := 2 * Go.Mate_Moves;
-         else
-            Max_Depth := Natural'Min (Max_Depth, 2 * Go.Mate_Moves);
-         end if;
-      else
-         Set_Mate_Limit (0);
-      end if;
-
-      if Strength_Cap > 0 and then (Cap = 0 or else Cap > Strength_Cap) then
-         Cap := Strength_Cap;
-      end if;
-
-      if not Go.Infinite and then not Go.Ponder
-        and then Cap = 0 and then not UCI_Busy.Busy
-        and then Filter_N = 0
-        and then not Mate_Requested
-      then
-         declare
-            BM : Move_Type;
-         begin
-            if Try_Book (BM) then
-               Emit ("bestmove " & To_String (BM));
-               return;
-            end if;
-         end;
-      end if;
-
-      declare
-         Alloc : BBChess.Clocks.Allocation;
-      begin
-         if Go.Infinite or else Go.Nodes > 0
-           or else (Go.Has_Depth and then Clock_Left <= 0.0
-                    and then not Fixed_Time)
-           or else (Mate_Requested and then Clock_Left <= 0.0
-                    and then not Fixed_Time)
-           or else (Strength_Cap > 0 and then Clock_Left <= 0.0
-                    and then not Fixed_Time)
-         then
-            Alloc := (Soft => 0.0, Hard => 0.0);
-         else
-            Alloc := Time_For_Next_Move;
-         end if;
-
-         if UCI_Busy.Busy then
-            Request_Stop;
-         end if;
-
-         Sync_Game_History;
-
-         Ensure_UCI_Task;
-         Active_Task.Start (Pos, Max_Depth, Alloc.Soft, Alloc.Hard,
-                            Cap, Go.Infinite, Go.Ponder,
-                            Filter_Moves, Filter_N);
-      end;
-   end Handle_UCI_Go;
+   procedure Handle_UCI_Go (Par : in String) is separate;
 
    -------------------
    --  UCI handshake --
@@ -1045,12 +748,6 @@ package body BBChess.Protocol is
       UCI_Mode := False;
       Quit := False;
       Game_N := 0;
-      Fixed_Time := False;
-      Move_Time := 1.0;
-      Clock_Left := 0.0;
-      Time_Increment := 0.0;
-      Moves_To_Go := 0;
-      Max_Depth := 64;
       Own_Book := True;
       Limit_Strength := False;
       Elo_Limit := 2_800;

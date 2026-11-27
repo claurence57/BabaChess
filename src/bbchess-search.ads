@@ -31,6 +31,20 @@ package BBChess.Search is
    -- the stop-flag / time polls. 2**62 leaves ample headroom.
    type Node_Count_Type is range 0 .. 2 ** 62;
 
+   --  All limits of one search in a single value. In particular, a node cap
+   --  and a soft/hard clock policy can be active together.
+   type Search_Request is record
+      Max_Depth  : Natural := 64;
+      Soft_Alloc : Duration := 0.0;
+      Hard_Alloc : Duration := 0.0;
+      Node_Cap   : Node_Count_Type := 0;
+   end record;
+
+   function Best_Move (Position : in Position_Type;
+                       Request  : in Search_Request) return Move_Type;
+   --  Search with every limit in Request. A zero clock or node cap disables
+   --  that limit; Max_Depth = 0 returns Empty_Move.
+
    procedure Set_Game_History (Keys  : in Game_Key_Array;
                                Count : in Natural);
    -- Record the keys of every position of the game so far (including the
@@ -157,10 +171,6 @@ package BBChess.Search is
    -- it. Must not be called while a search is running. On Storage_Error the
    -- request is halved until it fits; the old table stays valid on failure.
 
-   function Transposition_Hashfull return Natural;
-   -- Per-mille (0 .. 1000) of the table occupied by entries written during
-   -- the current search generation. Sampled, so it costs O(1000) per call.
-
    function TT_Data_Self_Test return Boolean;
    -- Round-trip check of the packed TT payload (score min/max and mate,
    -- depth 0 and max, and the empty marker). Used by --selftest.
@@ -196,15 +206,12 @@ package BBChess.Search is
       --  Experimental search features (each neutral at its default).
       S_Rfp_Depth,        -- reverse futility up to this depth (1 = historical)
       S_Rfp_Step,         -- extra RFP margin per ply beyond depth 1
-      S_Nmp_Eval,         -- 1 = null move only when the static eval >= beta
       S_Qs_TT,            -- 1 = quiescence probes / stores the TT
-      S_Tm_Stable,        -- 1 = soft time scaled by best-move stability
       --  Time allocation (BBChess.Clocks.Clock_Based), in hundredths where a
       --  fraction is meant: defaults reproduce the historical policy.
       S_Tm_Div,           -- moves-to-go estimate when the GUI announces none
       S_Tm_Hard_100,      -- hard limit, in percent of the soft one
       S_Tm_Inc_100,       -- increment added to the soft budget, in percent
-      S_Iir_Depth,        -- internal iterative reduction from this depth (0 = off)
       S_Bad_Capture,      -- 1 = SEE-losing captures ordered after quiet moves
       --  Transposition-table replacement policy (S_Tt_Replace = 1): each slot
       --  gets a keep-score (depth + PV bonus - age penalty) and the lower of
@@ -223,7 +230,6 @@ package BBChess.Search is
       S_Probcut_Max,      -- maximum number of captures probed
       S_Lmr_Hist,         -- history units per LMR ply adjustment (0 = off)
       S_Asp_Grow,         -- 1 = aspiration window widened gradually
-      S_QChecks,          -- 1 = quiet checks at the first quiescence ply
       --  Syzygy DTZ root (0 = off): when on, a root position in the 50-move
       --  zone (halfmove >= S_Syzygy_Root_Min_Hm) with at most
       --  S_Syzygy_Root_Max_Pieces men is played by the DTZ-optimal move.
@@ -239,11 +245,6 @@ package BBChess.Search is
       S_Contempt);
 
    type Search_Param_Array is array (Search_Param_Id) of Integer;
-
-   function Search_Param (Id : in Search_Param_Id) return Integer;
-   pragma Inline (Search_Param);
-   -- Read one integer search parameter (the table itself stays private to the
-   -- body; BBChess.Search.TT uses this to honour the replacement policy).
 
    -- Real constants of the late-move-reduction log formula
    -- R = Lmr_Base + Log(depth) * Log(move) / Lmr_Divisor.

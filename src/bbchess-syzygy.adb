@@ -197,9 +197,7 @@ package body BBChess.Syzygy is
          Ep       => (if Position.En_Passant = Ep_None then 0
                       else unsigned (Position.En_Passant)),
          Turn     => (if Position.Side = White then 1 else 0));
-      if Result = TB_Result_Failed
-        or else Result = 16#FFFF_FFFF#
-      then
+      if Result = TB_Result_Failed then
          return False;
       end if;
 

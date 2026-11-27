@@ -49,6 +49,16 @@ package BBChess.Search.TT is
    --  Start a new search: the generation is incremented, so entries left by
    --  the previous search age out and are replaced first.
 
+   type Replacement_Policy is record
+      Scored       : Boolean := True;
+      PV_Bonus     : Integer := 4;
+      Age_Penalty  : Integer := 24;
+   end record;
+
+   procedure Set_Replacement_Policy (Policy : in Replacement_Policy);
+   --  Snapshot the policy before a search. The caller changes search parameters
+   --  only while no search is running, so Store reads no Search state.
+
    function Hashfull return Natural;
    --  Per-mille of slots written during the current generation (sampled).
 

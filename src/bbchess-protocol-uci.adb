@@ -48,13 +48,13 @@ package body BBChess.Protocol.UCI is
       when Constraint_Error => return Default;
    end Parse_Natural;
 
-   function Parse_Node_Count (S : String; Default : BBChess.Search.Node_Count_Type)
-     return BBChess.Search.Node_Count_Type is
+   function Parse_Node_Count (S : String; Default : Node_Count_Type)
+     return Node_Count_Type is
    begin
       if S'Length = 0 then
          return Default;
       end if;
-      return BBChess.Search.Node_Count_Type'Value (S);
+      return Node_Count_Type'Value (S);
    exception
       when Constraint_Error => return Default;
    end Parse_Node_Count;

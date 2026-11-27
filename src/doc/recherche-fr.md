@@ -365,7 +365,8 @@ ce qui ne donne qu'un nœud cohérent sur la clé, éventuellement moins profond
 - **Échecs tranquilles en quiescence, variante contrainte** (`S_QChecks`, premier
   pli seul, test de sûreté `not Is_Attacked`) : **+33 à +91 % de temps** sur
   `--bench`, SPRT `1+0.1` **FAIL** (**−34,7 ± 15,6** Elo, H0 accepté à 714
-  parties). Laissée **désactivée** (défaut 0). Détail : `DEVELOPMENT.md` §81.
+  parties). La variante a été **retirée du code** lors du nettoyage §107.
+  Détail historique : `DEVELOPMENT.md` §81.
 - **Continuation history 2-ply** (*follow-up*, seconde table indexée par le coup
   deux plis plus haut) : **KNpS −5 à −7 %** et SPRT `1+0.1` **INCONCLUSIVE**
   (**−9,0 ± 13,6** Elo, score 0,487), poids 2 idem → **retirée**. Détail :

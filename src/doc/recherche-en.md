@@ -363,7 +363,8 @@ which only gives a key-consistent node, possibly shallower.
 - **Quiet checks in quiescence, constrained variant** (`S_QChecks`, first
   ply only, safety test `not Is_Attacked`): **+33 to +91% time** on
   `--bench`, SPRT `1+0.1` **FAIL** (**-34.7 ± 15.6** Elo, H0 accepted at 714
-  games). Left **disabled** (default 0). Detail: `DEVELOPMENT.md` §81.
+  games). The variant was **removed from the code** in the §107 cleanup.
+  Historical detail: `DEVELOPMENT.md` §81.
 - **Continuation history 2-ply** (*follow-up*, second table keyed on the move
   two plies higher): **KNpS -5 to -7%** and SPRT `1+0.1` **INCONCLUSIVE**
   (**-9.0 ± 13.6** Elo, score 0.487), weight 2 likewise → **removed**. Detail:

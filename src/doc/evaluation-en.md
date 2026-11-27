@@ -161,10 +161,10 @@ This part is entirely bitboard-based:
   receives `(D_enemy × P_PKing_Them - D_friend × P_PKing_Us) × W / 8`
   (29 and 16 by default since the Texel tuning, §72).
 
-The other terms added in §70 of `DEVELOPMENT.md` (reduction of drawn endgames,
-hanging pieces, connected/backward pawns, king safety ramp) exist as parameters
-but are **disabled** by default: measured without gain, including after tuning
-their weights (§73). The mobility area, meanwhile, is enabled (§73).
+The terms for **hanging pieces**, **connected/backward pawns**, **material
+imbalance**, **outposts** and **rook behind a passed pawn** were measured without
+gain and removed from the code in §107. `P_Scale_NoPawn` and the mobility area
+remain enabled; the king-safety ramp is still tunable.
 
 ### 4.4 King activity in the endgame
 
@@ -306,11 +306,11 @@ model is stable, not optimal.
 - **Non-incremental phase.** A phase maintained by `Make`/`Unmake` was
   implemented then reverted (§ 12): the 8 `Popcount` of `Game_Phase` weigh
   ~0.2% of the time and the added field made the `Position` copies heavier.
-- **Material imbalance (Kaufman) switched off.** A term
+- **Material imbalance (Kaufman) removed.** A term
   `(bishops - knights) × missing pawns` per side (`P_Imb_KBNB`, default 0) was
   added then measured **-8.3 ± 13.5 Elo** (SPRT inconclusive, `DEVELOPMENT.md`
-  § 85): not kept, left as a neutral switch like `P_Hanging_*` /
-  `P_Connected`.
+  § 85): not kept. Its switch and those of the other rejected terms were removed
+  in §107.
 
 In summary, BB's evaluation is deliberately **simple, safe and symmetric**:
 material + PST interpolated by phase, plus classic positional terms computed

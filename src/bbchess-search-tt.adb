@@ -70,6 +70,13 @@ package body BBChess.Search.TT is
    -- a previous search is replaced before a fresh one.
    TT_Generation : Natural := 0;
 
+  Replacement : Replacement_Policy;
+
+  procedure Set_Replacement_Policy (Policy : in Replacement_Policy) is
+  begin
+     Replacement := Policy;
+  end Set_Replacement_Policy;
+
    function Gen_Mod return Natural is (TT_Generation mod 32_768);
    pragma Inline (Gen_Mod);
 
@@ -374,9 +381,9 @@ package body BBChess.Search.TT is
       end if;
       return Data_Depth_Signed (D)
         + (if Data_Bound (D) = Exact
-           then Search_Param (S_Tt_Pv_Bonus) else 0)
+           then Replacement.PV_Bonus else 0)
         + (if Data_Age (D) = Gen_Mod
-           then 0 else -Search_Param (S_Tt_Age_Penalty));
+           then 0 else -Replacement.Age_Penalty);
    end Repl_Score;
    pragma Inline (Repl_Score);
 
@@ -400,6 +407,8 @@ package body BBChess.Search.TT is
       Slot   : Natural;
       Repl   : Boolean;
       D_B, D_1 : Bitboard;
+      E_B, E_1 : TT_Entry;
+      Match_B, Match_1 : Boolean;
       Gen    : constant Natural := Gen_Mod;
    begin
       if Saved >= Mate_Threshold then
@@ -408,16 +417,20 @@ package body BBChess.Search.TT is
          Saved := Saved - Ply;
       end if;
 
-      -- Read both slots' Data once.
-      D_B := Transposition_Table (B).Data;
-      D_1 := Transposition_Table (B + 1).Data;
+      -- Read each slot once; reuse both the payload and the key check.
+      E_B := Transposition_Table (B);
+      E_1 := Transposition_Table (B + 1);
+      D_B := E_B.Data;
+      D_1 := E_1.Data;
+      Match_B := Key_Match (E_B, Position.Key);
+      Match_1 := Key_Match (E_1, Position.Key);
 
       -- Prefer a matching key, then an empty slot, then a stale entry, then
       -- the shallower of the two.
-      if Search_Param (S_Tt_Replace) = 0 then
-         if Key_Match (Transposition_Table (B), Position.Key) then
+      if not Replacement.Scored then
+         if Match_B then
             Slot := B;
-         elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
+         elsif Match_1 then
             Slot := B + 1;
          elsif Data_Depth_Signed (D_B) < 0 then
             Slot := B;
@@ -440,9 +453,9 @@ package body BBChess.Search.TT is
          --  Scored policy: the same key is refreshed, otherwise the less
          --  valuable of the two entries (Repl_Score) makes way. Empty slots
          --  score far below everything, so they are taken first.
-         if Key_Match (Transposition_Table (B), Position.Key) then
+         if Match_B then
             Slot := B;
-         elsif Key_Match (Transposition_Table (B + 1), Position.Key) then
+         elsif Match_1 then
             Slot := B + 1;
          elsif Repl_Score (D_1) < Repl_Score (D_B) then
             Slot := B + 1;
@@ -453,10 +466,9 @@ package body BBChess.Search.TT is
 
       declare
          Old_D : constant Bitboard := (if Slot = B then D_B else D_1);
-         Match : constant Boolean :=
-           Key_Match (Transposition_Table (Slot), Position.Key);
+         Match : constant Boolean := (if Slot = B then Match_B else Match_1);
       begin
-         if Search_Param (S_Tt_Replace) = 0 then
+         if not Replacement.Scored then
             Repl := Data_Depth_Signed (Old_D) < 0
               or else Match
               or else Depth >= Natural'Max (0, Data_Depth_Signed (Old_D))
@@ -469,7 +481,7 @@ package body BBChess.Search.TT is
             Repl := Match
               or else Integer (Depth)
                         + (if Bound = Exact
-                           then Search_Param (S_Tt_Pv_Bonus) else 0)
+                           then Replacement.PV_Bonus else 0)
                       >= Repl_Score (Old_D);
          end if;
       end;

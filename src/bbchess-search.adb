@@ -90,19 +90,14 @@ package body BBChess.Search is
       --  Search campaign (DEVELOPMENT.md §71): RFP up to depth 6, the
       --  quiescence TT, SEE-losing captures after the quiet moves and the
       --  gradual aspiration window are on (combined SPRT PASS, +93 Elo).
-      --  The other four stay off: measured neutral (null move gated by the
-      --  eval, IIR, history LMR) or not proven (stability time management).
       S_Rfp_Depth            => 6,
       S_Rfp_Step             => 80,
-      S_Nmp_Eval             => 0,
       S_Qs_TT                => 1,
-      S_Tm_Stable            => 0,
       --  Time allocation: divisor 30, hard = 2 x soft, 75 % of the increment
       --  (the historical policy, now tunable; see BBChess.Clocks).
       S_Tm_Div               => 30,
       S_Tm_Hard_100          => 200,
       S_Tm_Inc_100           => 75,
-      S_Iir_Depth            => 0,
       S_Bad_Capture          => 1,
       --  TT replacement policy: keep-score = depth + PV bonus - age penalty,
       --  the lower of the two bucket entries makes way (0 = the historical
@@ -129,13 +124,6 @@ package body BBChess.Search is
       S_Probcut_Max          => 8,
       S_Lmr_Hist             => 8_192,
       S_Asp_Grow             => 1,
-      --  Checks in quiescence (S_QChecks): quiet checks at the FIRST
-      --  quiescence ply only, out of check. Measured at -32 +/- 16 Elo by
-      --  SPRT (FAIL, H0 accepted at 714 games, 1+0.1): the time cost
-      --  (+33 to +91% on --bench 9/11/12) outweighs the tactical gain, as
-      --  for the historical all-ply variant (+49%, section 18). Left
-      --  DISABLED (default 0); 1 re-creates the exact tree for re-testing.
-      S_QChecks              => 0,
       --  Syzygy DTZ root: off by default (strict SPRT baseline).
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 7,
@@ -169,13 +157,10 @@ package body BBChess.Search is
       S_History_Max          => 0,
       S_Rfp_Depth            => 0,
       S_Rfp_Step             => 0,
-      S_Nmp_Eval             => 0,
       S_Qs_TT                => 0,
-      S_Tm_Stable            => 0,
       S_Tm_Div               => 1,
       S_Tm_Hard_100          => 100,
       S_Tm_Inc_100           => 0,
-      S_Iir_Depth            => 0,
       S_Bad_Capture          => 0,
       S_Tt_Replace           => 0,
       S_Tt_Pv_Bonus          => 0,
@@ -187,7 +172,6 @@ package body BBChess.Search is
       S_Probcut_Max          => 0,
       S_Lmr_Hist             => 0,
       S_Asp_Grow             => 0,
-      S_QChecks              => 0,
       S_Syzygy_Root          => 0,
       S_Syzygy_Root_Max_Pieces => 0,
       S_Syzygy_Root_Min_Hm   => 0,
@@ -223,13 +207,10 @@ package body BBChess.Search is
       S_History_Max          => 1_000_000,
       S_Rfp_Depth            => 16,
       S_Rfp_Step             => 1_000,
-      S_Nmp_Eval             => 1,
       S_Qs_TT                => 1,
-      S_Tm_Stable            => 1,
       S_Tm_Div               => 200,
       S_Tm_Hard_100          => 800,
       S_Tm_Inc_100           => 300,
-      S_Iir_Depth            => 64,
       S_Bad_Capture          => 1,
       S_Tt_Replace           => 1,
       S_Tt_Pv_Bonus          => 64,
@@ -241,7 +222,6 @@ package body BBChess.Search is
       S_Probcut_Max          => 64,
       S_Lmr_Hist             => 1_000_000,
       S_Asp_Grow             => 1,
-      S_QChecks              => 1,
       S_Syzygy_Root          => 1,
       S_Syzygy_Root_Max_Pieces => 64,
       S_Syzygy_Root_Min_Hm   => 100,
@@ -289,11 +269,6 @@ package body BBChess.Search is
          return Score_Type (C);
       end if;
    end Draw_Value;
-
-   function Search_Param (Id : in Search_Param_Id) return Integer is
-   begin
-      return Search_Params (Id);
-   end Search_Param;
 
 
 
@@ -369,9 +344,9 @@ package body BBChess.Search is
    pragma Suppress_Initialization (Search_Context);
    type Context_Access is access all Search_Context;
 
-   -- The context is allocated once per search (stack size would be a problem
-   -- inside the search tasks) and freed as soon as the search returns, so a
-   -- long session cannot leak ~40 KB per move.
+   -- The context is allocated once per search (its roughly 1.2 MiB of history
+   -- would exceed a task stack) and freed as soon as the search returns, so a
+   -- long session cannot leak a context per move.
    procedure Free_Context is new
      Ada.Unchecked_Deallocation (Object => Search_Context,
                                  Name   => Context_Access);
@@ -652,19 +627,25 @@ package body BBChess.Search is
       Ctx.Cont_History (K, J) := Cont_Value (V);
    end Bump_Cont_History;
 
-   -- Kind of the piece captured by Move (pawns for en-passant; the moving
-   -- piece itself when Move is not a capture - only used for ordering).
+   -- Kind of the piece captured by Move (a pawn for en-passant). Callers
+   -- establish that any other move lands on an occupied enemy square.
    function Captured_Kind (Position : in Position_Type; Move : in Move_Type)
      return Kind_Type is
-      P : Piece_Type;
    begin
       if Move.Flag = En_Passant then
          return Pawn;
       end if;
-      if Piece_At (Position, Move.To, P) then
-         return Kind (P);
+      --  A non-capturing promotion has no victim; the quiescence MVV pass
+      --  nevertheless asks for one, and historically used a pawn.
+      if Move.Flag = Promotion
+        and then (Position.All_Occ and Bit (Move.To)) = 0
+      then
+         return Pawn;
       end if;
-      return Pawn;
+      --  Every other call is a capture whose destination is occupied.
+      pragma Assert ((Position.All_Occ and Bit (Move.To)) /= 0,
+                     "Captured_Kind: destination is empty");
+      return Kind (Piece_On (Position, Move.To));
    end Captured_Kind;
    pragma Inline (Captured_Kind);
 
@@ -1136,15 +1117,7 @@ package body BBChess.Search is
       Last_Depth  : Natural := 0;
       Elapsed     : Duration;
       Prev_Iter   : Duration := 0.0;
-      --  Best-move stability time management: the soft target is scaled by
-      --  the number of consecutive iterations that kept the same best move,
-      --  and stretched when the score drops. Only with a clock (Soft < Hard):
-      --  a fixed move time is spent in full.
-      Soft_Eff    : Duration := Soft_Alloc;
-      Stable_Iter : Natural := 0;
-      Prev_Done_Best  : Move_Type := Empty_Move;
-      Prev_Done_Score : Score_Type := 0;
-   begin
+      begin
       Work.Key := Hash.Compute (Work);
 
       --  Record the root position at ply 0 of the search path so that a line
@@ -1221,8 +1194,8 @@ package body BBChess.Search is
             end if;
             if Soft_Alloc > 0.0
               and then D > 1
-              and then (Elapsed >= Soft_Eff
-                        or else Elapsed + Prev_Iter > Soft_Eff)
+              and then (Elapsed >= Soft_Alloc
+                        or else Elapsed + Prev_Iter > Soft_Alloc)
             then
                exit;
             end if;
@@ -1298,36 +1271,6 @@ package body BBChess.Search is
             --  whether the next one can still fit under the soft target).
             Prev_Iter := To_Duration (Clock - Ctx.Start_Time) - Elapsed;
 
-            if Search_Params (S_Tm_Stable) /= 0
-              and then Soft_Alloc > 0.0
-              and then Time_Alloc > Soft_Alloc
-            then
-               if D > 1 and then Done_Best = Prev_Done_Best then
-                  Stable_Iter := Stable_Iter + 1;
-               else
-                  Stable_Iter := 0;
-               end if;
-               declare
-                  Pct : Natural :=
-                    (case Stable_Iter is
-                        when 0      => 140,
-                        when 1      => 120,
-                        when 2      => 100,
-                        when 3      => 85,
-                        when others => 70);
-               begin
-                  if D > 1 and then Done_Score < Prev_Done_Score - 25 then
-                     Pct := Pct + 30;
-                  end if;
-                  Soft_Eff := Soft_Alloc * Pct / 100;
-                  if Soft_Eff > Time_Alloc then
-                     Soft_Eff := Time_Alloc;
-                  end if;
-               end;
-               Prev_Done_Best := Done_Best;
-               Prev_Done_Score := Done_Score;
-            end if;
-
             if Report then
                --  Single-thread: report the exact counter. Lazy SMP: report
                --  the shared total, never below this worker's own count (it
@@ -1387,15 +1330,21 @@ package body BBChess.Search is
       TT.Set_Size (MB);
    end Set_Transposition_Size;
 
-   function Transposition_Hashfull return Natural is (TT.Hashfull);
-
    function TT_Data_Self_Test return Boolean is (TT.Self_Test);
 
    -----------------------------
    -- Tunable search params --
    -----------------------------
 
-   procedure Set_Search_Param (Name : in String; Value : in Integer) is
+   procedure Sync_TT_Replacement is
+  begin
+     TT.Set_Replacement_Policy
+       ((Scored      => Search_Params (S_Tt_Replace) /= 0,
+         PV_Bonus    => Search_Params (S_Tt_Pv_Bonus),
+         Age_Penalty => Search_Params (S_Tt_Age_Penalty)));
+  end Sync_TT_Replacement;
+
+  procedure Set_Search_Param (Name : in String; Value : in Integer) is
       use Ada.Characters.Handling;
       U : constant String := To_Upper (Name);
    begin
@@ -1407,6 +1356,9 @@ package body BBChess.Search is
                Search_Params (Id) := Search_Param_Max (Id);
             else
                Search_Params (Id) := Value;
+            end if;
+            if Id in S_Tt_Replace | S_Tt_Pv_Bonus | S_Tt_Age_Penalty then
+               Sync_TT_Replacement;
             end if;
             return;
          end if;
@@ -1773,6 +1725,14 @@ package body BBChess.Search is
       return Best;
    end Best_Move_Impl;
 
+   -- Full request: depth, soft/hard clock and optional node cap together.
+   function Best_Move (Position : in Position_Type;
+                       Request  : in Search_Request) return Move_Type is
+   begin
+      return Best_Move_Impl (Position, Request.Max_Depth, Request.Hard_Alloc,
+                             Request.Soft_Alloc, Request.Node_Cap);
+   end Best_Move;
+
    -- Fixed-depth + time + node cap: the actual implementation.
    function Best_Move (Position   : in Position_Type;
                         Max_Depth  : in Natural;
@@ -1806,6 +1766,7 @@ package body BBChess.Search is
    end Best_Move;
 
 begin
+   Sync_TT_Replacement;
    -- Size the transposition table (the UCI "Hash" option re-sizes it later).
    TT.Set_Size (TT.Default_MB);
 

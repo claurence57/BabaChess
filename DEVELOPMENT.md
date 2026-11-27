@@ -3488,3 +3488,104 @@ est neutre en vitesse.
 
 Ces trois découpages restent possibles plus tard ; ils ne sont pas gratuits et
 ne débloquent rien aujourd'hui.
+
+## 107. Audit de `src/` : suppressions, architecture et optimisations ciblées
+
+Après la hiérarchisation §§105-106, un audit complet a recherché uniquement les
+simplifications encore utiles, sans rouvrir les refontes déjà mesurées. Le
+rapport détaillé et les prototypes sont consignés dans
+`~/notes/babachess-audit-src.md`.
+
+### 107.1 Nettoyage zéro comportement
+
+- `Transposition_Hashfull` est supprimé : aucun appelant, le reporting utilise
+  directement `TT.Hashfull`.
+- Le second test `Result = 16#FFFF_FFFF#` de `Probe_Root_Move` était identique
+  à `TB_Result_Failed` ; il est retiré.
+- `Static` porte `Inline` dans sa spécification : le pragma placé après son corps
+  était ignoré par GNAT et produisait un avertissement en release/checked.
+- `Copy_Bounded`, `First_Word` et `Rest_Of` deviennent internes au corps de
+  `BBChess.Text` ; les deux derniers ont besoin d'une déclaration anticipée pour
+  `Split_Command`.
+- `Syzygy.Free` est appelé par `Protocol.Shutdown`, après l'arrêt de la recherche.
+- Les commentaires obsolètes sur le Zobrist incrémental, la taille du contexte et
+  les poids de mobilité sont corrigés.
+
+### 107.2 Expériences dormantes retirées
+
+La règle retenue est qu'un paramètre accessible par `--params` n'est pas du code
+mort. Sont néanmoins supprimées les variantes rejetées qu'aucun nouveau test ne
+justifie de conserver :
+
+- recherche : `S_QChecks` (FAIL, −34,7 ± 15,6 Elo), `S_Iir_Depth`,
+  `S_Nmp_Eval` et `S_Tm_Stable`, avec leurs enumérations, bornes, valeurs par
+  défaut et blocs de recherche ;
+- évaluation : Hanging, Threat_RQ, Connected/Backward pawns, Minor_Imbalance,
+  Outpost, RookBehind et Scale_OCB, avec les paramètres `P_*`, les termes du
+  `eval` UCI et les traces associées.
+
+`S_Contempt`, `S_Syzygy_Root` et la politique TT historique restent : ce sont des
+fonctionnalités ou des moyens de comparaison, pas des branches abandonnées.
+`Connected_Rooks` et `P_Scale_NoPawn`, actifs, sont naturellement conservés.
+
+Le retrait de Hanging supprime aussi `All_Attacks` et son union par pièce. Les
+positions du bench et `bench/endgames_scale.fen` produisent exactement les mêmes
+scores qu'avant ; `--dump-params` ne contient volontairement plus les paramètres
+supprimés.
+
+### 107.3 Chemin UCI : une requête au lieu d'overloads divergents
+
+`Search_Request` regroupe `Max_Depth`, `Soft_Alloc`, `Hard_Alloc` et `Node_Cap`.
+La tâche UCI appelle toujours ce point d'entrée : auparavant, `Cap > 0` choisissait
+un overload qui remplaçait implicitement la limite soft par la limite hard. Un
+test ajouté exige qu'une recherche avec soft 20 ms, hard 1 s et un grand plafond
+de nœuds respecte la limite soft.
+
+Les anciens overloads restent pour les appelants internes et les tests. Le parseur
+`Protocol.UCI` possède son propre type de compteur, converti à la frontière de
+recherche : il n'importe plus `BBChess.Search`.
+
+Les champs `Fixed_Time`, `Move_Time`, `Clock_Left`, `Time_Increment`,
+`Moves_To_Go` et `Max_Depth` quittent l'état global du protocole. L'allocation est
+calculée à partir de `Go_Params` et de la position courante. `Apply_UCI_Position`,
+`Handle_UCI_Go`, `Load_Default_Book` et `Load_Default_Syzygy` deviennent des
+subunits ; `Executable_Dir`/`Home_Dir` factorisent les chemins. Le corps de
+`Protocol` tombe de 1 091 à 788 lignes sans publier son état.
+
+### 107.4 TT : politique injectée et snapshot unique
+
+`Search.TT` reçoit un `Replacement_Policy` (`Scored`, `PV_Bonus`, `Age_Penalty`)
+à l'élaboration et lorsqu'un paramètre TT change. `Search_Param`, exposé
+uniquement pour ce rappel du paquet enfant vers son parent, disparaît.
+
+`Store` lit désormais `E_B`/`E_1` une fois et réutilise `Data` et `Key_Match`
+pour la sélection et la décision de remplacement. La vérification reste fondée
+sur un couple auto-cohérent, sans mélange de deux écritures SMP. Les politiques
+scorée et historique passent toutes deux le bench et le self-test ; une recherche
+à quatre threads et Hash 1 MiB aboutit sans exception.
+
+### 107.5 Micro-optimisations
+
+`Piece_On` lit `Squares` quand l'occupation est déjà prouvée : capture dans
+`Make_Move`, victime d'ordonnancement et menaces sur des bitboards de pièces.
+Le premier run checked a trouvé le contre-exemple des promotions sans capture
+dans le MVV de quiescence ; elles rendent explicitement `Pawn`, comme le fallback
+historique, et le contrat reste actif pour les autres appels.
+
+La mobilité possède deux instances statiques, avec et sans collecte du danger.
+`Need_Danger` reproduit exactement les conditions du seuil/rampe de king safety :
+les scores sont identiques avec les défauts, une rampe 10..30 et KS désactivée.
+
+### 107.6 Vérifications et mesure
+
+- `--selftest` : **176/176** en debug `-gnatwe`, release, portable et checked ;
+- `--bench 9/12/14` : **467 051 / 1 809 934 / 4 767 382**, identiques à HEAD ;
+- scores identiques au binaire initial sur les positions du bench et les finales,
+  y compris les deux configurations KS non standard ;
+- 12 paires A/B entrelacées à profonde 12 contre le binaire initial : médiane
+  **−2,14 %** de temps, moyenne −6,81 %, extrêmes −30,42 % à +6,26 %.
+
+Le signal de vitesse du lot est favorable mais la machine est trop bruitée pour
+l'attribuer à une optimisation ou annoncer un gain NPS probant. Aucun gain Elo
+n'est revendiqué : les arbres et les évaluations sont inchangés par construction
+et par mesure.

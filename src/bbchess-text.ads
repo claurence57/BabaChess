@@ -20,12 +20,6 @@ package BBChess.Text is
    --  Sixteen lower-case hexadecimal digits, zero padded, no prefix: the
    --  usual rendering of a 64-bit Zobrist key.
 
-   procedure Copy_Bounded (Source    : in String;
-                           Dest      : out String;
-                           Dest_Last : out Natural);
-   -- Copy at most Dest'Length characters of Source into Dest and report how
-   -- many were copied. Never raises, even when Source is longer than Dest.
-
    procedure Append_Bounded (Dest      : in out String;
                              Last      : in out Natural;
                              Source    : in String;
@@ -43,12 +37,6 @@ package BBChess.Text is
    -- and the rest of the line, copied with an explicit bound into Command and
    -- Parameter. A word longer than Command is truncated instead of
    -- overwriting neighbouring state (the release build has checks disabled).
-
-   function First_Word (S : in String) return String;
-   -- First whitespace separated word, lower-cased ("" when S is blank).
-
-   function Rest_Of (S : in String) return String;
-   -- Text after the first separator, leading blanks trimmed.
 
    function Token (Source : in String; N : in Positive) return String;
    -- N-th space separated token of Source ("" when there is none).

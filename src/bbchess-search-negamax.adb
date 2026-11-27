@@ -5,8 +5,8 @@ separate (BBChess.Search)
                      Depth_In, Ply : in Natural;
                      Alpha, Beta : in Score_Type) return Score_Type
    is
-      -- Remaining depth; lowered by the internal iterative reduction.
-      Depth       : Natural := Depth_In;
+      -- Remaining depth.
+      Depth       : constant Natural := Depth_In;
       A           : Score_Type := Alpha;
       B           : Score_Type := Beta;
       --  A full-window node lies on the principal variation; a zero-window
@@ -157,21 +157,10 @@ separate (BBChess.Search)
          end if;
       end if;
 
-      -- Internal iterative reduction: without a hash move the ordering is
-      -- poor, so the node is searched one ply shallower.
-      if Search_Params (S_Iir_Depth) > 0
-        and then Hash_Move = Empty_Move
-        and then Depth >= Natural'Max (2, Natural (Search_Params (S_Iir_Depth)))
-      then
-         Depth := Depth - 1;
-      end if;
-
       -- Static evaluation for the pruning decisions (only needed out of
-      -- check, at low depth, or at any depth when the null move or the
-      -- reverse futility pruning consult it).
+      -- check and at depths covered by low-depth pruning or RFP).
       if not In_Check
         and then (Depth <= 3
-                  or else Search_Params (S_Nmp_Eval) /= 0
                   or else Depth <= Natural (Search_Params (S_Rfp_Depth)))
       then
          Eval_Now := Evaluate (Position);
@@ -211,10 +200,7 @@ separate (BBChess.Search)
       -- never twice in a row). The null block clears this node's Move_Path
       -- slot, so a node reached right after a null move reads Prev =
       -- Empty_Move and is thereby barred from nulling again.
-      if Can_Null_Move (Depth, In_Check, Prev, Position)
-        and then (Search_Params (S_Nmp_Eval) = 0
-                  or else (Have_Eval and then Eval_Now >= B))
-      then
+      if Can_Null_Move (Depth, In_Check, Prev, Position) then
          declare
             -- Only Side, En_Passant and Key are touched here (the recursive
             -- call restores the board through Unmake), so saving just those

@@ -70,8 +70,14 @@ package BBChess.Board is
          Material    : Integer := 0;   -- White-positive material + PST
       end record;
 
+   function Piece_On
+     (Position : in Position_Type; Square : in Square_Type) return Piece_Type
+     with Pre => (Position.All_Occ and Bit (Square)) /= 0, Inline;
+   --  Piece on a square already known to be occupied. Unlike Piece_At, this
+   --  hot-path accessor does not repeat the occupancy test.
+
    function Piece_At
-      (Position : in Position_Type;
+     (Position : in Position_Type;
       Square   : in Square_Type;
       Piece    : out Piece_Type) return Boolean;
    -- Look up the piece standing on Square. Returns True (and fills Piece)

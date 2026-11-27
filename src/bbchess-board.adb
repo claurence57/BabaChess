@@ -94,6 +94,16 @@ package body BBChess.Board is
    end Move_Piece;
 
    --------------
+   -- Piece_On --
+   --------------
+
+   function Piece_On
+     (Position : in Position_Type; Square : in Square_Type) return Piece_Type is
+   begin
+      return Position.Squares (Square);
+   end Piece_On;
+
+   --------------
    -- Piece_At --
    --------------
 

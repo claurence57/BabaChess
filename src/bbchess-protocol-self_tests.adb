@@ -26,6 +26,8 @@ use BBChess.Board;
 
 package body BBChess.Protocol.Self_Tests is
 
+   use type BBChess.Protocol.UCI.Node_Count_Type;
+
    procedure Assert (Condition : in Boolean; Message : in String) is
    begin
       if not Condition then
@@ -278,14 +280,14 @@ package body BBChess.Protocol.Self_Tests is
       Reset_Capture;
       BBChess.Protocol.Process ("position startpos");
       BBChess.Protocol.Process ("eval");
-      Assert (N_Lines = 14, "eval: 14 lines (header, 12 terms, Evaluate)");
+      Assert (N_Lines = 11, "eval: 11 lines (header, 9 terms, Evaluate)");
       Assert (Captured (1) = "Static: +0 (White's point of view, phase 100/100)",
               "eval: start position is balanced");
-      Assert (Captured (10) = Row ("  king safety", "+0"),
+      Assert (Captured (9) = Row ("  king safety", "+0"),
               "eval: the king safety row");
-      Assert (Captured (12) = Row ("  drawish scaling", "+0"),
+      Assert (Captured (10) = Row ("  drawish scaling", "+0"),
               "eval: the drawish scaling row");
-      Assert (Captured (14) = "Evaluate: +10 (side to move, tempo +10)",
+      Assert (Captured (11) = "Evaluate: +10 (side to move, tempo +10)",
               "eval: tempo is reported");
 
       -- "go perft N": per-move counts then the total, and no bestmove.
