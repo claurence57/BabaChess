@@ -17,7 +17,6 @@
 with Ada.Real_Time;
 use Ada.Real_Time;
 
-with Ada.Text_IO;
 with Ada.Characters.Handling;
 
 with Ada.Numerics.Elementary_Functions;
@@ -52,6 +51,7 @@ use BBChess.Notation;
 with BBChess.Tunable;
 
 with BBChess.Search.TT;
+with BBChess.Search.Report;
 
 package body BBChess.Search is
 
@@ -764,172 +764,29 @@ package body BBChess.Search is
    end Order;
    pragma Inline (Order);
 
-   -- UCI "info" output. Enabled by the "uci" handshake; when on, the primary
-   -- thread prints one "info" line per completed iteration with the PV. Off
-   -- by default so --selftest and --bench print nothing.
-   UCI_Output : Boolean := False;
+   -- UCI "info" output. The reporting package owns the switch, the console
+   -- lock and the line format (BBChess.Search.Report); these are the
+   -- engine-facing entry points kept on this package's interface.
 
    procedure Set_UCI_Mode (On : in Boolean) is
    begin
-      UCI_Output := On;
+      Report.Set_Enabled (On);
    end Set_UCI_Mode;
-
-   PV_Max : constant := 32;
-
-   -- Walk the transposition table from Work and append the line to Pv,
-   -- starting at index 1 (Len returns the number of moves). Stops at the
-   -- first missing / empty / illegal entry, at a repeated position (cycle,
-   -- including Also_Seen when it is not zero) or at PV_Max moves. Never
-   -- raises: an illegal TT move is simply dropped.
-   procedure Walk_TT_PV (Work      : in out Position_Type;
-                         Pv        : out Move_List;
-                         Len       : out Natural;
-                         Also_Seen : in Bitboard := 0) is
-      Seen      : array (1 .. PV_Max + 2) of Bitboard;
-      Seen_N    : Natural := 1;
-      Moves     : Move_List;
-      Count     : Natural;
-      Undo      : Undo_Info;
-      Is_Legal  : Boolean;
-   begin
-      Len := 0;
-      Seen (1) := Work.Key;
-      if Also_Seen /= 0 then
-         Seen_N := 2;
-         Seen (2) := Also_Seen;
-      end if;
-      for Step in 1 .. PV_Max loop
-         declare
-            M  : Move_Type;
-            Dup : Boolean := False;
-         begin
-            M := Stored_Move (Work);
-            exit when M = Empty_Move;
-
-            Generate_Legal_Moves (Work, Moves, Count);
-            Is_Legal := False;
-            for I in 1 .. Count loop
-               if Moves (I) = M then
-                  Is_Legal := True;
-                  exit;
-               end if;
-            end loop;
-            exit when not Is_Legal;
-
-            Make_Move (Work, M, Undo);
-
-            -- Stop before including M if it returns to a position already
-            -- seen on this PV (cycle).
-            for I in 1 .. Seen_N loop
-               if Seen (I) = Work.Key then
-                  Dup := True;
-                  exit;
-               end if;
-            end loop;
-            exit when Dup;
-
-            Len := Len + 1;
-            Pv (Len) := M;
-            Seen_N := Seen_N + 1;
-            Seen (Seen_N) := Work.Key;
-         end;
-      end loop;
-   end Walk_TT_PV;
-
-   -- Extract the principal variation from the transposition table, starting
-   -- from Root (a by-value copy).
-   procedure Extract_PV (Root : in Position_Type;
-                         Pv   : out Move_List;
-                         Len  : out Natural) is
-      Work : Position_Type := Root;
-   begin
-      Walk_TT_PV (Work, Pv, Len);
-   end Extract_PV;
-
-   -- The PV of one root move: the move itself followed by the continuation
-   -- the TT holds after it. Used by the MultiPV report, where every root line
-   -- needs its own PV (the root TT entry only stores the best one).
-   procedure Extract_Line_PV (Root  : in Position_Type;
-                              First : in Move_Type;
-                              Pv    : out Move_List;
-                              Len   : out Natural) is
-      Work : Position_Type := Root;
-      Undo : Undo_Info;
-      Rest : Move_List;
-      N    : Natural;
-   begin
-      Len := 1;
-      Pv (1) := First;
-      Make_Move (Work, First, Undo);
-      Walk_TT_PV (Work, Rest, N, Also_Seen => Root.Key);
-      for I in 1 .. N loop
-         exit when Len = Pv'Length;
-         Len := Len + 1;
-         Pv (Len) := Rest (I);
-      end loop;
-   end Extract_Line_PV;
-
-   -- Single console lock shared by the command loop and the search threads
-   -- (Ada.Text_IO is not task-safe). The UCI "info"/"readyok"/"bestmove"
-   -- lines all go through it.
-   --  A lock, not a protected output action: Ada.Text_IO may block, and a
-   --  potentially blocking operation inside a protected action is a bounded
-   --  error (RM 9.5.1). Seize/Release the lock around the I/O instead.
-   protected Console is
-      entry Seize;
-      procedure Release;
-   private
-      Busy : Boolean := False;
-   end Console;
-
-   protected body Console is
-      entry Seize when not Busy is
-      begin
-         Busy := True;
-      end Seize;
-
-      procedure Release is
-      begin
-         Busy := False;
-      end Release;
-   end Console;
 
    procedure Locked_Put_Line (S : in String) is
    begin
-      Console.Seize;
-      begin
-         Ada.Text_IO.Put_Line (S);
-         Ada.Text_IO.Flush;
-      exception
-         when others =>
-            --  Never leave the lock held if the I/O raises.
-            Console.Release;
-            raise;
-      end;
-      Console.Release;
+      Report.Put_Line (S);
    end Locked_Put_Line;
 
    procedure Log_Worker_Exception
-     (Context : in String; Occurrence : in Ada.Exceptions.Exception_Occurrence)
-   is
+     (Context : in String; Occurrence : in Ada.Exceptions.Exception_Occurrence) is
    begin
-      --  Same lock as Locked_Put_Line (one console lock for the whole
-      --  package); the target is stderr, so the protocol stream is untouched.
-      Console.Seize;
-      begin
-         Ada.Text_IO.Put_Line
-           (Ada.Text_IO.Standard_Error,
-            "warning: " & Context & ": "
-            & Ada.Exceptions.Exception_Information (Occurrence));
-         Ada.Text_IO.Flush (Ada.Text_IO.Standard_Error);
-      exception
-         when others =>
-            Console.Release;
-            raise;
-      end;
-      Console.Release;
+      Report.Log_Exception (Context, Occurrence);
    end Log_Worker_Exception;
 
+   --  Report one iteration: in MultiPV mode every collected root line gets
+   --  its own "info" line, otherwise a single line is read back from the
+   --  table.
    procedure Report_Iteration (Root       : in Position_Type;
                                Depth      : in Natural;
                                Sel_Depth  : in Natural;
@@ -937,116 +794,21 @@ package body BBChess.Search is
                                Elapsed    : in Duration;
                                Nodes      : in Node_Count_Type;
                                Best       : in Move_Type) is
-      Millis : constant Long_Integer :=
-        Long_Integer (Elapsed * 1000.0);
-      Pv     : Move_List;
-      Pv_Len : Natural;
-      -- Ample for any value the engine can print (a PV of up to 32
-      -- coordinates is ~200 characters).
-      Line   : String (1 .. 900);
-      Last   : Natural := 0;
-
-      procedure Append (S : in String) is
-      begin
-         Line (Last + 1 .. Last + S'Length) := S;
-         Last := Last + S'Length;
-      end Append;
-
-      --  'Image without its leading blank ("5", "-5").
-      function Img (X : Score_Type) return String is
-         S : constant String := Score_Type'Image (X);
-      begin
-         return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
-      end Img;
-
-      --  Same for a Natural (the "hashfull" occupancy, per mille).
-      function Img_Nat (X : Natural) return String is
-         S : constant String := Natural'Image (X);
-      begin
-         return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
-      end Img_Nat;
-
-      procedure Append_Mate (Positive_Mate : in Boolean; Plies : in Score_Type) is
-         M : constant Score_Type :=
-           (if Positive_Mate then (Plies + 1) / 2 else Plies / 2);
-      begin
-         Append (" score mate " & Img (if Positive_Mate then M else -M));
-      end Append_Mate;
-
-      --  One UCI "info" line. Multi = 0 is the historical single line (no
-      --  "multipv" token, byte-identical output); Multi > 0 adds the index
-      --  right after "seldepth", where the UCI specification puts it.
-      procedure Emit_UCI_Line (Line_Score : in Score_Type;
-                               Line_Pv    : in Move_List;
-                               Line_Len   : in Natural;
-                               Multi      : in Natural) is
-      begin
-         Last := 0;
-         Append ("info depth" & Natural'Image (Depth));
-         Append (" seldepth" & Natural'Image (Sel_Depth));
-         if Multi > 0 then
-            Append (" multipv" & Natural'Image (Multi));
-         end if;
-         if Line_Score >= Mate_Threshold then
-            Append_Mate (True, Mate_Score - Line_Score);
-         elsif Line_Score <= -Mate_Threshold then
-            Append_Mate (False, Mate_Score + Line_Score);
-         else
-            Append (" score cp " & Img (Line_Score));
-         end if;
-         Append (" time" & Long_Integer'Image (Millis));
-         Append (" nodes" & Node_Count_Type'Image (Nodes));
-         Append (" nps" & Long_Integer'Image
-                   (if Millis > 0 then
-                      Long_Integer (Nodes) * 1000 / Millis
-                    else
-                      Long_Integer (Nodes) * 1000));
-         Append (" hashfull " & Img_Nat (Transposition_Hashfull));
-         Append (" tbhits" & Natural'Image (TB_Hits.Value));
-         if Line_Len > 0 then
-            Append (" pv");
-            for I in 1 .. Line_Len loop
-               Append (" " & To_String (Line_Pv (I)));
-            end loop;
-         elsif Best /= Empty_Move then
-            -- The TT gave nothing usable: fall back to the iteration's move.
-            Append (" pv " & To_String (Best));
-         end if;
-         Locked_Put_Line (Line (1 .. Last));
-      end Emit_UCI_Line;
    begin
-      if not UCI_Output then
-         return;
-      end if;
-
-      -- Extract the PV once (also gives the best move's continuation).
-      Extract_PV (Root, Pv, Pv_Len);
-
-      -- The first move of the reported PV must be this iteration's best
-      -- move: if the TT root entry is stale or replaced (or holds a
-      -- different move), fall back to a single-move PV.
-      if Best /= Empty_Move
-        and then (Pv_Len = 0 or else Pv (1) /= Best)
-      then
-         Pv (1) := Best;
-         Pv_Len := 1;
-      end if;
-
       if MultiPV_Value > 1 and then Root_Line_N > 0 then
-         --  One line per reported root move, best first (MultiPV). Each
-         --  line's PV starts with its own root move; Extract_Line_PV reads
-         --  the continuation the TT holds after it.
-         for I in 1 .. Root_Line_N loop
-            declare
-               Line_Pv : Move_List;
-               Line_N  : Natural;
-            begin
-               Extract_Line_PV (Root, Root_Lines (I).Move, Line_Pv, Line_N);
-               Emit_UCI_Line (Root_Lines (I).Score, Line_Pv, Line_N, I);
-            end;
-         end loop;
+         declare
+            Lines : Report.Line_Array (1 .. Root_Line_N);
+         begin
+            for I in 1 .. Root_Line_N loop
+               Lines (I) := (Move  => Root_Lines (I).Move,
+                             Score => Root_Lines (I).Score);
+            end loop;
+            Report.Iteration (Root, Depth, Sel_Depth, Score, Elapsed, Nodes,
+                              TB_Hits.Value, Best, Lines);
+         end;
       else
-         Emit_UCI_Line (Score, Pv, Pv_Len, 0);
+         Report.Iteration (Root, Depth, Sel_Depth, Score, Elapsed, Nodes,
+                           TB_Hits.Value, Best, Report.Empty_Lines);
       end if;
    end Report_Iteration;
 
@@ -2195,7 +1957,7 @@ package body BBChess.Search is
                Undo  : Undo_Info;
                Score : Score_Type;
             begin
-               if Collect and then UCI_Output
+               if Collect and then Report.Enabled
                  and then Depth >= Current_Move_Report_Depth
                then
                   Report_Current_Move (Depth, Root_Moves (I), I);

@@ -3374,3 +3374,23 @@ politique de remplacement lit `S_Tt_Replace` / `S_Tt_Pv_Bonus` /
   meilleurs temps (2,97 s contre 2,68 s, écart dans le bruit de ±15 % de la
   machine). `Probe` et `Store` sont à `pragma Inline` et le build release
   compile avec `-gnatN` et `-flto`, donc l'appel inter-unité est absorbé.
+
+### 105.3 Deuxième étape : PV et compte rendu UCI
+
+`BBChess.Search.PV` (Walk / Extract / Extract_Line, 130 lignes) sort la
+remontée de PV de la table ; `BBChess.Search.Report` (console, verrou, lignes
+`info`, 260 lignes) sort tout ce que le moteur imprime. `Search` garde les
+points d'entrée de son interface (`Set_UCI_Mode`, `Locked_Put_Line`,
+`Log_Worker_Exception`) en une ligne chacun, et une procédure locale
+`Report_Iteration` qui assemble les lignes MultiPV avant de les passer au
+rapport : les deux sites d'appel de la recherche n'ont pas bougé.
+
+Le rapport ne connaît plus l'état interne de la recherche : il reçoit un
+tableau `Line_Array` (coup + score par ligne racine, vide = ligne unique), le
+compte de coups de tablebase et le meilleur coup. `BBChess.Search` passe de
+3 573 à 2 829 lignes ; avec les trois enfants, la couche recherche fait 4 167
+lignes, mais chaque unité a une responsabilité unique.
+
+Vérifié : `--bench 9/12/14` inchangé (467 051 / 1 809 934 / 4 767 382),
+`--selftest` 174/174 en debug (`-gnatwe`), release, portable et checked, et
+les trois passes alternées de `--bench 12` restent dans le bruit.
