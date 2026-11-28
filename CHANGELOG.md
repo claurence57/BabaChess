@@ -6,6 +6,26 @@
 > `bin_bb/adachess_bb`). In BabaChess the sources now live in `src/` and the
 > engine builds as `babachess.gpr` → `bin/babachess`; see `NOTICE.md`.
 
+## Unreleased — invariants et encapsulation du plateau
+
+- **Quatre vues cohérentes encapsulées.** `Pieces`, `All_Occ`, `Color_Occ` et
+  `Squares` sont réunies dans un `Board_State` privé. Les lectures utilisent des
+  accesseurs inlinés ; `SEE` reçoit des snapshots par valeur. Les autres champs
+  indépendants de `Position_Type` restent publics.
+- **Contrats publics réels.** `Lowest_Bit` exige `Board /= 0`. Les mutateurs
+  vérifient case vide, pièce source et cases distinctes, puis leurs postconditions
+  contrôlent les vues mises à jour. `Invariant_Holds` offre une validation
+  complète pour les tests. En checked/debug, les fonctions contractuelles ne sont
+  pas inlinées, car GNAT ne contrôle pas leurs contrats à `-O3` sinon.
+- **`Bit` immuable et statique.** Agrégat constant de 64 masques, sans code
+  d'élaboration ; une sonde externe qui écrit `Bit` ou `All_Occ` ne compile plus.
+- **En passant borné.** `En_Passant_Type` est un entier distinct limité à
+  `-1 .. 63`, avec `Ep_None` inchangé ; les conversions sont explicites aux
+  frontières FEN, Zobrist, Syzygy et null-move.
+- **Non-régression.** `--selftest` : 251 en release/portable, 258 en
+  debug/checked (violations de contrat incluses) ; perft CPW 30/30 ; symétrie
+  0/3000 ; benches inchangés à **467 051 / 1 809 934 / 4 767 382** nœuds.
+
 ## 1.6.0 (2026-11-27)
 
 Notes de release et détail des vérifications : `RELEASE_NOTES_1.6.0.md`.

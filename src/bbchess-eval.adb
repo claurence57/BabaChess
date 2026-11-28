@@ -141,9 +141,9 @@ package body BBChess.Eval is
    -- files in front of them (pure bitboard front-span, no per-pawn loop).
    function Passed_Pawns (Position : in Position_Type;
                           Color    : in Color_Type) return Bitboard is
-      Own   : constant Bitboard := Position.Pieces (Make (Color, Pawn));
+      Own   : constant Bitboard := Piece_Board (Position, Make (Color, Pawn));
       Enemy : constant Bitboard :=
-        Position.Pieces (Make (Opposite (Color), Pawn));
+        Piece_Board (Position, Make (Opposite (Color), Pawn));
    begin
       return Own and not Front_Blockers (Enemy, Color);
    end Passed_Pawns;
@@ -175,7 +175,7 @@ package body BBChess.Eval is
                               Square   : in Square_Type) return Boolean is
    begin
       return (Pawn_Attacks (Opposite (Color), Square)
-              and Position.Pieces (Make (Color, Pawn))) /= 0;
+              and Piece_Board (Position, Make (Color, Pawn))) /= 0;
    end Defended_By_Pawn;
    pragma Inline (Defended_By_Pawn);
 
@@ -263,14 +263,14 @@ package body BBChess.Eval is
       -- Both colors share each kind so a single popcount per kind is enough
       -- (the white and black bitboards are disjoint): one popcount instead of
       -- two added.
-      P := 4 * Popcount (Position.Pieces (White_Knight)
-                         or Position.Pieces (Black_Knight));
-      P := P + 4 * Popcount (Position.Pieces (White_Bishop)
-                             or Position.Pieces (Black_Bishop));
-      P := P + 9 * Popcount (Position.Pieces (White_Rook)
-                             or Position.Pieces (Black_Rook));
-      P := P + 16 * Popcount (Position.Pieces (White_Queen)
-                              or Position.Pieces (Black_Queen));
+      P := 4 * Popcount (Piece_Board (Position, White_Knight)
+                         or Piece_Board (Position, Black_Knight));
+      P := P + 4 * Popcount (Piece_Board (Position, White_Bishop)
+                             or Piece_Board (Position, Black_Bishop));
+      P := P + 9 * Popcount (Piece_Board (Position, White_Rook)
+                             or Piece_Board (Position, Black_Rook));
+      P := P + 16 * Popcount (Piece_Board (Position, White_Queen)
+                              or Piece_Board (Position, Black_Queen));
       if P > 100 then
          P := 100;
       end if;
@@ -372,7 +372,7 @@ package body BBChess.Eval is
    is
       Enemy    : constant Color_Type := Opposite (Color);
       King_Sq  : constant Square_Type :=
-        Lowest_Bit (Position.Pieces (Make (Color, King)));
+        Lowest_Bit (Piece_Board (Position, Make (Color, King)));
       King_File : constant Natural := File_Of (King_Sq);
       Result    : Score_Type := 0;
       Lo, Hi   : Integer;
@@ -411,7 +411,7 @@ package body BBChess.Eval is
                then File_Mask (0) or File_Mask (1) or File_Mask (2)
                else File_Mask (5) or File_Mask (6) or File_Mask (7));
             Own_Wing : constant Bitboard :=
-              Position.Pieces (Make (Color, Pawn)) and Wing;
+              Piece_Board (Position, Make (Color, Pawn)) and Wing;
          begin
             -- Pawn shield per wing file: the frontmost pawn's own row (the
             -- minimum over the file) decides the bonus. Rows 1..3 are tested
@@ -442,7 +442,7 @@ package body BBChess.Eval is
             -- popcount of the enemy pawns on the wing's storm rows.
             declare
                Stormers : constant Natural :=
-                 Popcount (Position.Pieces (Make (Enemy, Pawn))
+                 Popcount (Piece_Board (Position, Make (Enemy, Pawn))
                            and Wing and Storm_Mask (Color));
             begin
                if Stormers /= 0 then
@@ -477,10 +477,10 @@ package body BBChess.Eval is
    is
       Enemy    : constant Color_Type := Opposite (Color);
       Own      : constant Bitboard := Color_Board (Position, Color);
-      Own_Pawns   : constant Bitboard := Position.Pieces (Make (Color, Pawn));
-      Enemy_Pawns : constant Bitboard := Position.Pieces (Make (Enemy, Pawn));
+      Own_Pawns   : constant Bitboard := Piece_Board (Position, Make (Color, Pawn));
+      Enemy_Pawns : constant Bitboard := Piece_Board (Position, Make (Enemy, Pawn));
       Own_King    : constant Square_Type :=
-        Lowest_Bit (Position.Pieces (Make (Color, King)));
+        Lowest_Bit (Piece_Board (Position, Make (Color, King)));
       -- Mobility area: squares not holding an own piece and, when enabled,
       -- not attacked by an enemy pawn.
       Free     : constant Bitboard :=
@@ -488,17 +488,17 @@ package body BBChess.Eval is
          then not (Own or Enemy_Pawn_Att)
          else not Own);
       Enemy_Non_Pawn : constant Bitboard :=
-        Position.Pieces (Make (Enemy, Knight))
-        or Position.Pieces (Make (Enemy, Bishop))
-        or Position.Pieces (Make (Enemy, Rook))
-        or Position.Pieces (Make (Enemy, Queen));
+        Piece_Board (Position, Make (Enemy, Knight))
+        or Piece_Board (Position, Make (Enemy, Bishop))
+        or Piece_Board (Position, Make (Enemy, Rook))
+        or Piece_Board (Position, Make (Enemy, Queen));
       Enemy_King  : constant Square_Type :=
-        Lowest_Bit (Position.Pieces (Make (Enemy, King)));
+        Lowest_Bit (Piece_Board (Position, Make (Enemy, King)));
       -- Enemy rooks/queens: used by the minor-piece threat bonus, computed
       -- below from the same attack sets as the mobility term.
       Majors : constant Bitboard :=
-        Position.Pieces (Make (Enemy, Rook))
-        or Position.Pieces (Make (Enemy, Queen));
+        Piece_Board (Position, Make (Enemy, Rook))
+        or Piece_Board (Position, Make (Enemy, Queen));
       -- The king square itself is included so that a direct check counts.
       Near     : constant Bitboard := Near_Zone (Enemy_King);
       Far      : constant Bitboard := Far_Zone (Enemy_King);
@@ -513,7 +513,7 @@ package body BBChess.Eval is
 
       --  Bishop pair: two bishops on one side gain a bonus.
       function Bishop_Pair_Term return Tapered_Score_Type is
-        (if Popcount (Position.Pieces (Make (Color, Bishop))) = 2
+        (if Popcount (Piece_Board (Position, Make (Color, Bishop))) = 2
          then (Opening => Bishop_Pair_Opening, End_Game => Bishop_Pair_Endgame)
          else (Opening => 0, End_Game => 0));
 
@@ -546,7 +546,7 @@ package body BBChess.Eval is
             Weight_Op     : in Score_Type;
             Weight_Eg     : in Score_Type;
             Attack_Weight : in Score_Type) is
-            Pieces_Here : Bitboard := Position.Pieces (Make (Color, Kind));
+            Pieces_Here : Bitboard := Piece_Board (Position, Make (Color, Kind));
          begin
             while Pieces_Here /= 0 loop
                declare
@@ -657,7 +657,7 @@ package body BBChess.Eval is
       --  Connected rooks: when a rook is defended by a friendly rook (same
       --  file or rank with a clear line), both gain a small bonus.
       function Connected_Rooks_Term return Tapered_Score_Type is
-         RR : Bitboard := Position.Pieces (Make (Color, Rook));
+         RR : Bitboard := Piece_Board (Position, Make (Color, Rook));
          R1 : Square_Type;
       begin
          if Popcount (RR) = 2 then
@@ -835,7 +835,7 @@ package body BBChess.Eval is
       --  King: endgame activity replaces the home-oriented PST.
       function King_Activity_Term return Tapered_Score_Type is
          King_Sq : constant Square_Type :=
-           Lowest_Bit (Position.Pieces (Make (Color, King)));
+           Lowest_Bit (Piece_Board (Position, Make (Color, King)));
          K_Row   : constant Natural := Own_Row (Color, King_Sq);
          K_File  : constant Natural := File_Of (King_Sq);
       begin
@@ -905,20 +905,20 @@ package body BBChess.Eval is
          Weak   : constant Color_Type := Opposite (Strong);
          function NPM (C : in Color_Type) return Score_Type is
            (Piece_Value (Knight)
-              * Score_Type (Popcount (Position.Pieces (Make (C, Knight))))
+              * Score_Type (Popcount (Piece_Board (Position, Make (C, Knight))))
             + Piece_Value (Bishop)
-              * Score_Type (Popcount (Position.Pieces (Make (C, Bishop))))
+              * Score_Type (Popcount (Piece_Board (Position, Make (C, Bishop))))
             + Piece_Value (Rook)
-              * Score_Type (Popcount (Position.Pieces (Make (C, Rook))))
+              * Score_Type (Popcount (Piece_Board (Position, Make (C, Rook))))
             + Piece_Value (Queen)
-              * Score_Type (Popcount (Position.Pieces (Make (C, Queen)))));
+              * Score_Type (Popcount (Piece_Board (Position, Make (C, Queen)))));
          NPM_S : constant Score_Type := NPM (Strong);
          NPM_W : constant Score_Type := NPM (Weak);
       begin
          -- The stronger side has no pawn and at most a minor piece more:
          -- usually impossible (or very hard) to win.
          if Scale_No_Pawn /= 0
-           and then Position.Pieces (Make (Strong, Pawn)) = 0
+           and then Piece_Board (Position, Make (Strong, Pawn)) = 0
            and then NPM_S - NPM_W <= Piece_Value (Bishop)
          then
             if NPM_S < Piece_Value (Rook) then
@@ -929,7 +929,7 @@ package body BBChess.Eval is
                --  still almost always a draw, but a mate may exist, so keep a
                --  small non-zero score rather than scaling to exactly 0.  A
                --  forced mate is still found by the search regardless.
-               if Position.Pieces (Make (Weak, Pawn)) = 0 then
+               if Piece_Board (Position, Make (Weak, Pawn)) = 0 then
                   return 0;
                else
                   return 4;
@@ -953,9 +953,9 @@ package body BBChess.Eval is
          --  Each colour's pawn attack set is the other colour's mobility
          --  exclusion zone and its own pawn-threat set: compute both once.
          W_Pawn_Att : constant Bitboard :=
-           Pawn_Attack_Set (Position.Pieces (Make (White, Pawn)), White);
+           Pawn_Attack_Set (Piece_Board (Position, Make (White, Pawn)), White);
          B_Pawn_Att : constant Bitboard :=
-           Pawn_Attack_Set (Position.Pieces (Make (Black, Pawn)), Black);
+           Pawn_Attack_Set (Piece_Board (Position, Make (Black, Pawn)), Black);
          White_Positional : Tapered_Score_Type :=
            Positional_Score (Position, White, Occ, W_Pawn_Att, B_Pawn_Att,
                              W_Near, W_Far, W_Att, Need_Danger, Trace);
@@ -1086,7 +1086,7 @@ package body BBChess.Eval is
       for P in Piece_Type loop
          declare
             Sign : constant Integer := (if Color (P) = White then 1 else -1);
-            B    : Bitboard := Position.Pieces (P);
+            B    : Bitboard := Piece_Board (Position, P);
          begin
             while B /= 0 loop
                Total := Total + Sign * Material_PST (P, Lowest_Bit (B));

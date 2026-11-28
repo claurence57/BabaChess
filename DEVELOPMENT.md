@@ -3621,3 +3621,72 @@ Le tag `v1.6.0` déclenche `release.yml` : livre régénéré et validé, builds
 et Windows en BMI2/portable, self-tests, contrôle des dépendances GNAT, quatre
 archives et `SHA256SUMS`. La release n'est publiée qu'après réussite du workflow
 et vérification des assets.
+
+## 109. Plateau : contrats et encapsulation de l'état couplé
+
+Le chantier reprend le problème laissé en §54.3, mais sans privatiser les champs
+indépendants (horloges, clé, roques). `Position_Type` contient désormais un
+`Board_State` privé qui réunit `Pieces`, `All_Occ`, `Color_Occ` et `Squares`.
+Un client peut copier ce state en entier, mais ne peut plus en modifier un seul
+composant. Les accesseurs `Piece_Board`, `Occupancy` et `Color_Board` restent
+`Inline` ; `nm` ne trouve plus leurs symboles dans le binaire release. `SEE`
+reçoit `Piece_Boards`/`Color_Boards`, deux snapshots par valeur pour sa copie
+compacte mutable.
+
+`Bit` devient une constante initialisée par un agrégat statique de 64 entrées :
+aucune boucle d'élaboration et aucune écriture externe. La sonde
+`board_mutation_probe.adb`, qui compilait avant, est maintenant rejetée à la fois
+sur `Bit (0) := 0` et sur `P.All_Occ := 0`.
+
+Les préconditions de `Lowest_Bit`, `Put_Piece`, `Remove_Piece` et `Move_Piece`
+sont publiques. Elles n'emploient que `Is_Empty`, `Piece_On` et `Piece_Board`,
+avec `and then` : aucune lecture de `Squares` sur une case vide et aucun cycle
+d'appels. Les postconditions vérifient chaque vue touchée. `Invariant_Holds`
+contrôle en outre l'absence de doublons, les unions exactes des bitboards et la
+correspondance du square map ; il reste hors du chemin chaud.
+
+Un `Type_Invariant` sur `Board_State` n'ajouterait rien : ce type privé n'apparaît
+dans le profil d'aucune opération publique, donc aucun point de vérification
+utile ne serait déclenché. Les contrats des opérations sur `Position_Type` sont
+le bon niveau.
+
+### 109.1 En passant et intrinsèques
+
+`En_Passant_Type` est un type entier distinct borné à `-1 .. 63`. `Ep_None = -1`
+conserve la représentation et la sémantique, mais les autres entiers invalides
+sont refusés. `Undo_Info`, la sauvegarde de null-move et les conversions FEN,
+Zobrist et Syzygy utilisent ce type.
+
+`Lowest_Bit` documente la raison du contrat : `__builtin_ctzll(0)` est indéfini.
+Les deux primitives restent des intrinsèques GCC/GNAT directs ; en portable GCC
+peut appeler libgcc. Ce n'est volontairement pas une interface pour un compilateur
+Ada non GCC.
+
+### 109.2 GNAT : contrats et inlining
+
+Le premier run checked a échoué alors que debug passait : à `-O3`, GNAT n'évalue
+pas les contrats des mutateurs inlinés. En mode `ASSERTS` (debug et checked),
+`Piece_On`, `Lowest_Bit` et les trois mutateurs sont donc `No_Inline`. Release et
+portable gardent l'inlining et leur politique historique `-gnatp`. Les tests de
+violations sont compilés uniquement sous `ASSERTS` : appeler volontairement une
+opération invalide en release ne serait pas un test défini.
+
+Le build strict a aussi montré que la nouvelle constante `Bit` rendait deux
+anciens tests statiquement « toujours vrais ». Les contrôles de bit, file et rank
+sont maintenant fusionnés dans une boucle exhaustive sur les 64 cases : plus de
+constante à replier, davantage de couverture et aucun avertissement masqué.
+
+### 109.3 Vérification
+
+- RED initial : cinq violations acceptées (put occupé, remove mauvaise pièce,
+  destination occupée, mauvaise source, `Lowest_Bit (0)`), puis GREEN ;
+- `--selftest` : **251/251** en release et portable, **258/258** en debug
+  `-gnatwe` et checked ;
+- perft CPW positions 1-6 jusqu'à profondeur 5 : **30/30** ;
+- symétrie : **0 écart sur 3 000 positions** ;
+- `--dump-params` et les deux ensembles `--eval-fens` sont identiques au binaire
+  1.6.0 figé ;
+- bench 9/12/14 : **467 051 / 1 809 934 / 4 767 382**, inchangé ;
+- A/B entrelacé statique : profondeur 12, médiane +2,21 % de temps ; profondeur
+  14, médiane −2,14 %, moyenne +1,17 %. Les dispersions sont larges : aucun gain
+  ou ralentissement n'est établi.

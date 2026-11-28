@@ -105,23 +105,23 @@ package body BBChess.Syzygy is
         (White   => Interfaces.Unsigned_64 (Color_Board (Position, White)),
          Black   => Interfaces.Unsigned_64 (Color_Board (Position, Black)),
          Kings   => Interfaces.Unsigned_64
-                      (Position.Pieces (White_King)
-                       or Position.Pieces (Black_King)),
+                      (Piece_Board (Position, White_King)
+                       or Piece_Board (Position, Black_King)),
          Queens  => Interfaces.Unsigned_64
-                      (Position.Pieces (White_Queen)
-                       or Position.Pieces (Black_Queen)),
+                      (Piece_Board (Position, White_Queen)
+                       or Piece_Board (Position, Black_Queen)),
          Rooks   => Interfaces.Unsigned_64
-                      (Position.Pieces (White_Rook)
-                       or Position.Pieces (Black_Rook)),
+                      (Piece_Board (Position, White_Rook)
+                       or Piece_Board (Position, Black_Rook)),
          Bishops => Interfaces.Unsigned_64
-                      (Position.Pieces (White_Bishop)
-                       or Position.Pieces (Black_Bishop)),
+                      (Piece_Board (Position, White_Bishop)
+                       or Piece_Board (Position, Black_Bishop)),
          Knights => Interfaces.Unsigned_64
-                      (Position.Pieces (White_Knight)
-                       or Position.Pieces (Black_Knight)),
+                      (Piece_Board (Position, White_Knight)
+                       or Piece_Board (Position, Black_Knight)),
          Pawns   => Interfaces.Unsigned_64
-                      (Position.Pieces (White_Pawn)
-                       or Position.Pieces (Black_Pawn)),
+                      (Piece_Board (Position, White_Pawn)
+                       or Piece_Board (Position, Black_Pawn)),
          Rule50   => (if Rule50_On then Interfaces.C.unsigned (Position.Halfmove)
                       else 0),
          Castling => 0,
@@ -167,7 +167,7 @@ package body BBChess.Syzygy is
             end if;
          end loop;
       end loop;
-      if Popcount (Position.All_Occ) > Largest_N then
+      if Popcount (Occupancy (Position)) > Largest_N then
          return False;
       end if;
 
@@ -175,23 +175,23 @@ package body BBChess.Syzygy is
         (White    => Interfaces.Unsigned_64 (Color_Board (Position, White)),
          Black    => Interfaces.Unsigned_64 (Color_Board (Position, Black)),
          Kings    => Interfaces.Unsigned_64
-                       (Position.Pieces (White_King)
-                        or Position.Pieces (Black_King)),
+                       (Piece_Board (Position, White_King)
+                        or Piece_Board (Position, Black_King)),
          Queens   => Interfaces.Unsigned_64
-                       (Position.Pieces (White_Queen)
-                        or Position.Pieces (Black_Queen)),
+                       (Piece_Board (Position, White_Queen)
+                        or Piece_Board (Position, Black_Queen)),
          Rooks    => Interfaces.Unsigned_64
-                       (Position.Pieces (White_Rook)
-                        or Position.Pieces (Black_Rook)),
+                       (Piece_Board (Position, White_Rook)
+                        or Piece_Board (Position, Black_Rook)),
          Bishops  => Interfaces.Unsigned_64
-                       (Position.Pieces (White_Bishop)
-                        or Position.Pieces (Black_Bishop)),
+                       (Piece_Board (Position, White_Bishop)
+                        or Piece_Board (Position, Black_Bishop)),
          Knights  => Interfaces.Unsigned_64
-                       (Position.Pieces (White_Knight)
-                        or Position.Pieces (Black_Knight)),
+                       (Piece_Board (Position, White_Knight)
+                        or Piece_Board (Position, Black_Knight)),
          Pawns    => Interfaces.Unsigned_64
-                       (Position.Pieces (White_Pawn)
-                        or Position.Pieces (Black_Pawn)),
+                       (Piece_Board (Position, White_Pawn)
+                        or Piece_Board (Position, Black_Pawn)),
          Rule50   => (if Rule50_On then unsigned (Position.Halfmove) else 0),
          Castling => 0,
          Ep       => (if Position.En_Passant = Ep_None then 0
@@ -215,7 +215,7 @@ package body BBChess.Syzygy is
          end if;
          Move.From := From_Sq;
          Move.To   := To_Sq;
-         Move.Piece := Position.Squares (From_Sq);
+         Move.Piece := Piece_On (Position, From_Sq);
          if Promo /= 0 then
             Move.Flag := Promotion;
             Move.Promotion :=

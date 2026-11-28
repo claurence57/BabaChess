@@ -48,7 +48,7 @@ package BBChess.Moves is
          Captured        : Piece_Type := White_Pawn;
          Has_Captured    : Boolean := False;
          Captured_Square : Square_Type := 0;
-         En_Passant      : Integer := Ep_None;
+         En_Passant      : En_Passant_Type := Ep_None;
          Castle          : Castle_Rights_Type;
          Halfmove        : Natural := 0;
          Fullmove        : Positive := 1;
@@ -76,8 +76,8 @@ package BBChess.Moves is
        --  the side to move: the self tests legitimately play an off-turn move
        --  to exercise castling-right updates.
        Move.From /= Move.To
-       and then (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0
-       and then (Position.Color_Occ (Color (Move.Piece)) and Bit (Move.To)) = 0;
+       and then (Piece_Board (Position, Move.Piece) and Bit (Move.From)) /= 0
+       and then (Color_Board (Position, Color (Move.Piece)) and Bit (Move.To)) = 0;
    -- Apply Move to Position (moving side = Color (Move.Piece)). Undo holds
    -- enough data for Unmake_Move to restore Position exactly.
 
@@ -93,7 +93,7 @@ package BBChess.Moves is
        --  placed there.
        Move.From /= Move.To
        and then Position.Side = Opposite (Color (Move.Piece))
-       and then (Position.All_Occ and Bit (Move.To)) /= 0;
+       and then (Occupancy (Position) and Bit (Move.To)) /= 0;
    -- Restore Position to the state it had before Make_Move (Position, Move, Undo).
 
    function Start_Position return Position_Type;

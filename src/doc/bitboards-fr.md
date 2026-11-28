@@ -31,10 +31,10 @@ function Rank_Of (Square : in Square_Type) return Natural is (Square / 8);
 ```
 
 Cette convention (a1 en LSB) est le miroir exact du mapping mailbox de MB
-(`a8 = 21 ... h1 = 98`, `DEVELOPMENT.md` §3). Le corps de `BBChess.Board`
-précalcule par ailleurs une table `Bit : array (Square_Type) of Bitboard` où
-`Bit (Square) := 2 ** Square` : ce masque à un seul bit sert partout
-(insertion, retrait, tests d'appartenance).
+(`a8 = 21 ... h1 = 98`, `DEVELOPMENT.md` §3). La spécification expose
+`Bit : constant Bit_Table_Type`, initialisé par un agrégat statique : chaque
+case possède exactement son masque à un bit, sans code d'élaboration ni possibilité
+d'écriture par un client.
 
 ## 2. Position : bitboards de pièces et occupation
 
@@ -45,11 +45,11 @@ bitboards**, un par pièce concrète, plus les occupations :
 type Piece_Board_Array is array (Piece_Type) of Bitboard;
 type Color_Board_Array is array (Color_Type) of Bitboard;
 
+type Board_State is private;
+
 type Position_Type is record
-   Pieces    : Piece_Board_Array := (others => 0);
-   All_Occ   : Bitboard := 0;
-   Color_Occ : Color_Board_Array := (others => 0);
-   Side      : Color_Type := White;
+   Board : Board_State;  -- Pieces + All_Occ + Color_Occ + Squares
+   Side  : Color_Type := White;
    -- ... roque, en passant, compteurs, Zobrist, matériel
 end record;
 ```
@@ -59,19 +59,23 @@ occupe un bloc contigu de six valeurs, `White_Pawn .. White_King` puis
 `Black_Pawn .. Black_King` ; les fonctions `Color`, `Kind` et `Make` le
 décomposent et le recomposent par arithmétique modulaire.
 
-`All_Occ` et `Color_Occ` ne sont **pas** recalculés par balayage : `Put_Piece`
-les met à jour de façon incrémentale avec
-`Position.All_Occ := Position.All_Occ or Bit (Square)`, tandis que
-`Remove_Piece` retire le bit avec `and (not ...)`. Toute mutation passant par
-ces deux procédures, les occupations restent cohérentes.
+`All_Occ` et `Color_Occ` ne sont **pas** recalculés par balayage : `Put_Piece`,
+`Remove_Piece` et `Move_Piece` les mettent à jour de façon incrémentale. Leur
+composant `Board_State` est privé ; les lectures passent par `Occupancy`,
+`Color_Board` et `Piece_Board`, inlinés en release. Les contrats publics refusent
+les cases occupées, vides ou mauvaises pièces selon l'opération. `Squares` peut
+rester périmée sur une case vide et n'est lisible qu'après preuve d'occupation.
 
 ## 3. Opérations setwise de base
 
 Deux primitives parcourent un bitboard sans boucler sur les 64 cases :
 `Lowest_Bit (Board)` (index du bit de poids faible, prérequis `Board /= 0`) et
-`Popcount (Board)` (nombre de bits). Elles sont importées du shim C
-`bbchess-bits.c` (`__builtin_ctzll`, `__builtin_popcountll`), exposées via
-`C_Ctz` et `C_Popcount`. L'effacement du bit de poids faible se fait
+`Popcount (Board)` (nombre de bits). Elles sont importées directement comme
+**intrinsèques GCC/GNAT** (`__builtin_ctzll`, `__builtin_popcountll`), sans shim
+sur ce chemin : release utilise l'instruction machine disponible, portable laisse
+GCC appeler libgcc. Ce n'est donc pas une interface Ada portable à d'autres
+compilateurs. La précondition publique `Board /= 0` protège `ctz`, indéfini à
+zéro. L'effacement du bit de poids faible se fait
 directement, sans intrinsèque : `Board and (Board - 1)`. D'où le motif
 d'itération de la génération de coups : `while Set /= 0 loop Sq := Lowest_Bit
 (Set); ...; Set := Set and (Set - 1); end loop;`.

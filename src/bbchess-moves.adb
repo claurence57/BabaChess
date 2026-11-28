@@ -152,11 +152,11 @@ package body BBChess.Moves is
          -- A capture is detected with the opponent's occupancy (O(1)); the
          -- victim kind is read from the incremental square map (also O(1)),
          -- instead of rescanning the six opponent kind-bitboards.
-         if (Position.Color_Occ (Opp) and Bit (Move.To)) /= 0 then
+         if (Color_Board (Position, Opp) and Bit (Move.To)) /= 0 then
             declare
                Victim : Piece_Type;
             begin
-               pragma Assert ((Position.All_Occ and Bit (Move.To)) /= 0,
+               pragma Assert ((Occupancy (Position) and Bit (Move.To)) /= 0,
                               "Make_Move: capture destination is empty");
                Victim := Piece_On (Position, Move.To);
                Undo.Captured        := Victim;
@@ -242,9 +242,9 @@ package body BBChess.Moves is
                "double push: origin must be on rank 2 (White) / rank 7 (Black)");
             if Ep_Value in 0 .. 63
               and then (Pawn_Attacks (Moving, Square_Type (Ep_Value))
-                        and Position.Pieces (Make (Opposite (Moving), Pawn))) /= 0
+                        and Piece_Board (Position, Make (Opposite (Moving), Pawn))) /= 0
             then
-               Position.En_Passant := Ep_Value;
+               Position.En_Passant := En_Passant_Type (Ep_Value);
             else
                Position.En_Passant := Ep_None;
             end if;
@@ -306,10 +306,10 @@ package body BBChess.Moves is
 
             -- En-passant file: remove the old one, add the new one.
             if Undo.En_Passant /= Ep_None then
-               K := K xor Hash.Ep_Key (Undo.En_Passant mod 8);
+               K := K xor Hash.Ep_Key (Natural (Undo.En_Passant mod 8));
             end if;
             if Position.En_Passant /= Ep_None then
-               K := K xor Hash.Ep_Key (Position.En_Passant mod 8);
+               K := K xor Hash.Ep_Key (Natural (Position.En_Passant mod 8));
             end if;
 
             -- The side to move always flips.

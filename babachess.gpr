@@ -62,7 +62,7 @@ project BabaChess is
             --  that carries them (release/portable stay quiet and fast).
             for Switches ("ada") use
               ("-gnat2012", "-gnata", "-g", "-gnatwa", "-gnatVa",
-               "-gnatep=../src/prep.data") & Arch_Switches;
+               "-gnatep=../src/prep.data", "-gnateDASSERTS") & Arch_Switches;
             for Switches ("c") use ("-O0", "-g") & Arch_Switches;
          when "portable" =>
             --  No -mpopcnt/-mbmi/-mbmi2: runs on any x86-64 CPU, using the
@@ -79,7 +79,7 @@ project BabaChess is
             --  distribution. Same ISA switches and preprocessing as release.
             for Switches ("ada") use
               ("-gnat2012", "-gnata", "-gnatN", "-O3", "-gnatf",
-               "-gnatep=../src/prep.data", "-gnateDREL",
+               "-gnatep=../src/prep.data", "-gnateDASSERTS", "-gnateDREL",
                "-mpopcnt", "-mbmi", "-mbmi2", "-flto") & Arch_Switches;
             for Switches ("c") use
               ("-O3", "-mpopcnt", "-mbmi", "-mbmi2") & Arch_Switches;

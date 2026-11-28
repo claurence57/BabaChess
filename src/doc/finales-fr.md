@@ -38,13 +38,13 @@ tient en cinq sous-programmes : `Init (Path, Ok)`, `Free`, `Largest`, `Enabled`
 et `Probe_WDL (Position) return Integer`. `Init` renvoie `Ok = False` si aucune
 table utilisable n'est trouvée ; dans ce cas `Largest = 0` et `Enabled = False`.
 `Probe_WDL` convertit la `Position` en bitboards Fathom (`Color_Board`,
-`Position.Pieces`, `Position.En_Passant`) et renvoie le code WDL 0..4 ou `-1`.
+`Piece_Board`, `Position.En_Passant`) et renvoie le code WDL 0..4 ou `-1`.
 
 ### 2.2 Où et comment la sonde est appelée
 
 La sonde est au début de `Negamax` (`bbchess-search.adb`), après la détection
 de répétition. Elle n'est tentée que si `BBChess.Syzygy.Enabled` et
-`Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest` (garde de matériel).
+`Popcount (Occupancy (Position)) <= BBChess.Syzygy.Largest` (garde de matériel).
 Le code WDL est ensuite converti : `4` (TB_WIN) devient
 `BBChess.Syzygy.TB_Win - Ply` ; `0` (TB_LOSS) devient
 `-(BBChess.Syzygy.TB_Win - Ply)` ; `1 | 2 | 3` (nulle / blessed / cursed)

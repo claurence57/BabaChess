@@ -75,7 +75,7 @@ package body BBChess.Hash is
    begin
       for P in Piece_Type loop
          declare
-            B : Bitboard := Position.Pieces (P);
+            B : Bitboard := Piece_Board (Position, P);
          begin
             while B /= 0 loop
                declare
@@ -101,7 +101,7 @@ package body BBChess.Hash is
       end loop;
 
       if Position.En_Passant /= Ep_None then
-         Result := Result xor Ep_Key_Val (Position.En_Passant mod 8);
+         Result := Result xor Ep_Key_Val (Natural (Position.En_Passant mod 8));
       end if;
 
       return Result;

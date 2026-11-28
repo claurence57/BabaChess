@@ -36,14 +36,14 @@ symbols: `baba_tb_init`, `baba_tb_free`, `baba_tb_largest` and `baba_tb_wdl`
 subprograms: `Init (Path, Ok)`, `Free`, `Largest`, `Enabled` and
 `Probe_WDL (Position) return Integer`. `Init` returns `Ok = False` if no usable
 table is found; in that case `Largest = 0` and `Enabled = False`. `Probe_WDL`
-converts the `Position` into Fathom bitboards (`Color_Board`, `Position.Pieces`,
+converts the `Position` into Fathom bitboards (`Color_Board`, `Piece_Board`,
 `Position.En_Passant`) and returns the WDL code 0..4 or `-1`.
 
 ### 2.2 Where and how the probe is called
 
 The probe is at the start of `Negamax` (`bbchess-search.adb`), after repetition
 detection. It is only attempted if `BBChess.Syzygy.Enabled` and
-`Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest` (material guard). The
+`Popcount (Occupancy (Position)) <= BBChess.Syzygy.Largest` (material guard). The
 WDL code is then converted: `4` (TB_WIN) becomes `BBChess.Syzygy.TB_Win - Ply`;
 `0` (TB_LOSS) becomes `-(BBChess.Syzygy.TB_Win - Ply)`; `1 | 2 | 3` (draw /
 blessed / cursed) becomes `0`; any other code lets the search continue normally.

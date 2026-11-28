@@ -59,8 +59,10 @@ Beyond the squares, a position carries **incremental state** maintained by
 - `Key`, the **Zobrist** key used by the transposition table (`src/bbchess-hash.ads`);
 - `Material`, the material sum together with the piece-square tables.
 
-The `Squares` table is only meaningful on an occupied square: that invariant must be
-respected when reading it.
+The `Squares` table is only meaningful on an occupied square. The four coupled
+representations (`Pieces`, `All_Occ`, `Color_Occ`, `Squares`) are encapsulated in
+a private `Board_State`; inlined accessors and mutator contracts prevent them
+from diverging without changing the release hot path.
 
 ## 2.3 Attacks: leapers and sliders
 

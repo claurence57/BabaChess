@@ -638,12 +638,12 @@ package body BBChess.Search is
       --  A non-capturing promotion has no victim; the quiescence MVV pass
       --  nevertheless asks for one, and historically used a pawn.
       if Move.Flag = Promotion
-        and then (Position.All_Occ and Bit (Move.To)) = 0
+        and then (Occupancy (Position) and Bit (Move.To)) = 0
       then
          return Pawn;
       end if;
       --  Every other call is a capture whose destination is occupied.
-      pragma Assert ((Position.All_Occ and Bit (Move.To)) /= 0,
+      pragma Assert ((Occupancy (Position) and Bit (Move.To)) /= 0,
                      "Captured_Kind: destination is empty");
       return Kind (Piece_On (Position, Move.To));
    end Captured_Kind;
@@ -829,10 +829,10 @@ package body BBChess.Search is
    function Has_Non_Pawn (Position : in Position_Type; Color : in Color_Type)
      return Boolean is
    begin
-      return (Position.Pieces (Make (Color, Knight))
-              or Position.Pieces (Make (Color, Bishop))
-              or Position.Pieces (Make (Color, Rook))
-              or Position.Pieces (Make (Color, Queen))) /= 0;
+      return (Piece_Board (Position, Make (Color, Knight))
+              or Piece_Board (Position, Make (Color, Bishop))
+              or Piece_Board (Position, Make (Color, Rook))
+              or Piece_Board (Position, Make (Color, Queen))) /= 0;
    end Has_Non_Pawn;
    pragma Inline (Has_Non_Pawn);
 
@@ -844,21 +844,21 @@ package body BBChess.Search is
       W_Minor : Bitboard;
       B_Minor : Bitboard;
    begin
-      if Popcount (Position.All_Occ) > 4 then
+      if Popcount (Occupancy (Position)) > 4 then
          return False;
       end if;
 
-      if (Position.Pieces (White_Pawn) or Position.Pieces (Black_Pawn)
-          or Position.Pieces (White_Rook) or Position.Pieces (Black_Rook)
-          or Position.Pieces (White_Queen) or Position.Pieces (Black_Queen)) /= 0
+      if (Piece_Board (Position, White_Pawn) or Piece_Board (Position, Black_Pawn)
+          or Piece_Board (Position, White_Rook) or Piece_Board (Position, Black_Rook)
+          or Piece_Board (Position, White_Queen) or Piece_Board (Position, Black_Queen)) /= 0
       then
          return False;
       end if;
 
-      W_Minor := Position.Pieces (White_Knight)
-        or Position.Pieces (White_Bishop);
-      B_Minor := Position.Pieces (Black_Knight)
-        or Position.Pieces (Black_Bishop);
+      W_Minor := Piece_Board (Position, White_Knight)
+        or Piece_Board (Position, White_Bishop);
+      B_Minor := Piece_Board (Position, Black_Knight)
+        or Piece_Board (Position, Black_Bishop);
 
       -- King vs king, or a lone minor against a bare king.
       if Popcount (W_Minor) <= 1 and then Popcount (B_Minor) = 0 then
@@ -869,14 +869,14 @@ package body BBChess.Search is
       end if;
 
       -- Bishops on the same color complex cannot mate.
-      if Position.Pieces (White_Knight) = 0
-        and then Position.Pieces (Black_Knight) = 0
-        and then Popcount (Position.Pieces (White_Bishop)) = 1
-        and then Popcount (Position.Pieces (Black_Bishop)) = 1
-        and then (Lowest_Bit (Position.Pieces (White_Bishop)) mod 8
-                  + Lowest_Bit (Position.Pieces (White_Bishop)) / 8) mod 2
-                 = (Lowest_Bit (Position.Pieces (Black_Bishop)) mod 8
-                  + Lowest_Bit (Position.Pieces (Black_Bishop)) / 8) mod 2
+      if Piece_Board (Position, White_Knight) = 0
+        and then Piece_Board (Position, Black_Knight) = 0
+        and then Popcount (Piece_Board (Position, White_Bishop)) = 1
+        and then Popcount (Piece_Board (Position, Black_Bishop)) = 1
+        and then (Lowest_Bit (Piece_Board (Position, White_Bishop)) mod 8
+                  + Lowest_Bit (Piece_Board (Position, White_Bishop)) / 8) mod 2
+                 = (Lowest_Bit (Piece_Board (Position, Black_Bishop)) mod 8
+                  + Lowest_Bit (Piece_Board (Position, Black_Bishop)) / 8) mod 2
       then
          return True;
       end if;
@@ -1156,7 +1156,7 @@ package body BBChess.Search is
       if Report
         and then Search_Params (S_Syzygy_Root) /= 0
         and then BBChess.Syzygy.Has_DTZ
-        and then Popcount (Work.All_Occ)
+        and then Popcount (Occupancy (Work))
           <= Search_Params (S_Syzygy_Root_Max_Pieces)
         and then Work.Halfmove >= Search_Params (S_Syzygy_Root_Min_Hm)
       then

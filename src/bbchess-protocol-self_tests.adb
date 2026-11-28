@@ -218,8 +218,8 @@ package body BBChess.Protocol.Self_Tests is
          P : constant Position_Type := BBChess.Protocol.Position_Of;
       begin
          Assert (P.Side = White, "position: Black played, White to move");
-         Assert ((P.Pieces (White_Pawn) and Bit (28)) /= 0, "position: e4 pawn");
-         Assert ((P.Pieces (Black_Pawn) and Bit (36)) /= 0, "position: e5 pawn");
+         Assert ((Piece_Board (P, White_Pawn) and Bit (28)) /= 0, "position: e4 pawn");
+         Assert ((Piece_Board (P, Black_Pawn) and Bit (36)) /= 0, "position: e5 pawn");
          Assert (BBChess.Protocol.Key_Of = BBChess.Protocol.Key_Of,
                  "position: key readable");
       end;

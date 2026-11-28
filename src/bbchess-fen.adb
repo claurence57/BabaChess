@@ -163,7 +163,7 @@ package body BBChess.Fen is
 
          function Home (Piece : in Piece_Type; Square : in Square_Type)
            return Boolean is
-           ((Pos.Pieces (Piece) and Bit (Square)) /= 0);
+           ((Piece_Board (Pos, Piece) and Bit (Square)) /= 0);
       begin
          Pos.Castle := (others => (others => False));
          for C of Castle loop
@@ -241,9 +241,9 @@ package body BBChess.Fen is
                        --  it changes the Zobrist key), so it is dropped here
                        --  exactly as Make_Move drops it.
                        and then (Pawn_Attacks (Opposite (Pos.Side), Sq)
-                                 and Pos.Pieces (Make (Pos.Side, Pawn))) /= 0
+                                 and Piece_Board (Pos, Make (Pos.Side, Pawn))) /= 0
                      then
-                        Pos.En_Passant := Sq;
+                        Pos.En_Passant := En_Passant_Type (Sq);
                      end if;
                   end;
                end if;
@@ -282,9 +282,9 @@ package body BBChess.Fen is
       -- search when it tries to locate a missing king.
       declare
          White_Kings : constant Natural :=
-           Popcount (Pos.Pieces (Make (White, King)));
+           Popcount (Piece_Board (Pos, Make (White, King)));
          Black_Kings : constant Natural :=
-           Popcount (Pos.Pieces (Make (Black, King)));
+           Popcount (Piece_Board (Pos, Make (Black, King)));
       begin
          if White_Kings /= 1 or else Black_Kings /= 1 then
             raise Constraint_Error with "FEN must have exactly one king per side";
@@ -294,7 +294,7 @@ package body BBChess.Fen is
       -- Material consistency: at most 8 pawns, none on rank 1/8, and no more
       -- promoted pieces than missing pawns. This bounds the pseudo-legal
       -- move count (Move_List is 1 .. 256 and unchecked under -gnatp).
-      if ((Pos.Pieces (White_Pawn) or Pos.Pieces (Black_Pawn))
+      if ((Piece_Board (Pos, White_Pawn) or Piece_Board (Pos, Black_Pawn))
           and 16#FF000000000000FF#) /= 0
       then
          raise Constraint_Error with "FEN has a pawn on rank 1 or 8";
@@ -302,7 +302,7 @@ package body BBChess.Fen is
       for C in Color_Type loop
          declare
             function N (K : Kind_Type) return Natural is
-              (Popcount (Pos.Pieces (Make (C, K))));
+              (Popcount (Piece_Board (Pos, Make (C, K))));
             Extra : constant Natural :=
               Natural'Max (0, N (Queen) - 1) + Natural'Max (0, N (Rook) - 2)
               + Natural'Max (0, N (Bishop) - 2) + Natural'Max (0, N (Knight) - 2);

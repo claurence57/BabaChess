@@ -315,9 +315,9 @@ package body BBChess.See is
       declare
          B : See_Board;
       begin
-         B.Pieces    := Position.Pieces;
-         B.All_Occ   := Position.All_Occ;
-         B.Color_Occ := Position.Color_Occ;
+         B.Pieces    := Piece_Boards (Position);
+         B.All_Occ   := Occupancy (Position);
+         B.Color_Occ := Color_Boards (Position);
 
          if Move.Flag = En_Passant then
             See_Remove (B, Captured, Victim_Square);

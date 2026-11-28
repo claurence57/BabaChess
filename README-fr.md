@@ -39,8 +39,9 @@ parle **UCI**.
 - Livre d'ouvertures **Polyglot** et tables de finales **Syzygy** (via une sonde
   Fathom intégrée).
 - Gestion du temps souple/stricte avec prise en charge de `movestogo`.
-- Suite d'autotests intégrale (176 vérifications, compteur réussite/échec avec
-  code de sortie non nul en cas d'échec) : perft 1-5, Zobrist, coups empaquetés,
+- Suite d'autotests intégrale (251 vérifications, 258 avec assertions) ; le
+  compteur réussite/échec produit un code de sortie non nul en cas d'échec :
+  perft 1-5, Zobrist, coups empaquetés,
   validation FEN, recherche, répétition, SEE, clés Polyglot, durcissement du
   fichier de livre et analyse du protocole.
 
@@ -77,7 +78,7 @@ l'historique d'optimisation CPU.
 ## Tests
 
 ```bash
-./bin/babachess --selftest    # 176 checks: perft 1-5, Zobrist, FEN, search,
+./bin/babachess --selftest    # 251 checks (258 with assertions): perft, Zobrist,
                               # SEE, Polyglot (+ book hardening, protocol)
 ./bin/babachess --bench 9     # 8 fixed positions at depth 9 -> nodes/time/knps
 ```
@@ -131,7 +132,7 @@ Vérification de bon fonctionnement :
 ```bash
 printf 'uci\nquit\n' | ./babachess    # -> id name BabaChess <version> ... uciok
 ./bin/babachess --version             # -> BabaChess <version>
-./bin/babachess --selftest            # -> 176 checks passed, 0 failed
+./bin/babachess --selftest            # -> 251 checks passed (258 in debug/checked)
 ```
 
 ## Utilisation du moteur

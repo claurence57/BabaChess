@@ -16,7 +16,7 @@ package body BBChess.Movegen is
    function King_Square (Position : in Position_Type; Color : in Color_Type)
      return Square_Type is
    begin
-      return Lowest_Bit (Position.Pieces (Make (Color, King)));
+      return Lowest_Bit (Piece_Board (Position, Make (Color, King)));
    end King_Square;
 
    function Is_Attacked (Position : in Position_Type;
@@ -29,30 +29,30 @@ package body BBChess.Movegen is
       -- sits on the squares a Black pawn standing on Square would attack
       -- (and vice versa).
       if By = White then
-         if (Pawn_Attacks (Black, Square) and Position.Pieces (White_Pawn)) /= 0 then
+         if (Pawn_Attacks (Black, Square) and Piece_Board (Position, White_Pawn)) /= 0 then
             return True;
          end if;
       else
-         if (Pawn_Attacks (White, Square) and Position.Pieces (Black_Pawn)) /= 0 then
+         if (Pawn_Attacks (White, Square) and Piece_Board (Position, Black_Pawn)) /= 0 then
             return True;
          end if;
       end if;
 
-      if (Knight_Attacks (Square) and Position.Pieces (Make (By, Knight))) /= 0 then
+      if (Knight_Attacks (Square) and Piece_Board (Position, Make (By, Knight))) /= 0 then
          return True;
       end if;
 
-      if (King_Attacks (Square) and Position.Pieces (Make (By, King))) /= 0 then
+      if (King_Attacks (Square) and Piece_Board (Position, Make (By, King))) /= 0 then
          return True;
       end if;
 
       if (Bishop_Attacks (Square, Occ) and
-          (Position.Pieces (Make (By, Bishop)) or Position.Pieces (Make (By, Queen)))) /= 0 then
+          (Piece_Board (Position, Make (By, Bishop)) or Piece_Board (Position, Make (By, Queen)))) /= 0 then
          return True;
       end if;
 
       if (Rook_Attacks (Square, Occ) and
-          (Position.Pieces (Make (By, Rook)) or Position.Pieces (Make (By, Queen)))) /= 0 then
+          (Piece_Board (Position, Make (By, Rook)) or Piece_Board (Position, Make (By, Queen)))) /= 0 then
          return True;
       end if;
 
@@ -76,17 +76,17 @@ package body BBChess.Movegen is
    begin
       return
         (Pawn_Attacks (Opposite (By), Square)
-           and Position.Pieces (Make (By, Pawn)))
+           and Piece_Board (Position, Make (By, Pawn)))
         or (Knight_Attacks (Square)
-              and Position.Pieces (Make (By, Knight)))
+              and Piece_Board (Position, Make (By, Knight)))
         or (Bishop_Attacks (Square, Occ)
-              and (Position.Pieces (Make (By, Bishop))
-                     or Position.Pieces (Make (By, Queen))))
+              and (Piece_Board (Position, Make (By, Bishop))
+                     or Piece_Board (Position, Make (By, Queen))))
         or (Rook_Attacks (Square, Occ)
-              and (Position.Pieces (Make (By, Rook))
-                     or Position.Pieces (Make (By, Queen))))
+              and (Piece_Board (Position, Make (By, Rook))
+                     or Piece_Board (Position, Make (By, Queen))))
         or (King_Attacks (Square)
-              and Position.Pieces (Make (By, King)));
+              and Piece_Board (Position, Make (By, King)));
    end Attackers_To;
 
    function King_In_Check (Position : in Position_Type; Color : in Color_Type)
@@ -131,7 +131,7 @@ package body BBChess.Movegen is
          --  Occupancy after the move: origin vacated, destination occupied
          --  (the captured piece, if any, is overwritten by the mover).
          Occ : constant Bitboard :=
-           (Position.All_Occ and not Bit (Move.From)) or Bit (Move.To);
+           (Occupancy (Position) and not Bit (Move.From)) or Bit (Move.To);
       begin
          -- Direct check: the moved piece attacks the enemy king from To.
          case Kind (Move.Piece) is
@@ -163,9 +163,9 @@ package body BBChess.Movegen is
          -- king and the move opens that line. Necessary condition first.
          declare
             Own_Sliders : constant Bitboard :=
-              Position.Pieces (Make (Us, Bishop))
-              or Position.Pieces (Make (Us, Rook))
-              or Position.Pieces (Make (Us, Queen));
+              Piece_Board (Position, Make (Us, Bishop))
+              or Piece_Board (Position, Make (Us, Rook))
+              or Piece_Board (Position, Make (Us, Queen));
          begin
             if Own_Sliders /= 0
               and then (Line (King_Sq, Move.From) and Own_Sliders) /= 0
@@ -174,15 +174,15 @@ package body BBChess.Movegen is
                   R_After : constant Bitboard := Rook_Attacks (King_Sq, Occ);
                   B_After : constant Bitboard := Bishop_Attacks (King_Sq, Occ);
                   R_New   : constant Bitboard :=
-                    R_After and not Rook_Attacks (King_Sq, Position.All_Occ);
+                    R_After and not Rook_Attacks (King_Sq, Occupancy (Position));
                   B_New   : constant Bitboard :=
-                    B_After and not Bishop_Attacks (King_Sq, Position.All_Occ);
+                    B_After and not Bishop_Attacks (King_Sq, Occupancy (Position));
                   Own_RQ  : constant Bitboard :=
-                    Position.Pieces (Make (Us, Rook))
-                    or Position.Pieces (Make (Us, Queen));
+                    Piece_Board (Position, Make (Us, Rook))
+                    or Piece_Board (Position, Make (Us, Queen));
                   Own_BQ  : constant Bitboard :=
-                    Position.Pieces (Make (Us, Bishop))
-                    or Position.Pieces (Make (Us, Queen));
+                    Piece_Board (Position, Make (Us, Bishop))
+                    or Piece_Board (Position, Make (Us, Queen));
                   Rook_Opened : constant Boolean := (R_New and Own_RQ) /= 0;
                   Bishop_Opened : constant Boolean := (B_New and Own_BQ) /= 0;
                begin
@@ -214,14 +214,14 @@ package body BBChess.Movegen is
    begin
       return Pinned
         (Occ                => Occupancy (Position),
-         King_Sq            => Lowest_Bit (Position.Pieces (Make (Color, King))),
-         Own                => Position.Color_Occ (Color),
+         King_Sq            => Lowest_Bit (Piece_Board (Position, Make (Color, King))),
+         Own                => Color_Board (Position, Color),
          Enemy_Rook_Queen   =>
-           Position.Pieces (Make (Enemy, Rook))
-           or Position.Pieces (Make (Enemy, Queen)),
+           Piece_Board (Position, Make (Enemy, Rook))
+           or Piece_Board (Position, Make (Enemy, Queen)),
          Enemy_Bishop_Queen =>
-           Position.Pieces (Make (Enemy, Bishop))
-           or Position.Pieces (Make (Enemy, Queen)));
+           Piece_Board (Position, Make (Enemy, Bishop))
+           or Piece_Board (Position, Make (Enemy, Queen)));
    end Pin_Mask;
 
    ---------------------
@@ -281,7 +281,7 @@ package body BBChess.Movegen is
         (if Tactical then Enemy else not Own);
 
       function Board_Of (Kind : in Kind_Type) return Bitboard is
-        (Position.Pieces (Make (Side, Kind)));
+        (Piece_Board (Position, Make (Side, Kind)));
 
       From : Square_Type;
       Pieces : Bitboard;
@@ -453,7 +453,7 @@ begin
       -- reported so the legal filter can tell the (filtered) king moves from
       -- the plain non-king moves that precede them.
       King_First := Count + 1;
-      From := Lowest_Bit (Position.Pieces (King_Piece));
+      From := Lowest_Bit (Piece_Board (Position, King_Piece));
       declare
          Targets : Bitboard := King_Attacks (From) and Target_Mask;
 begin

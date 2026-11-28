@@ -62,8 +62,10 @@ Au-delà des cases, une position porte un **état incrémental** entretenu par
   (`src/bbchess-hash.ads`) ;
 - `Material`, la somme matérielle avec les tables de position.
 
-La table `Squares` n'est valide que sur une case occupée : c'est un invariant à respecter à
-la lecture.
+La table `Squares` n'est valide que sur une case occupée. Les quatre représentations
+couplées (`Pieces`, `All_Occ`, `Color_Occ`, `Squares`) sont encapsulées dans un
+`Board_State` privé ; les accesseurs inlinés et les contrats des mutateurs empêchent
+leur désynchronisation sans changer le chemin release.
 
 ## 2.3 Attaques : sauteurs et glisseurs
 

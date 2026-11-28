@@ -92,7 +92,7 @@ separate (BBChess.Search)
       if BBChess.Syzygy.Enabled
         and then (Position.Halfmove = 0
                   or else not BBChess.Syzygy.Fifty_Move_Rule)
-        and then Popcount (Position.All_Occ) <= BBChess.Syzygy.Largest
+        and then Popcount (Occupancy (Position)) <= BBChess.Syzygy.Largest
       then
          declare
             W : constant Integer := BBChess.Syzygy.Probe_WDL (Position);
@@ -206,7 +206,7 @@ separate (BBChess.Search)
             -- call restores the board through Unmake), so saving just those
             -- three fields avoids copying the whole Position.
             Saved_Side : constant Color_Type := Position.Side;
-            Saved_Ep   : constant Integer := Position.En_Passant;
+            Saved_Ep   : constant En_Passant_Type := Position.En_Passant;
             Saved_Key  : constant Bitboard := Position.Key;
             -- Standard adaptive null-move reduction: deeper nodes get a
             -- larger reduction (R = 3 + Depth / 4, integer division).
@@ -225,7 +225,7 @@ separate (BBChess.Search)
             end if;
             if Position.En_Passant /= Ep_None then
                Position.Key :=
-                 Position.Key xor Hash.Ep_Key (Position.En_Passant mod 8);
+                 Position.Key xor Hash.Ep_Key (Natural (Position.En_Passant mod 8));
             end if;
             Position.En_Passant := Ep_None;
             Position.Side := Opposite (Position.Side);

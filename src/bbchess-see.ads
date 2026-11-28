@@ -46,7 +46,7 @@ package BBChess.See is
        --  the exchange.
        Move.From /= Move.To
        and then (Move.Flag = Promotion
-                 or else (Position.Pieces (Move.Piece) and Bit (Move.From)) /= 0);
+                 or else (Piece_Board (Position, Move.Piece) and Bit (Move.From)) /= 0);
 
    pragma Inline_Always (Static_Exchange_Value);
    pragma Warnings (On, "not enforced on inlined subprogram");

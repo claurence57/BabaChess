@@ -182,7 +182,7 @@ package body BBChess.Polyglot is
       B   : Bitboard;
    begin
       for Piece in Piece_Type loop
-         B := Position.Pieces (Piece);
+         B := Piece_Board (Position, Piece);
          while B /= 0 loop
             declare
                Sq  : constant Square_Type := Lowest_Bit (B);
@@ -224,7 +224,7 @@ package body BBChess.Polyglot is
             else
                Att := North_1 (East_1 (Ep_Bit)) or North_1 (West_1 (Ep_Bit));
             end if;
-            if (Att and Position.Pieces (Make (Position.Side, Pawn))) /= 0 then
+            if (Att and Piece_Board (Position, Make (Position.Side, Pawn))) /= 0 then
                Key := Key xor Polyglot_Random (772 + File_Of (Ep_Sq));
             end if;
          end;

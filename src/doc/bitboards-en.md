@@ -31,10 +31,9 @@ function Rank_Of (Square : in Square_Type) return Natural is (Square / 8);
 ```
 
 This convention (a1 at the LSB) is the exact mirror of MB's mailbox mapping
-(`a8 = 21 ... h1 = 98`, `DEVELOPMENT.md` §3). The body of `BBChess.Board` also
-precomputes a table `Bit : array (Square_Type) of Bitboard` where
-`Bit (Square) := 2 ** Square`: this single-bit mask is used everywhere
-(setting, clearing, membership tests).
+(`a8 = 21 ... h1 = 98`, `DEVELOPMENT.md` §3). The specification exposes
+`Bit : constant Bit_Table_Type`, initialised by a static aggregate: every square
+has exactly its single-bit mask, with no elaboration code and no client writes.
 
 ## 2. Position: piece bitboards and occupancy
 
@@ -45,11 +44,11 @@ bitboards**, one per concrete piece, plus the occupancies:
 type Piece_Board_Array is array (Piece_Type) of Bitboard;
 type Color_Board_Array is array (Color_Type) of Bitboard;
 
+type Board_State is private;
+
 type Position_Type is record
-   Pieces    : Piece_Board_Array := (others => 0);
-   All_Occ   : Bitboard := 0;
-   Color_Occ : Color_Board_Array := (others => 0);
-   Side      : Color_Type := White;
+   Board : Board_State;  -- Pieces + All_Occ + Color_Occ + Squares
+   Side  : Color_Type := White;
    -- ... castling, en passant, counters, Zobrist, material
 end record;
 ```
@@ -59,19 +58,23 @@ a contiguous block of six values, `White_Pawn .. White_King` then
 `Black_Pawn .. Black_King`; the functions `Color`, `Kind` and `Make` split it
 and rebuild it by modular arithmetic.
 
-`All_Occ` and `Color_Occ` are **not** recomputed by scanning: `Put_Piece`
-updates them incrementally with
-`Position.All_Occ := Position.All_Occ or Bit (Square)`, while
-`Remove_Piece` clears the bit with `and (not ...)`. Since every mutation goes
-through these two procedures, the occupancies stay consistent.
+`All_Occ` and `Color_Occ` are **not** recomputed by scanning: `Put_Piece`,
+`Remove_Piece` and `Move_Piece` update them incrementally. Their `Board_State`
+component is private; reads use `Occupancy`, `Color_Board` and `Piece_Board`,
+inlined in release. Public contracts reject occupied/empty squares or the wrong
+piece as appropriate. `Squares` may be stale on an empty square and is only read
+after occupancy has been proved.
 
 ## 3. Basic setwise operations
 
 Two primitives walk a bitboard without looping over the 64 squares:
 `Lowest_Bit (Board)` (index of the least-significant bit, precondition
-`Board /= 0`) and `Popcount (Board)` (number of bits). They are imported from
-the C shim `bbchess-bits.c` (`__builtin_ctzll`, `__builtin_popcountll`),
-exposed via `C_Ctz` and `C_Popcount`. Clearing the least-significant bit is done
+`Board /= 0`) and `Popcount (Board)` (number of bits). They are imported directly
+as **GCC/GNAT intrinsics** (`__builtin_ctzll`, `__builtin_popcountll`), without a
+shim on this path: release uses the available machine instruction and portable
+lets GCC call libgcc. This is deliberately not portable to non-GCC Ada compilers.
+The public `Board /= 0` precondition protects `ctz`, which is undefined at zero.
+Clearing the least-significant bit is done
 directly, without an intrinsic: `Board and (Board - 1)`. Hence the iteration
 pattern of move generation: `while Set /= 0 loop Sq := Lowest_Bit (Set); ...;
 Set := Set and (Set - 1); end loop;`.

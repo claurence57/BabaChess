@@ -8,6 +8,7 @@
 --
 
 with Ada.Text_IO;
+with Ada.Assertions;
 with Ada.Real_Time;
 with Ada.Command_Line;
 with Ada.Streams;
@@ -84,12 +85,144 @@ package body BBChess.Self_Tests is
    procedure Test_Board_Primitives is
       Position : Position_Type;
    begin
-      -- Bitboard / square mapping primitives.
-      Assert (Bit (0) = 1, "bit 0 must be a1 (lsb)");
-      Assert (Bit (63) = Bitboard (2 ** 63), "bit 63 must be h8 (msb)");
-      Assert (File_Of (0) = 0 and Rank_Of (0) = 0, "a1 must be file 0 rank 0");
-      Assert (File_Of (63) = 7 and Rank_Of (63) = 7, "h8 must be file 7 rank 7");
+      -- Bitboard / square mapping primitives, exhaustively over 64 squares.
       Assert (Popcount (Bit (3) or Bit (40)) = 2, "popcount of two bits");
+      for S in Square_Type loop
+         Assert (Bit (S) = Bitboard (2 ** S)
+                   and then Popcount (Bit (S)) = 1
+                   and then Lowest_Bit (Bit (S)) = S
+                   and then File_Of (S) = S mod 8
+                   and then Rank_Of (S) = S / 8,
+                 "each square must have its exact bit, file and rank");
+      end loop;
+
+      -- Valid mutations preserve every piece/occupancy view.
+      declare
+         P     : Position_Type;
+         Piece : Piece_Type;
+      begin
+         Assert (Invariant_Holds (P), "the default board must be coherent");
+         Put_Piece (P, White_Rook, 0);
+         Assert (Invariant_Holds (P), "Put_Piece must preserve coherence");
+         Assert (Piece_At (P, 0, Piece) and then Piece = White_Rook,
+                 "Put_Piece must expose the inserted piece");
+         Assert (Popcount (Occupancy (P)) = 1
+                   and then Popcount (Color_Board (P, White)) = 1,
+                 "Put_Piece must update both occupancies");
+         Put_Piece (P, Black_Pawn, 9);
+         Assert (Invariant_Holds (P), "a second insertion must preserve coherence");
+         Move_Piece (P, White_Rook, 0, 1);
+         Assert (Invariant_Holds (P), "Move_Piece must preserve coherence");
+         Assert (Is_Empty (P, 0)
+                   and then Piece_At (P, 1, Piece) and then Piece = White_Rook,
+                 "Move_Piece must move the source piece");
+         Assert (Popcount (Occupancy (P)) = 2
+                   and then Popcount (Color_Board (P, White)) = 1
+                   and then Popcount (Color_Board (P, Black)) = 1,
+                 "Move_Piece must preserve occupancy counts");
+         Remove_Piece (P, White_Rook, 1);
+         Assert (Invariant_Holds (P), "Remove_Piece must preserve coherence");
+         Assert (not Piece_At (P, 1, Piece),
+                 "an emptied square must not expose its stale square-map entry");
+         Remove_Piece (P, Black_Pawn, 9);
+         Assert (Invariant_Holds (P), "the emptied board must be coherent");
+         Assert (Occupancy (P) = 0
+                   and then Color_Board (P, White) = 0
+                   and then Color_Board (P, Black) = 0,
+                 "Remove_Piece must clear every occupancy");
+      end;
+
+#if ASSERTS then
+      -- Contract violations are exercised only where -gnata enables the
+      -- public preconditions. Calling them with checks suppressed would be
+      -- invalid execution, not a meaningful release-mode test.
+      declare
+         P : Position_Type;
+      begin
+         Put_Piece (P, White_Rook, 0);
+         begin
+            Put_Piece (P, Black_Pawn, 0);
+            Assert (False, "Put_Piece must reject an occupied square");
+         exception
+            when Ada.Assertions.Assertion_Error =>
+               Assert (True, "Put_Piece occupied-square precondition");
+         end;
+      end;
+
+      declare
+         P : Position_Type;
+      begin
+         Put_Piece (P, White_Rook, 0);
+         begin
+            Remove_Piece (P, White_Queen, 0);
+            Assert (False, "Remove_Piece must reject the wrong piece");
+         exception
+            when Ada.Assertions.Assertion_Error =>
+               Assert (True, "Remove_Piece wrong-piece precondition");
+         end;
+      end;
+
+      declare
+         P : Position_Type;
+      begin
+         Put_Piece (P, White_Rook, 0);
+         Put_Piece (P, Black_Pawn, 1);
+         begin
+            Move_Piece (P, White_Rook, 0, 1);
+            Assert (False, "Move_Piece must reject an occupied destination");
+         exception
+            when Ada.Assertions.Assertion_Error =>
+               Assert (True, "Move_Piece destination precondition");
+         end;
+      end;
+
+      declare
+         P : Position_Type;
+      begin
+         Put_Piece (P, White_Rook, 0);
+         begin
+            Move_Piece (P, White_Knight, 0, 1);
+            Assert (False, "Move_Piece must reject the wrong source piece");
+         exception
+            when Ada.Assertions.Assertion_Error =>
+               Assert (True, "Move_Piece source-piece precondition");
+         end;
+         begin
+            Move_Piece (P, White_Rook, 0, 0);
+            Assert (False, "Move_Piece must reject identical squares");
+         exception
+            when Ada.Assertions.Assertion_Error =>
+               Assert (True, "Move_Piece distinct-squares precondition");
+         end;
+      end;
+
+      declare
+         P : Position_Type;
+      begin
+         begin
+            P.En_Passant := En_Passant_Type (Integer'Value ("64"));
+            Assert (Invariant_Holds (P), "invalid EP assignment must not corrupt the board");
+            Assert (False, "En_Passant must reject values outside -1 .. 63");
+         exception
+            when Constraint_Error =>
+               Assert (True, "En_Passant bounded-domain check");
+         end;
+      end;
+
+      begin
+         declare
+            Unused : constant Square_Type := Lowest_Bit (0);
+         begin
+            Assert (False, "Lowest_Bit must reject an empty bitboard");
+         end;
+      exception
+         when Ada.Assertions.Assertion_Error =>
+            Assert (True, "Lowest_Bit nonzero precondition");
+         when others =>
+            Assert (False, "Lowest_Bit(0) must raise Assertion_Error");
+      end;
+
+#end if;
 
       -- Occupancy helpers.
       for S in 8 .. 15 loop
@@ -144,7 +277,8 @@ package body BBChess.Self_Tests is
       Assert ((Rook_Attacks (0, Bit (16)) and Bit (24)) = 0,
               "rook a1 cannot attack beyond a4");
 
-      -- Legal move count at the start position.
+      -- Legal move count and full board invariant at the start position.
+      Assert (Invariant_Holds (Start_Position), "start position must be coherent");
       declare
          List  : Move_List;
          Count : Natural;
@@ -172,6 +306,7 @@ package body BBChess.Self_Tests is
          M := (From => 12, To => 28, Piece => White_Pawn,
                Promotion => White_Pawn, Flag => Double_Push);
          Make_Move (P, M, U);
+         Assert (Invariant_Holds (P), "Make_Move must preserve board coherence");
          Assert (P.Side = Black, "after 1.e4 side is black");
          --  No black pawn can capture on e3, so the square is not part of the
          --  position (an unusable ep square must not reach the Zobrist key).
@@ -187,6 +322,7 @@ package body BBChess.Self_Tests is
          end;
 
          Unmake_Move (P, M, U);
+         Assert (Invariant_Holds (P), "Unmake_Move must restore board coherence");
          Assert (P.Side = White, "side restored after unmake");
          Assert (Occupancy (P) = Occ_Before, "occupancy restored after unmake");
          Assert (P.En_Passant = -1, "ep square restored after unmake");
@@ -515,7 +651,7 @@ package body BBChess.Self_Tests is
                for Kind in Kind_Type loop
                   declare
                      Piece : constant Piece_Type := Make (Color, Kind);
-                     B     : Bitboard := P.Pieces (Piece);
+                     B     : Bitboard := Piece_Board (P, Piece);
                   begin
                      while B /= 0 loop
                         declare
